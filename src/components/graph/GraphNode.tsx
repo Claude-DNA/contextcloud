@@ -1,0 +1,528 @@
+'use client';
+
+import { memo, useCallback, useContext } from 'react';
+import { Handle, Position, type NodeProps } from '@xyflow/react';
+import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
+import { GraphContext } from './GraphContext';
+import { type LucideProps } from 'lucide-react';
+import * as Icons from 'lucide-react';
+
+// Resolve a Lucide icon by name
+function getIcon(name?: string): React.ComponentType<LucideProps> | null {
+  if (!name) return null;
+  return (Icons as unknown as Record<string, React.ComponentType<LucideProps>>)[name] || null;
+}
+
+export interface GraphNodeData {
+  type: string;
+  label: string;
+  emoji: string;
+  color: string;
+  title: string;
+  content: string;
+  isProxy?: boolean;
+  isContainer?: boolean;
+  parentNodeId?: string;
+  parentLabel?: string;
+  stateColor?: string | null;
+  generatedImage?: string | null;
+  graphId?: string;
+  childCanvas?: unknown;
+  childCount?: number;
+  onTitleChange: (id: string, title: string) => void;
+  onContentChange: (id: string, content: string) => void;
+  onZoomToParent?: (parentNodeId: string) => void;
+  onStateColorChange?: (id: string, color: string) => void;
+  onImageGenerated?: (id: string, url: string) => void;
+  onDelete?: (id: string) => void;
+  onOpenContainer?: (id: string) => void;
+  [key: string]: unknown;
+}
+
+/* --- Icon Badge --- reusable colored square with Lucide icon --- */
+function IconBadge({ color, type, size = 28 }: { color: string; type: string; size?: number }) {
+  const config = NODE_TYPE_MAP[type];
+  const IconComp = getIcon(config?.icon);
+  return (
+    <div
+      className="rounded text-white flex items-center justify-center shrink-0"
+      style={{ backgroundColor: color, width: size, height: size }}
+    >
+      {IconComp ? <IconComp size={size * 0.57} strokeWidth={2} className="text-white" /> : (
+        <span className="text-[10px] font-bold">{config?.abbr || type.slice(0, 2).toUpperCase()}</span>
+      )}
+    </div>
+  );
+}
+
+/* --- ProxyNode --- compact badge node for characterProxy / sceneProxy --- */
+function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { color, parentNodeId, stateColor, onZoomToParent, onDelete, type } = data;
+  const { bigNodes, onParentChange } = useContext(GraphContext);
+
+  const handleClick = useCallback(() => {
+    if (parentNodeId && onZoomToParent) {
+      onZoomToParent(parentNodeId);
+    }
+  }, [parentNodeId, onZoomToParent]);
+
+  return (
+    <div className="group relative rounded-lg shadow-sm">
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
+          title="Delete node"
+        >{'\u00D7'}</button>
+      )}
+      <div
+        onClick={handleClick}
+        className="cursor-pointer"
+        style={{
+          width: 120,
+          minHeight: 60,
+          border: selected ? `2px solid ${color}` : `2px solid ${color}40`,
+          boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+          background: '#ffffff',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          borderRadius: 8,
+          overflow: 'hidden',
+        }}
+      >
+        <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+
+        {/* State color badge (top-right) */}
+        <div
+          className="absolute"
+          style={{
+            top: 4,
+            right: 4,
+            width: 16,
+            height: 16,
+            borderRadius: '50%',
+            background: stateColor || '#d1d5db',
+            border: '2px solid #e5e7eb',
+            zIndex: 2,
+          }}
+        />
+
+        <IconBadge color={color} type={type} />
+        <select
+          value={parentNodeId || ''}
+          onChange={(e) => {
+            const opt = (bigNodes || []).find(n => n.id === e.target.value);
+            if (opt && onParentChange) onParentChange(id, opt.id, opt.label);
+          }}
+          onClick={(e) => e.stopPropagation()}
+          className="text-[9px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-1 py-0.5 w-full max-w-[100px] mt-1"
+        >
+          <option value="">Link to node...</option>
+          {(bigNodes || []).map(n => (
+            <option key={n.id} value={n.id}>{n.label || n.id}</option>
+          ))}
+        </select>
+
+        <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+      </div>
+    </div>
+  );
+}
+
+/* --- StateNode --- small square with 6-color picker --- */
+function StateNode({ id, data }: { id: string; data: GraphNodeData }) {
+  const { stateColor, onStateColorChange, onDelete } = data;
+
+  const handleColorPick = useCallback(
+    (hex: string) => {
+      if (onStateColorChange) {
+        onStateColorChange(id, hex);
+      }
+    },
+    [id, onStateColorChange]
+  );
+
+  return (
+    <div className="group relative">
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
+          title="Delete node"
+        >{'\u00D7'}</button>
+      )}
+    <div
+      className="rounded-lg shadow-sm"
+      style={{
+        width: 100,
+        height: 100,
+        background: stateColor
+          ? `${stateColor}1A`
+          : '#ffffff',
+        border: stateColor ? `2px solid ${stateColor}` : '2px solid #d1d5db',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+      }}
+    >
+      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+
+      <IconBadge color="#888888" type="state" />
+      <span className="text-[11px] text-gray-600 font-medium">State</span>
+
+      {/* Color picker -- 6 circles */}
+      <div className="flex gap-1 flex-wrap justify-center px-1">
+        {Object.entries(STATE_COLORS).map(([key, { hex }]) => (
+          <button
+            key={key}
+            onClick={() => handleColorPick(hex)}
+            title={STATE_COLORS[key as keyof typeof STATE_COLORS].label}
+            className="transition-transform hover:scale-125"
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: '50%',
+              background: hex,
+              border: stateColor === hex ? '2px solid #374151' : '1px solid #d1d5db',
+              cursor: 'pointer',
+              padding: 0,
+            }}
+          />
+        ))}
+      </div>
+
+      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+    </div>
+    </div>
+  );
+}
+
+/* --- Reference node types --- */
+const REFERENCE_TYPES = new Set(['musicReference', 'bookReference', 'artReference', 'filmReference', 'realEventReference']);
+
+/* --- ReferenceNode --- compact card --- */
+function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { color, onDelete, type } = data;
+  const externalTitle = (data.externalTitle || data.title) as string;
+  const config = NODE_TYPE_MAP[type];
+  const refLabel = config?.label || 'Reference';
+
+  return (
+    <div
+      className="group relative bg-white rounded-lg transition-shadow"
+      style={{
+        width: 160,
+        height: 50,
+        border: selected ? `2px solid ${color}` : `1px solid ${color}60`,
+        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 10px',
+        gap: 8,
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
+        >{'\u00D7'}</button>
+      )}
+      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5" />
+
+      <IconBadge color={color} type={type} />
+      <div className="flex flex-col overflow-hidden min-w-0">
+        <span className="text-xs text-gray-800 font-medium truncate">{externalTitle || 'Untitled'}</span>
+        <span className="text-[9px] text-gray-400 truncate">{refLabel}</span>
+      </div>
+
+      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5" />
+    </div>
+  );
+}
+
+/* --- ContainerNode --- subcloud card with 'Open' button --- */
+function ContainerNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { color, title, onDelete, onOpenContainer, type } = data;
+  const config = NODE_TYPE_MAP[type];
+  const containerLabel = config?.label || 'Container';
+
+  // Count child nodes
+  const childCanvas = data.childCanvas as { nodes?: unknown[] } | undefined;
+  const childCount = childCanvas?.nodes?.length || 0;
+
+  return (
+    <div
+      className="group relative bg-white rounded-lg transition-shadow hover:shadow-md"
+      style={{
+        width: 200,
+        height: 56,
+        border: selected ? `2px solid ${color}` : `2px dashed ${color}80`,
+        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 8px',
+        gap: 8,
+        background: `${color}08`,
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
+        >{'\u00D7'}</button>
+      )}
+      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5" />
+
+      <IconBadge color={color} type={type} size={32} />
+      <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+        <span className="text-xs text-gray-800 font-medium truncate">{title || containerLabel}</span>
+        <span className="text-[9px] text-gray-400">{childCount > 0 ? `${childCount} nodes inside` : 'Empty'}</span>
+      </div>
+      <button
+        onClick={(e) => { e.stopPropagation(); if (onOpenContainer) onOpenContainer(id); }}
+        className="text-[10px] font-medium px-2 py-1 rounded text-white shrink-0 hover:opacity-90 transition-opacity"
+        style={{ backgroundColor: color }}
+      >
+        Open &rarr;
+      </button>
+
+      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5" />
+    </div>
+  );
+}
+
+/* --- TypedHandleNode --- for chapterAct, plot, scene with multiple labeled input handles --- */
+function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { type, color, title, onDelete } = data;
+  const config = NODE_TYPE_MAP[type];
+  const nodeLabel = config?.label || type;
+  const handles = TYPED_HANDLES[type] || [];
+  const outputHandles = OUTPUT_HANDLES[type] || [];
+
+  return (
+    <div
+      className="group relative bg-white rounded-lg transition-shadow hover:shadow-md"
+      style={{
+        width: 180,
+        minHeight: 90,
+        border: selected ? `2px solid ${color}` : `1px solid #e5e7eb`,
+        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 10px',
+        gap: 8,
+        position: 'relative',
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
+          title="Delete node"
+        >{'\u00D7'}</button>
+      )}
+
+      {/* Multiple typed input handles */}
+      {handles.map((h) => (
+        <div key={h.id}>
+          <Handle
+            type="target"
+            position={Position.Left}
+            id={h.id}
+            style={{
+              top: h.top,
+              background: h.color,
+              width: 10,
+              height: 10,
+              border: '2px solid white',
+            }}
+          />
+          <span
+            className="text-[8px] font-medium pointer-events-none select-none"
+            style={{
+              position: 'absolute',
+              left: 6,
+              top: h.top,
+              transform: 'translateY(-50%)',
+              color: h.color,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {h.label}
+          </span>
+        </div>
+      ))}
+
+      <IconBadge color={color} type={type} />
+      <div className="flex flex-col overflow-hidden min-w-0">
+        <span className="text-xs text-gray-800 font-medium truncate">{title || 'Untitled'}</span>
+        <span className="text-[9px] text-gray-400 truncate">{nodeLabel}</span>
+      </div>
+
+      {/* Typed output handles (if defined) */}
+      {outputHandles.length > 0 ? outputHandles.map((h) => (
+        <div key={h.id}>
+          <Handle
+            type="source"
+            position={Position.Right}
+            id={h.id}
+            style={{
+              top: h.top,
+              background: h.color,
+              width: 10,
+              height: 10,
+              border: '2px solid white',
+            }}
+          />
+          <span
+            className="text-[8px] font-medium pointer-events-none select-none"
+            style={{
+              position: 'absolute',
+              right: 6,
+              top: h.top,
+              transform: 'translateY(-50%)',
+              color: h.color,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {h.label}
+          </span>
+        </div>
+      )) : (
+        /* Single output handle (default) */
+        <Handle
+          type="source"
+          position={Position.Right}
+          id="output"
+          className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-300"
+        />
+      )}
+    </div>
+  );
+}
+
+/* --- AiNode --- special compact card with pulse ring --- */
+function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { color, onDelete } = data;
+  const model = (data.model as string) || AI_NODE_CONFIG.defaultModel;
+  const hasApiKey = !!(data.apiKey as string);
+  const modelInfo = AI_NODE_CONFIG.availableModels.find(m => m.id === model);
+  const shortLabel = modelInfo?.label || model;
+
+  return (
+    <div
+      className="group relative bg-white rounded-lg transition-shadow hover:shadow-md"
+      style={{
+        width: 190,
+        height: 56,
+        border: selected ? `2px solid ${color}` : `1px solid ${color}60`,
+        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 10px',
+        gap: 8,
+        position: 'relative',
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
+          title="Delete node"
+        >{'\u00D7'}</button>
+      )}
+      <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />
+
+      <div className="relative shrink-0">
+        {hasApiKey && (
+          <div
+            className="absolute inset-0 rounded"
+            style={{
+              width: 28,
+              height: 28,
+              border: `2px solid ${color}`,
+              borderRadius: 6,
+              animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            }}
+          />
+        )}
+        <IconBadge color={color} type="aiNode" />
+      </div>
+      <div className="flex flex-col overflow-hidden min-w-0">
+        <span className="text-xs text-gray-800 font-semibold truncate">{shortLabel}</span>
+        <span className="text-[9px] text-indigo-400 truncate">AI Agent</span>
+      </div>
+
+      <Handle type="source" position={Position.Right} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/* --- DefaultGraphNode --- compact card (180x50) --- */
+function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { type, color, title, onDelete } = data;
+  const config = NODE_TYPE_MAP[type];
+  const nodeLabel = config?.label || type;
+
+  return (
+    <div
+      className="group relative bg-white rounded-lg transition-shadow hover:shadow-md"
+      style={{
+        width: 180,
+        height: 50,
+        border: selected ? `2px solid ${color}` : `1px solid #e5e7eb`,
+        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 10px',
+        gap: 8,
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
+          title="Delete node"
+        >{'\u00D7'}</button>
+      )}
+      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-300" />
+
+      <IconBadge color={color} type={type} />
+      <div className="flex flex-col overflow-hidden min-w-0">
+        <span className="text-xs text-gray-800 font-medium truncate">{title || 'Untitled'}</span>
+        <span className="text-[9px] text-gray-400 truncate">{nodeLabel}</span>
+      </div>
+
+      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-300" />
+    </div>
+  );
+}
+
+/* --- Set of types that use typed multi-handles --- */
+const TYPED_HANDLE_TYPES = new Set(Object.keys(TYPED_HANDLES));
+
+/* --- Main GraphNode router --- */
+function GraphNodeComponent({ id, data, selected }: NodeProps) {
+  const d = data as unknown as GraphNodeData;
+
+  if (d.isProxy) return <ProxyNode id={id} data={d} selected={selected} />;
+  if (d.type === 'state') return <StateNode id={id} data={d} />;
+  if (d.type === 'aiNode') return <AiNode id={id} data={d} selected={selected} />;
+  if (d.isContainer) return <ContainerNode id={id} data={d} selected={selected} />;
+  if (REFERENCE_TYPES.has(d.type)) return <ReferenceNode id={id} data={d} selected={selected} />;
+  if (TYPED_HANDLE_TYPES.has(d.type)) return <TypedHandleNode id={id} data={d} selected={selected} />;
+  return <DefaultGraphNode id={id} data={d} selected={selected} />;
+}
+
+export default memo(GraphNodeComponent);
