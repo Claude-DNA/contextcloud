@@ -8,6 +8,7 @@ import IdeaEditModal from '@/components/ideas-cloud/IdeaEditModal';
 import WeightEditorModal from '@/components/ideas-cloud/WeightEditorModal';
 import TransformationsModal from '@/components/ideas-cloud/TransformationsModal';
 import FinalStateModal from '@/components/ideas-cloud/FinalStateModal';
+import NarrativeLab from '@/components/narrative-lab/NarrativeLab';
 
 interface Idea {
   id: string;
@@ -165,7 +166,9 @@ export default function IdeasCloudPage() {
       <Sidebar />
       <main className="flex-1 ml-60 flex flex-col">
         <Header />
-        <div className="flex-1 p-8 max-w-5xl mx-auto w-full">
+        <div className="flex-1 p-8 w-full">
+        <div className="flex gap-8 max-w-7xl mx-auto">
+        <div className="flex-1 min-w-0">
           {/* Title bar */}
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-xl font-semibold text-foreground">Ideas Cloud</h1>
@@ -235,6 +238,16 @@ export default function IdeasCloudPage() {
               </button>
             </div>
           )}
+        </div>
+        {/* Narrative Lab panel */}
+        {ideas.length > 0 && (
+          <div className="w-80 shrink-0">
+            <div className="sticky top-8 border border-border rounded-2xl p-4 bg-card-bg shadow-sm">
+              <NarrativeLab ideas={ideas.map(i => ({ id: i.id, text: i.text, weight: Number(i.weight) }))} />
+            </div>
+          </div>
+        )}
+        </div>
         </div>
       </main>
 

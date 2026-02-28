@@ -146,6 +146,26 @@ export async function runMigrations() {
       )
     `);
 
+    // Narrative vectors (Phase 2 — 8-axis element analysis)
+    await query(`
+      CREATE TABLE IF NOT EXISTS narrative_vectors (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        element_id UUID NOT NULL,
+        element_type TEXT NOT NULL,  -- 'idea' | 'character'
+        element_text TEXT NOT NULL,  -- snapshot of text when vectorized
+        emotional_intensity NUMERIC(4,3) NOT NULL DEFAULT 0,
+        philosophical_depth NUMERIC(4,3) NOT NULL DEFAULT 0,
+        physical_presence   NUMERIC(4,3) NOT NULL DEFAULT 0,
+        plot_momentum       NUMERIC(4,3) NOT NULL DEFAULT 0,
+        tension             NUMERIC(4,3) NOT NULL DEFAULT 0,
+        mystery             NUMERIC(4,3) NOT NULL DEFAULT 0,
+        intimacy            NUMERIC(4,3) NOT NULL DEFAULT 0,
+        resolution_tendency NUMERIC(4,3) NOT NULL DEFAULT 0,
+        computed_at TIMESTAMPTZ DEFAULT NOW(),
+        UNIQUE(element_id, element_type)
+      )
+    `);
+
     console.log('Migrations complete');
   } catch (e) {
     console.error('Migration error:', e);
