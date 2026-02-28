@@ -70,16 +70,20 @@ export default function IdeaEditModal({ idea, onClose, onSave, onDelete }: IdeaE
 
         {/* Footer */}
         <div className="flex items-center justify-between mt-6 pt-4 border-t border-border">
-          <button
-            onClick={handleDelete}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              confirmDelete
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : 'text-red-500 hover:bg-red-50'
-            }`}
-          >
-            {confirmDelete ? 'Confirm Delete' : 'Delete'}
-          </button>
+          {idea.id ? (
+            <button
+              onClick={handleDelete}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                confirmDelete
+                  ? 'bg-red-500 text-white hover:bg-red-600'
+                  : 'text-red-500 hover:bg-red-50'
+              }`}
+            >
+              {confirmDelete ? 'Confirm Delete' : 'Delete'}
+            </button>
+          ) : (
+            <div />
+          )}
           <div className="flex gap-3">
             <button
               onClick={onClose}

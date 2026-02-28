@@ -67,34 +67,35 @@ export default function IdeasCloudPage() {
 
   // --- Actions ---
 
-  const handleAdd = async () => {
-    setAdding(true);
-    try {
-      const res = await fetch('/api/v1/ideas', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: 'New idea' }),
-      });
-      if (res.ok) {
-        await fetchIdeas();
-      }
-    } catch (err) {
-      console.error('Failed to add idea:', err);
-    } finally {
-      setAdding(false);
-    }
+  // Open empty edit modal — create only happens on Save
+  const handleAdd = () => {
+    setEditModalIdea({ id: '', text: '', weight: 1, locked: false, final_state_manual: null, final_state_generated: null, sort_order: 0, image_url: null });
   };
 
   const handleSaveIdea = async (updated: any) => {
     try {
-      const res = await fetch(`/api/v1/ideas/${updated.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: updated.text }),
-      });
-      if (res.ok) {
-        await fetchIdeas();
-        setEditModalIdea(null);
+      if (!updated.id) {
+        // New idea — create via POST
+        const res = await fetch('/api/v1/ideas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: updated.text }),
+        });
+        if (res.ok) {
+          await fetchIdeas();
+          setEditModalIdea(null);
+        }
+      } else {
+        // Existing idea — update via PUT
+        const res = await fetch(`/api/v1/ideas/${updated.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: updated.text }),
+        });
+        if (res.ok) {
+          await fetchIdeas();
+          setEditModalIdea(null);
+        }
       }
     } catch (err) {
       console.error('Failed to save idea:', err);

@@ -24,6 +24,7 @@ import GraphNodeComponent from '@/components/graph/GraphNode';
 import { NODE_TYPES, NODE_TYPE_MAP, STATE_COLORS, type NodeTypeConfig } from '@/components/graph/nodeTypes';
 import { GraphContext } from '@/components/graph/GraphContext';
 import NodePanel from '@/components/graph/NodePanel';
+import DraftBrowser from '@/components/graph/DraftBrowser';
 
 // Register all node types to the same GraphNode component
 const nodeTypes: Record<string, typeof GraphNodeComponent> = {};
@@ -88,6 +89,7 @@ export default function VisualCanvas() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [showDraftBrowser, setShowDraftBrowser] = useState(false);
   const nodeCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -637,6 +639,14 @@ export default function VisualCanvas() {
                 </button>
                 <div className="w-px h-6 bg-gray-200 mx-1" />
                 <button
+                  onClick={() => setShowDraftBrowser(true)}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+                  title="Open existing draft"
+                >
+                  Open
+                </button>
+                <div className="w-px h-6 bg-gray-200 mx-1" />
+<button
                   onClick={save}
                   disabled={saving}
                   className="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-white transition-colors"
@@ -679,6 +689,19 @@ export default function VisualCanvas() {
           </ReactFlow>
         </GraphContext.Provider>
       </div>
+
+      {showDraftBrowser && (
+        <DraftBrowser
+          onLoad={(loadedNodes, loadedEdges, loadedTitle, loadedDraftId) => {
+            setNodes(loadedNodes);
+            setEdges(loadedEdges);
+            setTitle(loadedTitle);
+            setDraftId(loadedDraftId);
+            setShowDraftBrowser(false);
+          }}
+          onClose={() => setShowDraftBrowser(false)}
+        />
+      )}
 
       {/* Node Editor Panel (n8n-style) */}
       <NodePanel
