@@ -4,7 +4,7 @@ export interface NodeTypeConfig {
   emoji: string;
   abbr: string;
   icon: string; // Lucide icon component name
-  category: 'content' | 'reference' | 'meta' | 'container' | 'character' | 'proxy';
+  category: 'content' | 'reference' | 'meta' | 'container' | 'character' | 'proxy' | 'narrative';
   color: string;
   inputs: string[]; // '*' means any
   outputs: string[]; // '*' means any
@@ -42,6 +42,9 @@ export const NODE_TYPES: NodeTypeConfig[] = [
   // Character nodes
   { type: 'motivation', label: 'Motivation', emoji: '🔥', abbr: 'MO', icon: 'Flame', category: 'character' as NodeTypeConfig['category'], color: '#f59e0b',
     inputs: ['*'], outputs: ['state', 'character'] },
+  // Narrative nodes
+  { type: 'arc', label: 'Arc', emoji: '📈', abbr: 'AR', icon: 'TrendingUp', category: 'narrative', color: '#0891b2',
+    inputs: ['*'], outputs: ['*'] },
   // Reference nodes
   { type: 'musicReference', label: 'Music Reference', emoji: '\u{1F3B5}', abbr: 'MU', icon: 'Music', category: 'reference', color: '#E8A838',
     inputs: [], outputs: ['character', 'scene'] },
@@ -110,28 +113,68 @@ export interface TypedHandle {
 }
 
 export const TYPED_HANDLES: Record<string, TypedHandle[]> = {
-  chapterAct: [
-    { id: 'scenes', label: 'Scenes', color: '#10b981', top: '25%' },
-    { id: 'characters', label: 'Characters', color: '#8b5cf6', top: '50%' },
-    { id: 'plot', label: 'Plot', color: '#3b82f6', top: '75%' },
-  ],
-  plot: [
-    { id: 'characters', label: 'Characters', color: '#8b5cf6', top: '25%' },
-    { id: 'prev_plot', label: 'Prev Plot', color: '#3b82f6', top: '50%' },
-    { id: 'universe', label: 'Universe', color: '#6366f1', top: '75%' },
-  ],
-  scene: [
-    { id: 'characters', label: 'Characters', color: '#8b5cf6', top: '20%' },
-    { id: 'prev_scene', label: 'Prev Scene', color: '#10b981', top: '40%' },
-    { id: 'plot', label: 'Plot', color: '#3b82f6', top: '60%' },
-    { id: 'world', label: 'World', color: '#64748b', top: '80%' },
+  arc: [
+    { id: 'input', label: 'Chapter Input', color: '#0891b2', top: '50%' },
   ],
   motivation: [
     { id: 'trigger', label: 'Trigger Event', color: '#ef4444', top: '50%' },
   ],
 };
 
+// 4-directional hub handle config for narrative nodes
+export interface HubHandleConfig {
+  id: string;
+  label: string;
+  type: 'source' | 'target';
+  position: 'top' | 'right' | 'left' | 'bottom';
+  color: string;
+  offset?: string; // percentage for stacking multiple handles on same side
+}
+
+// All inputs LEFT, single output RIGHT — clean n8n pattern
+export const HUB_HANDLES: Record<string, HubHandleConfig[]> = {
+  chapterAct: [
+    // Left side: In (chain) + cloud inputs stacked
+    { id: 'prev_chapter', label: 'In',    type: 'target', position: 'left',  color: '#3b82f6', offset: '20%' },
+    { id: 'ai',           label: 'AI',    type: 'target', position: 'left',  color: '#6366f1', offset: '42%' },
+    { id: 'world',        label: 'World', type: 'target', position: 'left',  color: '#0ea5e9', offset: '62%' },
+    { id: 'ideas',        label: 'Ideas', type: 'target', position: 'left',  color: '#eab308', offset: '82%' },
+    // Right side: Out (chain) + context inputs stacked
+    { id: 'next_chapter', label: 'Out',        type: 'source', position: 'right', color: '#3b82f6', offset: '20%' },
+    { id: 'arc',          label: 'Arc',        type: 'target', position: 'right', color: '#0891b2', offset: '55%' },
+    { id: 'references',   label: 'References', type: 'target', position: 'right', color: '#64748b', offset: '80%' },
+  ],
+  plot: [
+    { id: 'arc_point',  label: 'Arc Point',  type: 'target', position: 'left', color: '#0891b2', offset: '12%' },
+    { id: 'prev_plot',  label: 'Prev Plot',  type: 'target', position: 'left', color: '#3b82f6', offset: '25%' },
+    { id: 'characters', label: 'Characters', type: 'target', position: 'left', color: '#8b5cf6', offset: '38%' },
+    { id: 'scenes',     label: 'Scenes',     type: 'target', position: 'left', color: '#10b981', offset: '50%' },
+    { id: 'references', label: 'References', type: 'target', position: 'left', color: '#64748b', offset: '63%' },
+    { id: 'ai',         label: 'AI',         type: 'target', position: 'left', color: '#6366f1', offset: '75%' },
+    { id: 'world',      label: 'World',      type: 'target', position: 'left', color: '#0ea5e9', offset: '88%' },
+    { id: 'output',     label: 'Output',     type: 'source', position: 'right', color: '#3b82f6', offset: '50%' },
+  ],
+  scene: [
+    { id: 'prev_scene', label: 'Prev Scene', type: 'target', position: 'left', color: '#10b981', offset: '14%' },
+    { id: 'characters', label: 'Characters', type: 'target', position: 'left', color: '#8b5cf6', offset: '29%' },
+    { id: 'plot',       label: 'Plot',       type: 'target', position: 'left', color: '#3b82f6', offset: '43%' },
+    { id: 'references', label: 'References', type: 'target', position: 'left', color: '#64748b', offset: '57%' },
+    { id: 'ai',         label: 'AI',         type: 'target', position: 'left', color: '#6366f1', offset: '71%' },
+    { id: 'world',      label: 'World',      type: 'target', position: 'left', color: '#0ea5e9', offset: '86%' },
+    { id: 'output',     label: 'Output',     type: 'source', position: 'right', color: '#10b981', offset: '50%' },
+  ],
+  arc: [
+    { id: 'chapter',    label: 'Chapter',    type: 'target', position: 'left', color: '#0891b2', offset: '50%' },
+    { id: 'output_1',   label: 'Plot 1',     type: 'source', position: 'right', color: '#0891b2', offset: '30%' },
+    { id: 'output_2',   label: 'Plot 2',     type: 'source', position: 'right', color: '#0891b2', offset: '50%' },
+    { id: 'output_3',   label: 'Plot 3',     type: 'source', position: 'right', color: '#0891b2', offset: '70%' },
+  ],
+};
+
 export const OUTPUT_HANDLES: Record<string, TypedHandle[]> = {
+  arc: [
+    { id: 'output', label: 'Chapter Output', color: '#0891b2', top: '50%' },
+  ],
   motivation: [
     { id: 'state', label: '→ State', color: '#f59e0b', top: '35%' },
     { id: 'character', label: '→ Character', color: '#8b5cf6', top: '65%' },

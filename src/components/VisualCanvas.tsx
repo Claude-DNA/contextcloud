@@ -4,6 +4,7 @@ import { useCallback, useState, useRef, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   ReactFlow,
+  ConnectionMode,
   Background,
   BackgroundVariant,
   Controls,
@@ -28,16 +29,6 @@ import NodePanel from '@/components/graph/NodePanel';
 const nodeTypes: Record<string, typeof GraphNodeComponent> = {};
 for (const nt of NODE_TYPES) {
   nodeTypes[nt.type] = GraphNodeComponent;
-}
-
-// --- Cloud navigation types ---
-interface CloudLevel {
-  id: string;       // node id of the container (or 'root')
-  title: string;
-  type: string;
-  nodes: Node[];
-  edges: Edge[];
-  draftId: string | null;
 }
 
 function serializeGraphForAI(title: string, nodes: Node[], edges: Edge[]): string {
@@ -99,10 +90,6 @@ export default function VisualCanvas() {
   const [importing, setImporting] = useState(false);
   const nodeCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // --- Cloud navigation state ---
-  const [cloudStack, setCloudStack] = useState<CloudLevel[]>([]);
-  // cloudStack = [] means we're at root. cloudStack[last] = parent of current view.
 
   // Show toast helper
   const showToast = useCallback((msg: string) => {
@@ -174,135 +161,6 @@ export default function VisualCanvas() {
     setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, [field]: value } } : n));
   }, [setNodes]);
 
-  // --- Container open handler ---
-  const handleOpenContainer = useCallback((containerId: string) => {
-    const containerNode = nodes.find(n => n.id === containerId);
-    if (!containerNode) return;
-
-    // Save current canvas state to stack
-    setCloudStack(prev => [
-      ...prev,
-      {
-        id: containerId,
-        title: (containerNode.data.title as string) || (containerNode.data.label as string) || 'Container',
-        type: containerNode.type || '',
-        nodes: [...nodes],
-        edges: [...edges],
-        draftId,
-      },
-    ]);
-
-    // Load child canvas or create empty one
-    const childCanvas = containerNode.data.childCanvas as { nodes?: Node[]; edges?: Edge[] } | undefined;
-    if (childCanvas?.nodes && childCanvas.nodes.length > 0) {
-      // Restore child nodes with callbacks
-      const restored = childCanvas.nodes.map(n => ({
-        ...n,
-        data: {
-          ...n.data,
-          onTitleChange: handleTitleChange,
-          onContentChange: handleContentChange,
-          onZoomToParent,
-          onStateColorChange: handleStateColorChange,
-          onImageGenerated: handleImageGenerated,
-          onDelete: handleDeleteNode,
-          onOpenContainer: handleOpenContainer,
-        },
-      }));
-      setNodes(restored);
-      setEdges(childCanvas.edges || []);
-    } else {
-      setNodes([]);
-      setEdges([]);
-    }
-    setSelectedNodeId(null);
-    setTimeout(() => reactFlowInstance.fitView({ duration: 300 }), 100);
-  }, [nodes, edges, draftId, setNodes, setEdges, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
-
-  // --- Navigate back to a breadcrumb level ---
-  const handleNavigateBack = useCallback((levelIndex: number) => {
-    if (cloudStack.length === 0) return;
-
-    // Save current nodes/edges into the container node at the top of stack
-    const currentLevel = cloudStack[cloudStack.length - 1];
-    // We need to save current canvas into the container node of the parent level
-    const cleanChildNodes = nodes.map(n => {
-      const clean: Record<string, unknown> = { ...n.data };
-      // Strip callbacks
-      delete clean.onTitleChange;
-      delete clean.onContentChange;
-      delete clean.onZoomToParent;
-      delete clean.onStateColorChange;
-      delete clean.onImageGenerated;
-      delete clean.onDelete;
-      delete clean.onOpenContainer;
-      return { ...n, data: clean };
-    });
-
-    // Navigate back: restore the target level
-    let targetNodes: Node[];
-    let targetEdges: Edge[];
-
-    if (levelIndex < 0) {
-      // Go to root
-      if (cloudStack.length > 0) {
-        const rootLevel = cloudStack[0];
-        targetNodes = rootLevel.nodes;
-        targetEdges = rootLevel.edges;
-      } else {
-        return;
-      }
-    } else {
-      // Go to the level AFTER the clicked breadcrumb (which is stored at levelIndex)
-      const targetLevel = cloudStack[levelIndex];
-      targetNodes = targetLevel.nodes;
-      targetEdges = targetLevel.edges;
-    }
-
-    // Update the container node with current child canvas before restoring parent
-    const containerNodeId = currentLevel.id;
-    targetNodes = targetNodes.map(n => {
-      if (n.id === containerNodeId) {
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            childCanvas: { nodes: cleanChildNodes, edges },
-          },
-        };
-      }
-      return n;
-    });
-
-    // Restore callbacks on target nodes
-    const restored = targetNodes.map(n => ({
-      ...n,
-      data: {
-        ...n.data,
-        onTitleChange: handleTitleChange,
-        onContentChange: handleContentChange,
-        onZoomToParent,
-        onStateColorChange: handleStateColorChange,
-        onImageGenerated: handleImageGenerated,
-        onDelete: handleDeleteNode,
-        onOpenContainer: handleOpenContainer,
-      },
-    }));
-
-    setNodes(restored);
-    setEdges(targetEdges);
-
-    // Trim the stack
-    if (levelIndex < 0) {
-      setCloudStack([]);
-    } else {
-      setCloudStack(prev => prev.slice(0, levelIndex));
-    }
-
-    setSelectedNodeId(null);
-    setTimeout(() => reactFlowInstance.fitView({ duration: 300 }), 100);
-  }, [cloudStack, nodes, edges, setNodes, setEdges, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, handleOpenContainer, reactFlowInstance]);
-
   // Node click handlers
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => setSelectedNodeId(node.id), []);
   const onPaneClick = useCallback(() => setSelectedNodeId(null), []);
@@ -318,14 +176,6 @@ export default function VisualCanvas() {
       .map(n => ({ id: n.id, label: (n.data.title as string) || n.type || 'unnamed' })),
     [nodes]
   );
-
-  // Determine which node types to show in sidebar
-  const allowedChildTypes = useMemo(() => {
-    if (cloudStack.length === 0) return null; // null = show all
-    const currentContainer = cloudStack[cloudStack.length - 1];
-    const containerConfig = NODE_TYPE_MAP[currentContainer.type];
-    return containerConfig?.childNodeTypes || null;
-  }, [cloudStack]);
 
   // Add node
   const addNode = useCallback((config: NodeTypeConfig) => {
@@ -356,11 +206,10 @@ export default function VisualCanvas() {
         onStateColorChange: handleStateColorChange,
         onImageGenerated: handleImageGenerated,
         onDelete: handleDeleteNode,
-        onOpenContainer: handleOpenContainer,
       },
     };
     setNodes(nds => [...nds, newNode]);
-  }, [setNodes, draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, handleOpenContainer]);
+  }, [setNodes, draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode]);
 
   // Connect edges
   const onConnect = useCallback(
@@ -398,7 +247,7 @@ export default function VisualCanvas() {
     []
   );
 
-  // --- Save: serialize including childCanvas for container nodes ---
+  // --- Save: serialize node data for persistence ---
   const cleanNodesForSave = useCallback((nodesToClean: Node[]) => {
     return nodesToClean.map(n => {
       const clean: Record<string, unknown> = {
@@ -419,7 +268,20 @@ export default function VisualCanvas() {
       if (n.data.thumbnail) clean.thumbnail = n.data.thumbnail;
       if (n.data.externalUrl) clean.externalUrl = n.data.externalUrl;
       if (n.data.source) clean.source = n.data.source;
-      if (n.data.childCanvas) clean.childCanvas = n.data.childCanvas;
+      // Arc node fields
+      if (n.data.events) clean.events = n.data.events;
+      if (n.data.description) clean.description = n.data.description;
+      // Motivation node fields
+      if (n.data.trigger) clean.trigger = n.data.trigger;
+      if (n.data.rootCause) clean.rootCause = n.data.rootCause;
+      if (n.data.duration) clean.duration = n.data.duration;
+      if (n.data.resolution) clean.resolution = n.data.resolution;
+      // AI node fields
+      if (n.data.model) clean.model = n.data.model;
+      if (n.data.apiKey) clean.apiKey = n.data.apiKey;
+      if (n.data.systemPrompt) clean.systemPrompt = n.data.systemPrompt;
+      if (n.data.temperature !== undefined) clean.temperature = n.data.temperature;
+      if (n.data.instructions) clean.instructions = n.data.instructions;
       return { ...n, data: clean };
     });
   }, []);
@@ -542,7 +404,6 @@ export default function VisualCanvas() {
               onStateColorChange: handleStateColorChange,
               onImageGenerated: handleImageGenerated,
               onDelete: handleDeleteNode,
-              onOpenContainer: handleOpenContainer,
             },
           };
         });
@@ -573,25 +434,19 @@ export default function VisualCanvas() {
     setImporting(false);
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [draftId, showToast, setNodes, setEdges, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, handleOpenContainer, reactFlowInstance]);
+  }, [draftId, showToast, setNodes, setEdges, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
 
-  // Categorized node types for sidebar (filtered by container context)
+  // Categorized node types for sidebar
   const categorized = useMemo(() => {
-    const filterFn = (n: NodeTypeConfig) => {
-      if (allowedChildTypes) {
-        return allowedChildTypes.includes(n.type);
-      }
-      return true;
-    };
-
     return {
-      content: NODE_TYPES.filter(n => n.category === 'content' && !n.isProxy && filterFn(n)),
-      proxy: NODE_TYPES.filter(n => n.isProxy === true && filterFn(n)),
-      reference: NODE_TYPES.filter(n => n.category === 'reference' && filterFn(n)),
-      meta: NODE_TYPES.filter(n => n.category === 'meta' && filterFn(n)),
-      container: NODE_TYPES.filter(n => n.category === 'container' && filterFn(n)),
+      content: NODE_TYPES.filter(n => n.category === 'content' && !n.isProxy),
+      narrative: NODE_TYPES.filter(n => n.category === 'narrative' as NodeTypeConfig['category']),
+      proxy: NODE_TYPES.filter(n => n.isProxy === true),
+      reference: NODE_TYPES.filter(n => n.category === 'reference'),
+      meta: NODE_TYPES.filter(n => n.category === 'meta'),
+      container: NODE_TYPES.filter(n => n.category === 'container'),
     };
-  }, [allowedChildTypes]);
+  }, []);
 
   if (!session) {
     return (
@@ -644,6 +499,25 @@ export default function VisualCanvas() {
                 <div className="text-xs text-blue-600 font-medium mb-2">Content</div>
                 <div className="space-y-0.5">
                   {categorized.content.map(nt => (
+                    <button
+                      key={nt.type}
+                      onClick={() => addNode(nt)}
+                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700"
+                    >
+                      <span>{nt.emoji}</span>
+                      <span>{nt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Narrative Nodes */}
+            {categorized.narrative.length > 0 && (
+              <div className="mb-4">
+                <div className="text-xs text-cyan-600 font-medium mb-2">Narrative</div>
+                <div className="space-y-0.5">
+                  {categorized.narrative.map(nt => (
                     <button
                       key={nt.type}
                       onClick={() => addNode(nt)}
@@ -737,6 +611,7 @@ export default function VisualCanvas() {
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
+            connectionMode={ConnectionMode.Loose}
             deleteKeyCode={['Backspace', 'Delete']}
             fitView
             className="bg-[#f5f5fa]"
@@ -749,35 +624,6 @@ export default function VisualCanvas() {
               className="!bg-white !border-gray-200"
             />
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
-
-            {/* Breadcrumb navigation */}
-            {cloudStack.length > 0 && (
-              <Panel position="top-center" className="!m-3">
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-3 py-2 flex items-center gap-1 text-xs">
-                  <button
-                    onClick={() => handleNavigateBack(-1)}
-                    className="px-2 py-1 rounded-lg text-gray-600 hover:bg-gray-100 font-medium transition-colors"
-                  >
-                    Home
-                  </button>
-                  {cloudStack.map((level, i) => (
-                    <span key={level.id} className="flex items-center gap-1">
-                      <span className="text-gray-300">/</span>
-                      {i < cloudStack.length - 1 ? (
-                        <button
-                          onClick={() => handleNavigateBack(i + 1)}
-                          className="px-2 py-1 rounded-lg text-gray-600 hover:bg-gray-100 font-medium transition-colors"
-                        >
-                          {level.title}
-                        </button>
-                      ) : (
-                        <span className="px-2 py-1 text-indigo-600 font-semibold">{level.title}</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
-              </Panel>
-            )}
 
             {/* Top toolbar */}
             <Panel position="top-left" className="!m-3">

@@ -33,6 +33,7 @@ const CONTENT_HINTS: Record<string, string> = {
   openZone: 'Describe what this open zone represents...',
   forkPoint: 'Describe the branching point and possible paths...',
   motivation: 'Describe the motivation — what drives this character or moment...',
+  arc: 'Define the narrative arc — sequence of events with weighted importance...',
 };
 
 /* Small icon badge for connection items */
@@ -62,6 +63,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  const [arcAutoLoading, setArcAutoLoading] = useState(false);
   const { bigNodes, onParentChange } = useContext(GraphContext);
 
   const d = node?.data as Record<string, unknown> | undefined;
@@ -80,7 +82,6 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
   const isReference = ['musicReference', 'bookReference', 'artReference', 'filmReference', 'realEventReference'].includes(nodeType);
   const isState = nodeType === 'state';
-  const isContainer = !!config?.isContainer;
 
   // Compute incoming / outgoing connections
   const incomingConnections = useMemo(() => {
@@ -159,7 +160,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
     setConfirmDelete(false);
   }, [confirmDelete, node, onDelete, onClose]);
 
-  const showSuggestButton = !isProxy && !isState && !isContainer && nodeType !== '';
+  const showSuggestButton = !isProxy && !isState && nodeType !== '';
 
   const handleGetSuggestions = useCallback(async () => {
     if (!node) return;
@@ -316,12 +317,12 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 )}
 
                 {/* Type hint */}
-                {!isState && !isContainer && (
+                {!isState && (
                   <span className="text-[10px] text-gray-400">{CONTENT_HINTS[nodeType] || 'Add content...'}</span>
                 )}
 
                 {/* Content textarea for regular nodes */}
-                {!isState && !isProxy && !isContainer && !isReference && (
+                {!isState && !isProxy && !isReference && nodeType !== 'arc' && (
                   <textarea
                     value={content}
                     onChange={handleContentChange}
@@ -512,6 +513,207 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                   </div>
                 )}
 
+                {/* Arc node — weighted narrative events */}
+                {nodeType === 'arc' && (() => {
+                  type ArcEvent = { id: string; text: string; weight: number; locked: boolean };
+                  const events: ArcEvent[] = (d?.events as ArcEvent[]) || [];
+
+                  const setEvents = (updated: ArcEvent[]) => {
+                    if (node) onUpdate(node.id, 'events', updated);
+                  };
+
+                  const handleWeightChange = (eventId: string, newWeight: number) => {
+                    const idx = events.findIndex(e => e.id === eventId);
+                    if (idx < 0) return;
+                    const ev = events[idx];
+                    if (ev.locked) return;
+
+                    const delta = newWeight - ev.weight;
+                    const unlocked = events.filter(e => e.id !== eventId && !e.locked);
+                    if (unlocked.length === 0) return;
+
+                    const totalUnlocked = unlocked.reduce((s, e) => s + e.weight, 0);
+                    const updated = events.map(e => {
+                      if (e.id === eventId) return { ...e, weight: newWeight };
+                      if (e.locked) return e;
+                      const share = totalUnlocked > 0 ? e.weight / totalUnlocked : 1 / unlocked.length;
+                      return { ...e, weight: Math.max(1, Math.round(e.weight - delta * share)) };
+                    });
+
+                    // Re-normalize to 100
+                    const total = updated.reduce((s, e) => s + e.weight, 0);
+                    if (total !== 100 && total > 0) {
+                      const unlockable = updated.filter(e => !e.locked && e.id !== eventId);
+                      const diff = 100 - total;
+                      if (unlockable.length > 0) {
+                        unlockable[0].weight += diff;
+                      }
+                    }
+                    setEvents(updated);
+                  };
+
+                  const toggleLock = (eventId: string) => {
+                    setEvents(events.map(e => e.id === eventId ? { ...e, locked: !e.locked } : e));
+                  };
+
+                  const handleEventText = (eventId: string, text: string) => {
+                    setEvents(events.map(e => e.id === eventId ? { ...e, text } : e));
+                  };
+
+                  const addEvent = () => {
+                    const newId = `ev_${Date.now()}`;
+                    const unlocked = events.filter(e => !e.locked);
+                    const newWeight = events.length === 0 ? 100 : Math.max(1, Math.round(100 / (events.length + 1)));
+                    const remaining = 100 - newWeight;
+                    const lockedTotal = events.filter(e => e.locked).reduce((s, e) => s + e.weight, 0);
+                    const unlockedTotal = unlocked.reduce((s, e) => s + e.weight, 0);
+
+                    const updated = events.map(e => {
+                      if (e.locked) return e;
+                      if (unlockedTotal === 0) return { ...e, weight: Math.max(1, Math.round((remaining - lockedTotal) / unlocked.length)) };
+                      return { ...e, weight: Math.max(1, Math.round(e.weight * (remaining - lockedTotal) / unlockedTotal)) };
+                    });
+                    updated.push({ id: newId, text: 'New event', weight: newWeight, locked: false });
+
+                    // Re-normalize
+                    const total = updated.reduce((s, e) => s + e.weight, 0);
+                    if (total !== 100 && updated.length > 0) {
+                      const unlockable = updated.filter(e => !e.locked);
+                      if (unlockable.length > 0) unlockable[unlockable.length - 1].weight += 100 - total;
+                    }
+                    setEvents(updated);
+                  };
+
+                  const deleteEvent = (eventId: string) => {
+                    const removed = events.find(e => e.id === eventId);
+                    if (!removed) return;
+                    const rest = events.filter(e => e.id !== eventId);
+                    if (rest.length === 0) { setEvents([]); return; }
+                    const unlocked = rest.filter(e => !e.locked);
+                    const totalUnlocked = unlocked.reduce((s, e) => s + e.weight, 0);
+                    const updated = rest.map(e => {
+                      if (e.locked) return e;
+                      const share = totalUnlocked > 0 ? e.weight / totalUnlocked : 1 / unlocked.length;
+                      return { ...e, weight: Math.max(1, Math.round(e.weight + removed.weight * share)) };
+                    });
+                    const total = updated.reduce((s, e) => s + e.weight, 0);
+                    if (total !== 100 && updated.length > 0) {
+                      const unlockable = updated.filter(e => !e.locked);
+                      if (unlockable.length > 0) unlockable[0].weight += 100 - total;
+                    }
+                    setEvents(updated);
+                  };
+
+                  const handleAutoWeights = async () => {
+                    if (events.length === 0) return;
+                    setArcAutoLoading(true);
+                    try {
+                      const res = await fetch('/api/v1/arc-weights', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          events: events.map(e => ({ id: e.id, text: e.text })),
+                          description: (d?.description as string) || '',
+                        }),
+                      });
+                      const data = await res.json();
+                      if (data.weights) {
+                        const lockedTotal = events.filter(e => e.locked).reduce((s, e) => s + e.weight, 0);
+                        const availableWeight = 100 - lockedTotal;
+                        const unlockedIds = events.filter(e => !e.locked).map(e => e.id);
+                        const rawTotal = unlockedIds.reduce((s, id) => s + (data.weights[id] || 0), 0);
+
+                        const updated = events.map(e => {
+                          if (e.locked) return e;
+                          const raw = data.weights[e.id] || 0;
+                          return { ...e, weight: rawTotal > 0 ? Math.max(1, Math.round(raw * availableWeight / rawTotal)) : e.weight };
+                        });
+                        const total = updated.reduce((s, e) => s + e.weight, 0);
+                        if (total !== 100 && updated.length > 0) {
+                          const unlockable = updated.filter(e => !e.locked);
+                          if (unlockable.length > 0) unlockable[0].weight += 100 - total;
+                        }
+                        setEvents(updated);
+                      }
+                    } catch { /* ignore */ }
+                    setArcAutoLoading(false);
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Arc description */}
+                      <div>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Arc Description</label>
+                        <textarea
+                          value={(d?.description as string) || ''}
+                          onChange={(e) => handleFieldChange('description', e.target.value)}
+                          placeholder="Overall arc summary..."
+                          className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 border border-gray-200 resize-none"
+                          rows={2}
+                        />
+                      </div>
+
+                      {/* Events header */}
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Narrative Events</label>
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={addEvent}
+                            className="px-2.5 py-1 text-[11px] font-medium text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded-lg border border-cyan-200 transition-colors"
+                          >+ Add</button>
+                          <button
+                            onClick={handleAutoWeights}
+                            disabled={arcAutoLoading || events.length === 0}
+                            className="px-2.5 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 rounded-lg border border-indigo-200 transition-colors"
+                          >{arcAutoLoading ? 'Analyzing...' : 'Auto \u2728'}</button>
+                        </div>
+                      </div>
+
+                      {/* Event list */}
+                      {events.length === 0 ? (
+                        <p className="text-xs text-gray-300 italic">No events yet — click + Add to begin.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {events.map(event => (
+                            <div key={event.id} className={`border rounded-lg p-3 ${event.locked ? 'border-cyan-200 bg-cyan-50/30' : 'border-gray-200 bg-white'}`}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <button onClick={() => toggleLock(event.id)} className="text-gray-400 hover:text-cyan-600 flex-shrink-0">
+                                  {event.locked
+                                    ? <Icons.Lock size={14} className="text-cyan-600" />
+                                    : <Icons.LockOpen size={14} />}
+                                </button>
+                                <input
+                                  value={event.text}
+                                  onChange={(e) => handleEventText(event.id, e.target.value)}
+                                  className="flex-1 text-sm text-gray-700 bg-transparent focus:outline-none"
+                                  placeholder="Describe this narrative event..."
+                                />
+                                <span className="text-xs font-mono text-gray-400 w-8 text-right">{event.weight}%</span>
+                                <button onClick={() => deleteEvent(event.id)} className="text-gray-300 hover:text-red-400 flex-shrink-0 text-lg leading-none">&times;</button>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 relative h-3">
+                                  <div className="absolute inset-0 rounded-full bg-gray-100" />
+                                  <div className="absolute inset-y-0 left-0 rounded-full bg-cyan-400 opacity-30" style={{ width: event.weight + '%' }} />
+                                  <input
+                                    type="range"
+                                    min={1}
+                                    max={99}
+                                    value={event.weight}
+                                    disabled={event.locked}
+                                    onChange={(e) => handleWeightChange(event.id, parseInt(e.target.value))}
+                                    className="relative w-full h-3 opacity-0 cursor-pointer disabled:cursor-not-allowed"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Reference node fields */}
                 {isReference && (
                   <div className="space-y-3 flex-1">
@@ -687,28 +889,6 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                         );
                       })()}
                     </div>
-                  </div>
-                )}
-
-                {/* Container node info */}
-                {isContainer && (
-                  <div className="text-sm text-gray-500">
-                    <p>This is a container node (subcloud). Click &quot;Open &rarr;&quot; on the node card to navigate inside.</p>
-                    {config?.childNodeTypes && (
-                      <div className="mt-3">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Allowed child types</label>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {config.childNodeTypes.map(ct => {
-                            const childConf = NODE_TYPE_MAP[ct];
-                            return (
-                              <span key={ct} className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full border border-gray-200">
-                                {childConf?.emoji} {childConf?.label || ct}
-                              </span>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
 
