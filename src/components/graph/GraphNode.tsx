@@ -1,8 +1,8 @@
 'use client';
 
-import { memo, useCallback, useContext } from 'react';
+import React, { memo, useCallback, useContext, Fragment } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
+import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, HUB_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
 import { GraphContext } from './GraphContext';
 import { type LucideProps } from 'lucide-react';
 import * as Icons from 'lucide-react';
@@ -27,20 +27,17 @@ export interface GraphNodeData {
   stateColor?: string | null;
   generatedImage?: string | null;
   graphId?: string;
-  childCanvas?: unknown;
-  childCount?: number;
   onTitleChange: (id: string, title: string) => void;
   onContentChange: (id: string, content: string) => void;
   onZoomToParent?: (parentNodeId: string) => void;
   onStateColorChange?: (id: string, color: string) => void;
   onImageGenerated?: (id: string, url: string) => void;
   onDelete?: (id: string) => void;
-  onOpenContainer?: (id: string) => void;
   [key: string]: unknown;
 }
 
 /* --- Icon Badge --- reusable colored square with Lucide icon --- */
-function IconBadge({ color, type, size = 28 }: { color: string; type: string; size?: number }) {
+function IconBadge({ color, type, size = 36 }: { color: string; type: string; size?: number }) {
   const config = NODE_TYPE_MAP[type];
   const IconComp = getIcon(config?.icon);
   return (
@@ -48,7 +45,7 @@ function IconBadge({ color, type, size = 28 }: { color: string; type: string; si
       className="rounded text-white flex items-center justify-center shrink-0"
       style={{ backgroundColor: color, width: size, height: size }}
     >
-      {IconComp ? <IconComp size={size * 0.57} strokeWidth={2} className="text-white" /> : (
+      {IconComp ? <IconComp size={16} strokeWidth={2} className="text-white" /> : (
         <span className="text-[10px] font-bold">{config?.abbr || type.slice(0, 2).toUpperCase()}</span>
       )}
     </div>
@@ -244,58 +241,70 @@ function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData
   );
 }
 
-/* --- ContainerNode --- subcloud card with 'Open' button --- */
-function ContainerNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
-  const { color, title, onDelete, onOpenContainer, type } = data;
+/* --- HubNode --- 4-directional: top/bottom=chain, left=clouds, right=injections --- */
+function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { type, color, title, onDelete } = data;
   const config = NODE_TYPE_MAP[type];
-  const containerLabel = config?.label || 'Container';
+  const nodeLabel = config?.label || type;
+  const handles = HUB_HANDLES[type] || [];
 
-  // Count child nodes
-  const childCanvas = data.childCanvas as { nodes?: unknown[] } | undefined;
-  const childCount = childCanvas?.nodes?.length || 0;
+  const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
 
   return (
     <div
-      className="group relative bg-white rounded-lg transition-shadow hover:shadow-md"
+      className="group relative bg-white rounded-xl hover:shadow-md"
       style={{
-        width: 200,
-        height: 56,
-        border: selected ? `2px solid ${color}` : `2px dashed ${color}80`,
-        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
-        display: 'flex',
-        alignItems: 'center',
-        padding: '0 8px',
-        gap: 8,
-        background: `${color}08`,
+        width: 190, minHeight: 72,
+        border: selected ? `2px solid ${color}` : `1.5px solid #e5e7eb`,
+        boxShadow: selected ? `0 0 0 3px ${color}22` : '0 1px 3px rgba(0,0,0,0.06)',
+        padding: '10px 14px',
+        display: 'flex', alignItems: 'center', gap: 8,
+        position: 'relative', overflow: 'visible',
       }}
     >
+      {/* Handles with labels outside card */}
+      {handles.map((h) => {
+        const isHoriz = h.position === 'left' || h.position === 'right';
+        const handleStyle: React.CSSProperties = {
+          background: h.color, width: 9, height: 9,
+          border: '2px solid white', boxShadow: `0 0 0 1.5px ${h.color}55`,
+          ...(isHoriz ? { top: h.offset || '50%' } : { left: h.offset || '50%' }),
+        };
+        // Label positioned outside the card
+        const labelStyle: React.CSSProperties = {
+          position: 'absolute', fontSize: 8, color: h.color,
+          whiteSpace: 'nowrap', fontWeight: 600, pointerEvents: 'none',
+          ...(h.position === 'left'   && { right: 'calc(100% + 12px)', top: h.offset || '50%', transform: 'translateY(-50%)', textAlign: 'right' }),
+          ...(h.position === 'right'  && { left:  'calc(100% + 12px)', top: h.offset || '50%', transform: 'translateY(-50%)' }),
+          ...(h.position === 'top'    && { bottom: 'calc(100% + 6px)', left: h.offset || '50%', transform: 'translateX(-50%)' }),
+          ...(h.position === 'bottom' && { top:  'calc(100% + 6px)',   left: h.offset || '50%', transform: 'translateX(-50%)' }),
+        };
+        return (
+          <Fragment key={h.id}>
+            <Handle type={h.type} position={posMap[h.position]} id={h.id} style={handleStyle} />
+            <span style={labelStyle}>{h.label}</span>
+          </Fragment>
+        );
+      })}
+
+      {/* Delete */}
       {onDelete && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+        <button onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
-        >{'\u00D7'}</button>
+          title="Delete node">×</button>
       )}
-      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5" />
 
-      <IconBadge color={color} type={type} size={32} />
+      {/* Content */}
+      <IconBadge color={color} type={type} size={26} />
       <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-        <span className="text-xs text-gray-800 font-medium truncate">{title || containerLabel}</span>
-        <span className="text-[9px] text-gray-400">{childCount > 0 ? `${childCount} nodes inside` : 'Empty'}</span>
+        <span className="text-[11px] text-gray-800 font-semibold truncate leading-tight">{title || 'Untitled'}</span>
+        <span className="text-[9px] text-gray-400 truncate mt-0.5">{nodeLabel}</span>
       </div>
-      <button
-        onClick={(e) => { e.stopPropagation(); if (onOpenContainer) onOpenContainer(id); }}
-        className="text-[10px] font-medium px-2 py-1 rounded text-white shrink-0 hover:opacity-90 transition-opacity"
-        style={{ backgroundColor: color }}
-      >
-        Open &rarr;
-      </button>
-
-      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5" />
     </div>
   );
 }
 
-/* --- TypedHandleNode --- for chapterAct, plot, scene with multiple labeled input handles --- */
+/* --- TypedHandleNode --- for arc, motivation with multiple labeled input handles --- */
 function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { type, color, title, onDelete } = data;
   const config = NODE_TYPE_MAP[type];
@@ -442,8 +451,8 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
           <div
             className="absolute inset-0 rounded"
             style={{
-              width: 28,
-              height: 28,
+              width: 36,
+              height: 36,
               border: `2px solid ${color}`,
               borderRadius: 6,
               animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
@@ -509,6 +518,9 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
   );
 }
 
+/* --- Set of types that use hub layout (4-directional) --- */
+const HUB_HANDLE_TYPES = new Set(Object.keys(HUB_HANDLES));
+
 /* --- Set of types that use typed multi-handles --- */
 const TYPED_HANDLE_TYPES = new Set(Object.keys(TYPED_HANDLES));
 
@@ -519,8 +531,8 @@ function GraphNodeComponent({ id, data, selected }: NodeProps) {
   if (d.isProxy) return <ProxyNode id={id} data={d} selected={selected} />;
   if (d.type === 'state') return <StateNode id={id} data={d} />;
   if (d.type === 'aiNode') return <AiNode id={id} data={d} selected={selected} />;
-  if (d.isContainer) return <ContainerNode id={id} data={d} selected={selected} />;
   if (REFERENCE_TYPES.has(d.type)) return <ReferenceNode id={id} data={d} selected={selected} />;
+  if (HUB_HANDLE_TYPES.has(d.type)) return <HubNode id={id} data={d} selected={selected} />;
   if (TYPED_HANDLE_TYPES.has(d.type)) return <TypedHandleNode id={id} data={d} selected={selected} />;
   return <DefaultGraphNode id={id} data={d} selected={selected} />;
 }
