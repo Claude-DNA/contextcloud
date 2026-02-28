@@ -64,6 +64,10 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
   const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [arcAutoLoading, setArcAutoLoading] = useState(false);
+  const [addingIdea, setAddingIdea] = useState(false);
+  const [newIdeaName, setNewIdeaName] = useState('');
+  const [newIdeaTransformation, setNewIdeaTransformation] = useState('');
+  const [expandedIdeaIdx, setExpandedIdeaIdx] = useState<number | null>(null);
   const { bigNodes, onParentChange } = useContext(GraphContext);
 
   const d = node?.data as Record<string, unknown> | undefined;
@@ -789,8 +793,107 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                   </div>
                 )}
 
-                {/* Proxy node -- multi-select elements from cloud */}
-                {isProxy && (
+                {/* Ideas Proxy — specialized idea list with per-idea transformations */}
+                {isProxy && nodeType === 'ideasProxy' && (() => {
+                  type IdeaEntry = { id: string; name: string; transformation: string };
+                  const ideas = (d?.ideas as IdeaEntry[]) || [];
+                  const updateIdeas = (updated: IdeaEntry[]) => { if (node) onUpdate(node.id, 'ideas', updated); };
+                  return (
+                    <div className="space-y-3">
+                      <label className="text-xs text-gray-500 uppercase tracking-wider font-medium block">Ideas in this context</label>
+                      {ideas.length === 0 && (
+                        <p className="text-xs text-gray-300 italic">No ideas added yet</p>
+                      )}
+                      <div className="space-y-2">
+                        {ideas.map((idea, idx) => (
+                          <div key={idea.id} className="rounded-lg border border-gray-200 overflow-hidden">
+                            {/* Idea header row */}
+                            <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
+                              <span className="flex-1 text-sm font-medium text-gray-800 truncate">{idea.name || '(unnamed)'}</span>
+                              <button
+                                onClick={() => setExpandedIdeaIdx(expandedIdeaIdx === idx ? null : idx)}
+                                className="text-[10px] text-blue-500 hover:text-blue-700 font-medium shrink-0"
+                              >{expandedIdeaIdx === idx ? 'Hide' : 'Transformation'}</button>
+                              <button
+                                onClick={() => updateIdeas(ideas.filter((_, i) => i !== idx))}
+                                className="text-red-400 hover:text-red-600 text-xs font-bold shrink-0"
+                                title="Remove"
+                              >&times;</button>
+                            </div>
+                            {/* Transformation field (expandable) */}
+                            {expandedIdeaIdx === idx && (
+                              <div className="px-3 pb-2 pt-1 bg-white border-t border-gray-100">
+                                <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">How this idea evolves here</label>
+                                <textarea
+                                  value={idea.transformation || ''}
+                                  onChange={(e) => {
+                                    const updated = [...ideas];
+                                    updated[idx] = { ...idea, transformation: e.target.value };
+                                    updateIdeas(updated);
+                                  }}
+                                  placeholder="Describe how this idea transforms in this Plot / Chapter..."
+                                  rows={3}
+                                  className="w-full text-xs text-gray-700 bg-gray-50 rounded px-2 py-1.5 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/30 resize-none"
+                                />
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                      {/* Add idea form */}
+                      {addingIdea ? (
+                        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200 space-y-2">
+                          <input
+                            value={newIdeaName}
+                            onChange={(e) => setNewIdeaName(e.target.value)}
+                            placeholder="Idea Name or ID..."
+                            className="w-full text-sm bg-white rounded px-2 py-1.5 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/30"
+                            autoFocus
+                          />
+                          <textarea
+                            value={newIdeaTransformation}
+                            onChange={(e) => setNewIdeaTransformation(e.target.value)}
+                            placeholder="Transformation (optional) — how it evolves here..."
+                            rows={2}
+                            className="w-full text-xs bg-white rounded px-2 py-1 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/30 resize-none"
+                          />
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                if (newIdeaName.trim() && node) {
+                                  updateIdeas([...ideas, { id: `idea_${Date.now()}`, name: newIdeaName.trim(), transformation: newIdeaTransformation.trim() }]);
+                                  setNewIdeaName(''); setNewIdeaTransformation(''); setAddingIdea(false);
+                                }
+                              }}
+                              className="px-3 py-1 text-xs font-medium bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
+                            >Add Idea</button>
+                            <button
+                              onClick={() => { setAddingIdea(false); setNewIdeaName(''); setNewIdeaTransformation(''); }}
+                              className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                            >Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setAddingIdea(true)}
+                          className="w-full py-1.5 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-colors"
+                        >+ Add Idea</button>
+                      )}
+                      {/* Upload / Generate row */}
+                      <div className="flex gap-2 pt-1">
+                        <button className="flex-1 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 transition-colors">
+                          Upload
+                        </button>
+                        <button className="flex-1 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors">
+                          ✨ Generate
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Generic proxy node — multi-select elements from cloud */}
+                {isProxy && nodeType !== 'ideasProxy' && (
                   <div className="space-y-3">
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Source Cloud</label>
