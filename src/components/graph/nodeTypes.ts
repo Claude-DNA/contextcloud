@@ -134,16 +134,17 @@ export interface HubHandleConfig {
 // All inputs LEFT, single output RIGHT — clean n8n pattern
 export const HUB_HANDLES: Record<string, HubHandleConfig[]> = {
   chapterAct: [
-    // Top / Bottom: chapter chain (In → Out)
-    { id: 'prev_chapter', label: 'In',  type: 'target', position: 'top',    color: '#3b82f6', offset: '50%' },
-    { id: 'next_chapter', label: 'Out', type: 'source', position: 'bottom', color: '#3b82f6', offset: '50%' },
-    // Left: cloud inputs (AI, World, Ideas)
-    { id: 'ai',    label: 'AI',    type: 'target', position: 'left', color: '#6366f1', offset: '25%' },
-    { id: 'world', label: 'World', type: 'target', position: 'left', color: '#0ea5e9', offset: '50%' },
-    { id: 'ideas', label: 'Ideas', type: 'target', position: 'left', color: '#eab308', offset: '75%' },
-    // Right: context (Arc, References)
-    { id: 'arc',        label: 'Arc',        type: 'target', position: 'right', color: '#0891b2', offset: '35%' },
-    { id: 'references', label: 'References', type: 'target', position: 'right', color: '#64748b', offset: '65%' },
+    // Top: References (left) + Arc (right)
+    { id: 'references', label: 'References', type: 'target', position: 'top', color: '#64748b', offset: '30%' },
+    { id: 'arc',        label: 'Arc',        type: 'target', position: 'top', color: '#0891b2', offset: '70%' },
+    // Left: In (prev chapter)
+    { id: 'prev_chapter', label: 'In',  type: 'target', position: 'left',  color: '#3b82f6', offset: '50%' },
+    // Right: Out (next chapter)
+    { id: 'next_chapter', label: 'Out', type: 'source', position: 'right', color: '#3b82f6', offset: '50%' },
+    // Bottom: AI + World + Ideas
+    { id: 'ai',    label: 'AI',    type: 'target', position: 'bottom', color: '#6366f1', offset: '20%' },
+    { id: 'world', label: 'World', type: 'target', position: 'bottom', color: '#0ea5e9', offset: '50%' },
+    { id: 'ideas', label: 'Ideas', type: 'target', position: 'bottom', color: '#eab308', offset: '80%' },
   ],
   plot: [
     { id: 'arc_point',  label: 'Arc Point',  type: 'target', position: 'left', color: '#0891b2', offset: '12%' },
