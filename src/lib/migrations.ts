@@ -23,12 +23,127 @@ export async function runMigrations() {
       )
     `);
 
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_drafts_user_id ON cloud_drafts (user_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_drafts_status ON cloud_drafts (status)`);
+
+    // Ideas
     await query(`
-      CREATE INDEX IF NOT EXISTS idx_cloud_drafts_user_id ON cloud_drafts (user_id)
+      CREATE TABLE IF NOT EXISTS ideas (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id UUID NOT NULL,
+        text TEXT NOT NULL,
+        image_url TEXT,
+        weight NUMERIC(5,2) NOT NULL DEFAULT 1.0,
+        locked BOOLEAN NOT NULL DEFAULT false,
+        final_state_manual TEXT,
+        final_state_generated TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
     `);
 
+    // Idea transformations
     await query(`
-      CREATE INDEX IF NOT EXISTS idx_cloud_drafts_status ON cloud_drafts (status)
+      CREATE TABLE IF NOT EXISTS idea_transformations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        idea_id UUID NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+        source_node_id TEXT,
+        source_node_level TEXT,
+        text TEXT NOT NULL,
+        weight NUMERIC(5,2) NOT NULL DEFAULT 1.0,
+        locked BOOLEAN NOT NULL DEFAULT false,
+        transform_type TEXT NOT NULL DEFAULT 'additive',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Arcs
+    await query(`
+      CREATE TABLE IF NOT EXISTS arcs (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Chapters
+    await query(`
+      CREATE TABLE IF NOT EXISTS chapters (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        arc_id UUID NOT NULL REFERENCES arcs(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Plots
+    await query(`
+      CREATE TABLE IF NOT EXISTS plots (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        chapter_id UUID NOT NULL REFERENCES chapters(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        content TEXT,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        active_alternative_id UUID,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Plot alternatives
+    await query(`
+      CREATE TABLE IF NOT EXISTS plot_alternatives (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        plot_id UUID NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        content TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Plot dimension weights
+    await query(`
+      CREATE TABLE IF NOT EXISTS plot_dimension_weights (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        plot_id UUID NOT NULL REFERENCES plots(id) ON DELETE CASCADE UNIQUE,
+        characters_pct NUMERIC(5,2) NOT NULL DEFAULT 25.0,
+        ideas_pct NUMERIC(5,2) NOT NULL DEFAULT 25.0,
+        scene_pct NUMERIC(5,2) NOT NULL DEFAULT 25.0,
+        arc_pct NUMERIC(5,2) NOT NULL DEFAULT 25.0,
+        predictability NUMERIC(5,2) NOT NULL DEFAULT 50.0,
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    // Plot element weights
+    await query(`
+      CREATE TABLE IF NOT EXISTS plot_element_weights (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        plot_id UUID NOT NULL REFERENCES plots(id) ON DELETE CASCADE,
+        dimension TEXT NOT NULL,
+        element_id UUID NOT NULL,
+        element_type TEXT NOT NULL,
+        weight NUMERIC(5,2) NOT NULL DEFAULT 1.0,
+        locked BOOLEAN NOT NULL DEFAULT false
+      )
+    `);
+
+    // Weight overrides
+    await query(`
+      CREATE TABLE IF NOT EXISTS weight_overrides (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        node_id UUID NOT NULL,
+        node_type TEXT NOT NULL,
+        idea_id UUID NOT NULL REFERENCES ideas(id) ON DELETE CASCADE,
+        weight NUMERIC(5,2) NOT NULL,
+        locked BOOLEAN NOT NULL DEFAULT false,
+        UNIQUE(node_id, node_type, idea_id)
+      )
     `);
 
     console.log('Migrations complete');

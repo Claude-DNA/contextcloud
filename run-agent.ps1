@@ -1,0 +1,2 @@
+$prompt = "Read the build spec at C:\Users\navro\.openclaw\workspace\memory\contextcloud-agent-task.md then implement everything described in it. Follow the priority order listed at the bottom of the spec. When completely done, run: openclaw system event --text 'Done: ContextCloud Ideas Cloud and Arc Cloud built' --mode now"
+$prompt | claude --print --allowedTools "Bash,Edit,Write,Read,MultiEdit,Glob,Grep,LS"
