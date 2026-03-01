@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useRef, useMemo } from 'react';
+import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   ReactFlow,
@@ -91,6 +91,7 @@ export default function VisualCanvas() {
   const [importing, setImporting] = useState(false);
   const [showDraftBrowser, setShowDraftBrowser] = useState(false);
   const nodeCounter = useRef(0);
+  const windowJustFocused = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importingIdeas, setImportingIdeas] = useState(false);
   const [importingArcs, setImportingArcs] = useState(false);
@@ -166,8 +167,21 @@ export default function VisualCanvas() {
   }, [setNodes]);
 
   // Node click handlers
+  // Prevent refocus-click from closing the node panel when Alt+Tabbing back
+  useEffect(() => {
+    const handleFocus = () => {
+      windowJustFocused.current = true;
+      setTimeout(() => { windowJustFocused.current = false; }, 300);
+    };
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => setSelectedNodeId(node.id), []);
-  const onPaneClick = useCallback(() => setSelectedNodeId(null), []);
+  const onPaneClick = useCallback(() => {
+    if (windowJustFocused.current) return;
+    setSelectedNodeId(null);
+  }, []);
 
   // Parent change handler for proxy nodes
   const handleParentChange = useCallback((nodeId: string, parentNodeId: string, parentLabel: string) => {

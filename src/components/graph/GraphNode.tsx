@@ -95,32 +95,57 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
 
   // Default mode — left target + right source + link dropdown
   return (
-    <div className="group relative rounded-lg shadow-sm">
-      {onDelete && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
-          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-          title="Delete node"
-        >{'\u00D7'}</button>
-      )}
+    <div
+      className="group relative rounded-lg shadow-sm"
+      style={{
+        width: 130,
+        border: selected ? `2px solid ${color}` : `2px solid ${color}40`,
+        boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
+        background: '#ffffff',
+        borderRadius: 8,
+        overflow: 'hidden',
+      }}
+    >
+      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+
+      {/* ── Drag handle header — no interactive elements ── */}
       <div
-        onClick={handleClick}
-        className="cursor-pointer"
         style={{
-          width: 120, minHeight: 60,
-          border: selected ? `2px solid ${color}` : `2px solid ${color}40`,
-          boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
-          background: '#ffffff',
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 8, overflow: 'hidden',
+          padding: '4px 6px',
+          background: `${color}12`,
+          borderBottom: `1px solid ${color}25`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 5,
+          cursor: 'grab',
+          userSelect: 'none',
         }}
       >
-        <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
-        <div
-          className="absolute"
-          style={{ top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: stateColor || '#d1d5db', border: '2px solid #e5e7eb', zIndex: 2 }}
-        />
-        <IconBadge color={color} type={type} />
+        <span style={{ color: '#9ca3af', fontSize: 9, letterSpacing: -1 }}>⠿</span>
+        <IconBadge color={color} type={type} size={18} />
+        {/* State color dot */}
+        <div style={{ marginLeft: 'auto', width: 10, height: 10, borderRadius: '50%', background: stateColor || '#d1d5db', border: '1.5px solid #e5e7eb', flexShrink: 0 }} />
+        {/* Zoom-to-parent */}
+        {parentNodeId && onZoomToParent && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onZoomToParent(parentNodeId); }}
+            className="nodrag nopan text-[9px] text-gray-400 hover:text-gray-700 leading-none"
+            style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
+            title="Zoom to parent"
+          >↗</button>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+            className="nodrag nopan opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 leading-none text-[11px] font-bold"
+            style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
+            title="Delete"
+          >×</button>
+        )}
+      </div>
+
+      {/* ── Body ── */}
+      <div style={{ padding: '4px 6px 6px' }}>
         <select
           value={parentNodeId || ''}
           onChange={(e) => {
@@ -128,16 +153,16 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
             if (opt && onParentChange) onParentChange(id, opt.id, opt.label);
           }}
           onClick={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="nodrag nopan text-[9px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-1 py-0.5 w-full max-w-[100px] mt-1"
+          className="nodrag nopan text-[9px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-1 py-0.5 w-full"
         >
           <option value="">Link to node...</option>
           {(bigNodes || []).map(n => (
             <option key={n.id} value={n.id}>{n.label || n.id}</option>
           ))}
         </select>
-        <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
       </div>
+
+      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
     </div>
   );
 }
