@@ -838,6 +838,9 @@ export default function VisualCanvas() {
             connectionMode={ConnectionMode.Loose}
             deleteKeyCode={['Backspace', 'Delete']}
             selectionOnDrag={true}
+            panOnDrag={[1, 2]}
+            panOnScroll={true}
+            panActivationKeyCode="Space"
             multiSelectionKeyCode="Shift"
             fitView
             className="bg-[#f5f5fa]"
