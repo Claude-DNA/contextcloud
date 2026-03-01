@@ -10,17 +10,16 @@ export interface CloudTypeConfig {
   type: CloudType;
   label: string;
   emoji: string;
-  color: string;         // tailwind color class fragment e.g. 'blue'
   colorHex: string;
   titlePlaceholder: string;
   contentPlaceholder: string;
-  tagPlaceholder: string;
   tagLabel: string;
-  fields?: {             // optional extra metadata fields
+  tagPlaceholder: string;
+  fields?: {
     key: string;
     label: string;
     placeholder: string;
-    options?: string[];  // if set, render as select
+    options?: string[];
   }[];
 }
 
@@ -29,8 +28,7 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
     type: 'characters',
     label: 'Characters Cloud',
     emoji: '👤',
-    color: 'blue',
-    colorHex: '#3B82F6',
+    colorHex: '#6366f1',
     titlePlaceholder: 'Character name…',
     contentPlaceholder: 'Describe this character — traits, role, inner arc, transformation…',
     tagLabel: 'Traits',
@@ -44,8 +42,7 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
     type: 'references',
     label: 'References Cloud',
     emoji: '📚',
-    color: 'orange',
-    colorHex: '#F97316',
+    colorHex: '#f97316',
     titlePlaceholder: 'Reference title…',
     contentPlaceholder: 'Notes — what does this reference contribute to the work?',
     tagLabel: 'Tags',
@@ -62,8 +59,7 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
     type: 'scenes',
     label: 'Scenes Cloud',
     emoji: '🎬',
-    color: 'green',
-    colorHex: '#10B981',
+    colorHex: '#10b981',
     titlePlaceholder: 'Scene title…',
     contentPlaceholder: 'What happens in this scene? What does it reveal or shift?',
     tagLabel: 'Characters',
@@ -77,8 +73,7 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
     type: 'world',
     label: 'World Cloud',
     emoji: '🌍',
-    color: 'cyan',
-    colorHex: '#06B6D4',
+    colorHex: '#06b6d4',
     titlePlaceholder: 'Element name…',
     contentPlaceholder: 'Describe this world-building element — rules, atmosphere, significance…',
     tagLabel: 'Category',
@@ -100,6 +95,10 @@ interface CloudItem {
   metadata: Record<string, string>;
   created_at: string;
 }
+
+/* ── Shared input / textarea classes ── */
+const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors bg-white';
+const textareaCls = `${inputCls} resize-y`;
 
 interface ItemFormProps {
   config: CloudTypeConfig;
@@ -133,29 +132,29 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
         value={title}
         onChange={e => setTitle(e.target.value)}
         placeholder={config.titlePlaceholder}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/30"
+        className={inputCls}
       />
       <textarea
         value={content}
         onChange={e => setContent(e.target.value)}
         placeholder={config.contentPlaceholder}
         rows={4}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/30 focus:outline-none focus:border-white/30 resize-y"
+        className={textareaCls}
       />
       <input
         value={tagsRaw}
         onChange={e => setTagsRaw(e.target.value)}
         placeholder={`${config.tagLabel}: ${config.tagPlaceholder}`}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white/60 placeholder-white/30 focus:outline-none focus:border-white/30"
+        className={inputCls}
       />
       {(config.fields || []).map(f => (
         <div key={f.key}>
-          <label className="text-xs text-white/40 mb-1 block">{f.label}</label>
+          <label className="text-xs text-muted mb-1 block">{f.label}</label>
           {f.options ? (
             <select
               value={meta[f.key] || ''}
               onChange={e => setMeta(m => ({ ...m, [f.key]: e.target.value }))}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white/30"
+              className={inputCls}
             >
               <option value="">— select —</option>
               {f.options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -165,7 +164,7 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
               value={meta[f.key] || ''}
               onChange={e => setMeta(m => ({ ...m, [f.key]: e.target.value }))}
               placeholder={f.placeholder}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white/80 placeholder-white/30 focus:outline-none focus:border-white/30"
+              className={inputCls}
             />
           )}
         </div>
@@ -174,12 +173,16 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
         <button
           type="submit"
           disabled={saving || !title.trim()}
-          className="px-4 py-1.5 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
+          className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
           style={{ background: config.colorHex }}
         >
           {saving ? 'Saving…' : 'Save'}
         </button>
-        <button type="button" onClick={onCancel} className="px-4 py-1.5 rounded-lg text-sm text-white/50 hover:text-white hover:bg-white/5 transition-colors">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border"
+        >
           Cancel
         </button>
       </div>
@@ -250,37 +253,42 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
     : items;
 
   return (
-    <div className="flex h-screen bg-app-bg text-white overflow-hidden">
+    <div className="flex min-h-screen">
       <Sidebar />
-      <div className="flex-1 ml-60 flex flex-col overflow-hidden">
+      <main className="flex-1 ml-60 flex flex-col">
         <Header />
-        <main className="flex-1 overflow-y-auto p-6">
-          <div className="max-w-3xl mx-auto space-y-4">
-            <h1 className="text-xl font-bold text-white mb-1">
-              {config.emoji} {config.label}
-            </h1>
+        <div className="flex-1 p-8 w-full">
+          <div className="max-w-3xl mx-auto">
 
-            {/* Toolbar */}
-            <div className="flex items-center gap-3">
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/30 focus:outline-none focus:border-white/20"
-              />
+            {/* Title bar */}
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-xl font-semibold text-foreground">
+                {config.emoji} {config.label}
+              </h1>
               <button
                 onClick={() => { setAdding(true); setEditingId(null); }}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white whitespace-nowrap transition-colors hover:opacity-90"
+                disabled={adding}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
                 style={{ background: config.colorHex }}
               >
                 + Add {config.label.replace(' Cloud', '')}
               </button>
             </div>
 
+            {/* Search */}
+            <div className="mb-4">
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search…"
+                className={inputCls}
+              />
+            </div>
+
             {/* Add form */}
             {adding && (
-              <div className="rounded-xl border border-white/10 bg-white/5 p-4">
-                <div className="text-xs text-white/40 uppercase tracking-wider mb-3">New Item</div>
+              <div className="mb-4 rounded-xl border border-border bg-card-bg p-4">
+                <p className="text-xs text-muted uppercase tracking-wider mb-3">New Item</p>
                 <ItemForm
                   config={config}
                   onSave={handleCreate}
@@ -290,22 +298,35 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
               </div>
             )}
 
-            {/* Items list */}
+            {/* List */}
             {loading ? (
-              <div className="text-center py-20 text-white/30 text-sm">Loading…</div>
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-16 rounded-xl bg-card-bg border border-border animate-pulse" />
+                ))}
+              </div>
             ) : filtered.length === 0 && !adding ? (
-              <div className="text-center py-20 space-y-3">
-                <div className="text-4xl">{config.emoji}</div>
-                <p className="text-white/30 text-sm">
-                  {search ? 'No items match your search.' : `No ${config.label.toLowerCase()} yet. Add your first one above.`}
+              <div className="text-center py-16">
+                <div className="text-4xl mb-3">{config.emoji}</div>
+                <p className="text-muted text-sm mb-4">
+                  {search ? 'No items match your search.' : `No ${config.label.toLowerCase()} yet.`}
                 </p>
+                {!search && (
+                  <button
+                    onClick={() => setAdding(true)}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                    style={{ background: config.colorHex }}
+                  >
+                    + Add {config.label.replace(' Cloud', '')}
+                  </button>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
                 {filtered.map(item => (
                   <div
                     key={item.id}
-                    className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden group"
+                    className="rounded-xl border border-border bg-card-bg overflow-hidden group"
                     style={{ borderLeftColor: config.colorHex, borderLeftWidth: 3 }}
                   >
                     {editingId === item.id ? (
@@ -322,28 +343,28 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                       <div className="p-4">
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-white">{item.title}</h3>
-                            {/* Extra metadata fields */}
-                            {(config.fields || []).map(f => item.metadata[f.key] && (
+                            <h3 className="font-semibold text-foreground">{item.title}</h3>
+                            {(config.fields || []).map(f => item.metadata?.[f.key] && (
                               <div key={f.key} className="mt-0.5">
-                                <span className="text-xs text-white/30">{f.label}: </span>
+                                <span className="text-xs text-muted">{f.label}: </span>
                                 {f.key === 'url' ? (
                                   <a href={item.metadata[f.key]} target="_blank" rel="noopener noreferrer"
-                                    className="text-xs text-blue-400 hover:underline">{item.metadata[f.key]}</a>
+                                    className="text-xs text-accent hover:underline">{item.metadata[f.key]}</a>
                                 ) : (
-                                  <span className="text-xs" style={{ color: config.colorHex }}>{item.metadata[f.key]}</span>
+                                  <span className="text-xs font-medium" style={{ color: config.colorHex }}>{item.metadata[f.key]}</span>
                                 )}
                               </div>
                             ))}
                             {item.content && (
-                              <p className="mt-2 text-sm text-white/60 leading-relaxed whitespace-pre-wrap line-clamp-4">{item.content}</p>
+                              <p className="mt-1.5 text-sm text-muted leading-relaxed line-clamp-3">{item.content}</p>
                             )}
-                            {item.tags.length > 0 && (
+                            {item.tags?.length > 0 && (
                               <div className="flex flex-wrap gap-1.5 mt-2">
                                 {item.tags.map(tag => (
-                                  <span key={tag}
-                                    className="px-2 py-0.5 rounded text-[10px] font-medium"
-                                    style={{ background: `${config.colorHex}22`, color: config.colorHex }}
+                                  <span
+                                    key={tag}
+                                    className="px-2 py-0.5 rounded text-[11px] font-medium"
+                                    style={{ background: `${config.colorHex}18`, color: config.colorHex }}
                                   >{tag}</span>
                                 ))}
                               </div>
@@ -352,11 +373,11 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                             <button
                               onClick={() => { setEditingId(item.id); setAdding(false); }}
-                              className="px-2 py-1 text-xs text-white/40 hover:text-white hover:bg-white/10 rounded transition-colors"
+                              className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
                             >Edit</button>
                             <button
                               onClick={() => handleDelete(item.id)}
-                              className="px-2 py-1 text-xs text-red-400/60 hover:text-red-400 hover:bg-red-900/20 rounded transition-colors"
+                              className="px-2 py-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                             >Delete</button>
                           </div>
                         </div>
@@ -366,9 +387,10 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 ))}
               </div>
             )}
+
           </div>
-        </main>
-      </div>
+        </div>
+      </main>
     </div>
   );
 }
