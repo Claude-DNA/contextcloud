@@ -18,6 +18,7 @@ export default function DashboardContent() {
   const { data: session, status } = useSession();
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importOpen, setImportOpen] = useState(false);
 
   useEffect(() => {
     if (status !== 'authenticated') {
@@ -71,7 +72,6 @@ export default function DashboardContent() {
     );
   }
 
-  const [importOpen, setImportOpen] = useState(false);
   const draftItems = drafts.filter((d) => d.status === 'draft');
   const publishedItems = drafts.filter((d) => d.status === 'published');
 
