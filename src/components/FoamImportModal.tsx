@@ -8,6 +8,7 @@ interface Stats {
   stages: number;
   world: number;
   references: number;
+  ideas: number;
 }
 
 interface FoamImportModalProps {
@@ -173,21 +174,12 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                {stats.arc.created > 0 || stats.arc.chapters > 0 ? (
-                  <StatCard emoji="📖" label="Arc Cloud" value={`${stats.arc.chapters} chapters, ${stats.arc.plots} plots`} color="blue" />
-                ) : null}
-                {stats.characters > 0 && (
-                  <StatCard emoji="👤" label="Characters" value={`${stats.characters} characters`} color="indigo" />
-                )}
-                {stats.stages > 0 && (
-                  <StatCard emoji="🎭" label="Stage Cloud" value={`${stats.stages} locations`} color="green" />
-                )}
-                {stats.world > 0 && (
-                  <StatCard emoji="🌍" label="World Cloud" value={`${stats.world} concepts`} color="cyan" />
-                )}
-                {stats.references > 0 && (
-                  <StatCard emoji="📑" label="References" value={`${stats.references} references`} color="orange" />
-                )}
+                <StatCard emoji="📖" label="Arc Cloud" value={stats.arc.chapters > 0 ? `${stats.arc.chapters} chapters, ${stats.arc.plots} plots` : stats.arc.created > 0 ? 'arc created (0 chapters)' : '— not created'} color="blue" />
+                <StatCard emoji="👤" label="Characters" value={stats.characters > 0 ? `${stats.characters} characters` : '— none found'} color="indigo" />
+                <StatCard emoji="🎭" label="Stage Cloud" value={stats.stages > 0 ? `${stats.stages} locations` : '— none found'} color="green" />
+                <StatCard emoji="🌍" label="World Cloud" value={stats.world > 0 ? `${stats.world} concepts` : '— none found'} color="cyan" />
+                <StatCard emoji="📑" label="References" value={stats.references > 0 ? `${stats.references} references` : '— none found'} color="orange" />
+                <StatCard emoji="💡" label="Ideas Cloud" value={stats.ideas > 0 ? `${stats.ideas} ideas` : '— none found'} color="yellow" />
               </div>
 
               <div className="flex gap-2 pt-2">
@@ -238,6 +230,7 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
                 { emoji: '🎭', label: 'Stage Cloud', color: 'bg-green-50 text-green-700' },
                 { emoji: '🌍', label: 'World Cloud', color: 'bg-cyan-50 text-cyan-700' },
                 { emoji: '📑', label: 'References', color: 'bg-orange-50 text-orange-700' },
+                { emoji: '💡', label: 'Ideas Cloud', color: 'bg-yellow-50 text-yellow-700' },
               ].map(t => (
                 <span key={t.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>
                   {t.emoji} {t.label}
@@ -273,6 +266,7 @@ function StatCard({ emoji, label, value, color }: { emoji: string; label: string
     green: 'bg-green-50 border-green-100',
     cyan: 'bg-cyan-50 border-cyan-100',
     orange: 'bg-orange-50 border-orange-100',
+    yellow: 'bg-yellow-50 border-yellow-100',
   };
   return (
     <div className={`p-3 rounded-xl border ${colors[color] || 'bg-gray-50 border-border'}`}>

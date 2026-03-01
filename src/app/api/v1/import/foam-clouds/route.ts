@@ -223,16 +223,41 @@ ${text.slice(0, 80_000)}`;
   }>;
 }
 
+// ── Pass 5: Ideas (themes + associations) ────────────────────────────────
+async function extractIdeas(text: string): Promise<string[]> {
+  const prompt = `Extract the key thematic ideas, associations, and insights from this story document.
+RETURN ONLY a valid JSON array of strings — no markdown, no explanation.
+
+Shape: ["idea text 1", "idea text 2", ...]
+
+Rules:
+- Extract from ### 🔗 ASSOCIATIONS sections: every bullet point is an idea
+- Extract from thematic statements (e.g. the Three Traps principle, the ocean answer, the return journey principle, alignment failure/success/health)
+- Extract key quoted lines that capture the story's themes (e.g. "Nobody lied. They just didn't ask.")
+- Each idea = one clear statement or quote (1-2 sentences max)
+- Include the source attribution if given (e.g. — The Little Prince)
+- Extract 20-40 ideas total
+- No duplicates
+
+${SECTION_HEADER}
+
+DOCUMENT:
+${text.slice(0, 80_000)}`;
+
+  const data = await geminiCall(prompt) as string[];
+  return Array.isArray(data) ? data : [];
+}
+
 // ── Orchestrate all passes ────────────────────────────────────────────────
-async function extractWithGemini(text: string): Promise<ExtractedData> {
+async function extractWithGemini(text: string): Promise<ExtractedData & { ideas: string[] }> {
   if (!GOOGLE_AI_API_KEY) throw new Error('GOOGLE_AI_API_KEY not configured');
 
-  // Run passes sequentially to avoid rate limits
-  const [arc, characters, stagesAndWorld, references] = await Promise.all([
+  const [arc, characters, stagesAndWorld, references, ideas] = await Promise.all([
     extractArc(text),
     extractCharacters(text),
     extractStagesAndWorld(text),
     extractReferences(text),
+    extractIdeas(text),
   ]);
 
   return {
@@ -241,6 +266,7 @@ async function extractWithGemini(text: string): Promise<ExtractedData> {
     stages: stagesAndWorld?.stages || [],
     world: stagesAndWorld?.world || [],
     references: references || [],
+    ideas: ideas || [],
   };
 }
 
@@ -326,6 +352,7 @@ export async function POST(req: NextRequest) {
     stages: 0,
     world: 0,
     references: 0,
+    ideas: 0,
   };
 
   // ── Arc + Chapters + Plots ─────────────────────────────────────────────
@@ -439,6 +466,33 @@ export async function POST(req: NextRequest) {
       stats.references++;
     } catch (e) {
       console.error('Reference import error:', ref.title, e);
+    }
+  }
+
+  // ── Ideas ──────────────────────────────────────────────────────────────
+  const ideaTexts: string[] = (extracted as ExtractedData & { ideas?: string[] }).ideas || [];
+  for (const ideaText of ideaTexts) {
+    if (!ideaText?.trim()) continue;
+    try {
+      // Deduplicate
+      const existing = await query(
+        'SELECT id FROM ideas WHERE project_id=$1 AND text=$2 LIMIT 1',
+        [userId, ideaText.trim()]
+      );
+      if (existing.rows.length === 0) {
+        await query(
+          `INSERT INTO ideas (project_id, text, weight, sort_order) VALUES ($1,$2,1.0,0)`,
+          [userId, ideaText.trim()]
+        );
+        // Shift existing ideas down
+        await query(
+          'UPDATE ideas SET sort_order = sort_order + 1 WHERE project_id=$1 AND text!=$2',
+          [userId, ideaText.trim()]
+        );
+      }
+      stats.ideas++;
+    } catch (e) {
+      console.error('Idea import error:', ideaText.slice(0, 50), e);
     }
   }
 
