@@ -115,9 +115,6 @@ export interface TypedHandle {
 }
 
 export const TYPED_HANDLES: Record<string, TypedHandle[]> = {
-  arc: [
-    { id: 'input', label: 'Chapter Input', color: '#0891b2', top: '50%' },
-  ],
   motivation: [
     { id: 'trigger', label: 'Trigger Event', color: '#ef4444', top: '50%' },
   ],
@@ -188,9 +185,6 @@ export const HUB_HANDLES: Record<string, HubHandleConfig[]> = {
 };
 
 export const OUTPUT_HANDLES: Record<string, TypedHandle[]> = {
-  arc: [
-    { id: 'output', label: 'Chapter Output', color: '#0891b2', top: '50%' },
-  ],
   motivation: [
     { id: 'state', label: '→ State', color: '#f59e0b', top: '35%' },
     { id: 'character', label: '→ Character', color: '#8b5cf6', top: '65%' },
