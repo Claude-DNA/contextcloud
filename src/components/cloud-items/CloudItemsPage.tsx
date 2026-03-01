@@ -245,6 +245,27 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
     setItems(prev => prev.filter(it => it.id !== id));
   };
 
+  const handleUpload = useCallback(() => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      const text = await file.text();
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      for (const line of lines) {
+        await fetch('/api/v1/cloud-items', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cloud_type: cloudType, title: line, content: '', tags: [], metadata: {} }),
+        });
+      }
+      await fetchItems();
+    };
+    input.click();
+  }, [cloudType, fetchItems]);
+
   const filtered = search.trim()
     ? items.filter(it =>
         it.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -266,14 +287,22 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
               <h1 className="text-xl font-semibold text-foreground">
                 {config.emoji} {config.label}
               </h1>
-              <button
-                onClick={() => { setAdding(true); setEditingId(null); }}
-                disabled={adding}
-                className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-                style={{ background: config.colorHex }}
-              >
-                + Add {config.label.replace(' Cloud', '')}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleUpload}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
+                >
+                  Upload
+                </button>
+                <button
+                  onClick={() => { setAdding(true); setEditingId(null); }}
+                  disabled={adding}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                  style={{ background: config.colorHex }}
+                >
+                  + Add {config.label.replace(' Cloud', '')}
+                </button>
+              </div>
             </div>
 
             {/* Search */}
