@@ -45,6 +45,8 @@ export const NODE_TYPES: NodeTypeConfig[] = [
   // Narrative nodes
   { type: 'arc', label: 'Arc', emoji: '📈', abbr: 'AR', icon: 'TrendingUp', category: 'narrative', color: '#0891b2',
     inputs: ['*'], outputs: ['*'] },
+  { type: 'chapterPlot', label: 'Plot (Chapter)', emoji: '📖', abbr: 'CP', icon: 'GitBranch', category: 'narrative', color: '#4A90D9',
+    inputs: ['*'], outputs: ['*'] },
   // Reference nodes
   { type: 'musicReference', label: 'Music Reference', emoji: '\u{1F3B5}', abbr: 'MU', icon: 'Music', category: 'reference', color: '#E8A838',
     inputs: [], outputs: ['character', 'scene'] },
@@ -133,6 +135,21 @@ export interface HubHandleConfig {
 
 // All inputs LEFT, single output RIGHT — clean n8n pattern
 export const HUB_HANDLES: Record<string, HubHandleConfig[]> = {
+  chapterPlot: [
+    // TOP: input from previous plot / arc
+    { id: 'input',      label: 'Input',      type: 'target', position: 'top',    color: '#4A90D9', offset: '35%' },
+    { id: 'arc_point',  label: 'Arc',        type: 'target', position: 'top',    color: '#0891b2', offset: '65%' },
+    // LEFT: cloud proxies feed in
+    { id: 'ai',         label: 'AI',         type: 'target', position: 'left',   color: '#6366f1', offset: '20%' },
+    { id: 'world',      label: 'World',      type: 'target', position: 'left',   color: '#0ea5e9', offset: '50%' },
+    { id: 'ideas',      label: 'Ideas',      type: 'target', position: 'left',   color: '#eab308', offset: '80%' },
+    // RIGHT: content connections
+    { id: 'characters', label: 'Characters', type: 'target', position: 'right',  color: '#8b5cf6', offset: '25%' },
+    { id: 'scenes',     label: 'Scenes',     type: 'target', position: 'right',  color: '#10b981', offset: '50%' },
+    { id: 'references', label: 'References', type: 'target', position: 'right',  color: '#64748b', offset: '75%' },
+    // BOTTOM: output to next stage / Gen node
+    { id: 'output',     label: 'Output',     type: 'source', position: 'bottom', color: '#4A90D9', offset: '50%' },
+  ],
   chapterAct: [
     // Top: References (left) + Arc (right)
     { id: 'references', label: 'References', type: 'target', position: 'top', color: '#64748b', offset: '30%' },

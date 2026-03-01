@@ -124,41 +124,46 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
     ...extra,
   }), [draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode]);
 
-  // Build plots as initial nodes — each plot gets its proxy cloud nodes pre-connected
+  // Build plots as initial nodes — vertical pipeline per plot sketch
+  // Layout: Input(top) → Plot → Output(bottom), proxies LEFT, content handles RIGHT
   const buildPlotNodes = useCallback((plots: PlotRow[]) => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 
-    const COL_WIDTH = 560; // horizontal gap between plot columns
-    const PLOT_Y = 260;    // plot node vertical center
+    const PLOT_X = 280;       // plot node x position (center column)
+    const PLOT_H = 160;       // approximate plot node height
+    const ROW_GAP = 80;       // gap between plot nodes
+    const ROW_STEP = PLOT_H + ROW_GAP;
 
     plots.forEach((plot, i) => {
-      const plotId = `plot_${plot.id}`;
-      const cx = 240 + i * COL_WIDTH; // plot center x
+      const plotId = `chplot_${plot.id}`;
+      const py = 60 + i * ROW_STEP;
 
-      // --- Plot node ---
+      // --- chapterPlot node (vertical handles) ---
       newNodes.push({
         id: plotId,
-        type: 'plot',
-        position: { x: cx, y: PLOT_Y },
+        type: 'chapterPlot',
+        position: { x: PLOT_X, y: py },
         dragging: false, selected: false,
-        data: makeNodeData('plot', { title: plot.name || plot.title || `Plot ${i + 1}`, content: plot.content || '' }),
+        data: makeNodeData('chapterPlot', {
+          title: plot.name || plot.title || `Plot ${i + 1}`,
+          content: plot.content || '',
+        }),
       });
 
-      // --- Proxy clouds (left side) ---
-      const proxies: Array<{ type: string; handle: string; dx: number; dy: number }> = [
-        { type: 'ideasProxy',      handle: 'ideas',      dx: -240, dy:  80 },
-        { type: 'worldProxy',      handle: 'world',      dx: -240, dy: -20 },
-        { type: 'aiNode',          handle: 'ai',         dx: -240, dy: -120 },
-        { type: 'referencesProxy', handle: 'references', dx: -240, dy:  180 },
+      // --- Proxy clouds on LEFT —  AI / World / Ideas
+      // Align vertically with left handles (20% / 50% / 80% of node height ≈ 32 / 80 / 128)
+      const leftProxies: Array<{ type: string; handle: string; dy: number }> = [
+        { type: 'aiNode',     handle: 'ai',    dy: 0   },
+        { type: 'worldProxy', handle: 'world', dy: 60  },
+        { type: 'ideasProxy', handle: 'ideas', dy: 120 },
       ];
-
-      proxies.forEach(({ type, handle, dx, dy }) => {
+      leftProxies.forEach(({ type, handle, dy }) => {
         const proxyId = `${type}_${plot.id}`;
         newNodes.push({
           id: proxyId,
           type,
-          position: { x: cx + dx, y: PLOT_Y + dy },
+          position: { x: PLOT_X - 230, y: py + dy },
           dragging: false, selected: false,
           data: makeNodeData(type, { title: '', content: '' }),
         });
@@ -172,14 +177,32 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
         });
       });
 
-      // --- Prev-plot chain edge ---
+      // --- References proxy on RIGHT (connects to 'references' handle at 75%)
+      const refId = `referencesProxy_${plot.id}`;
+      newNodes.push({
+        id: refId,
+        type: 'referencesProxy',
+        position: { x: PLOT_X + 230, y: py + 100 },
+        dragging: false, selected: false,
+        data: makeNodeData('referencesProxy', { title: '', content: '' }),
+      });
+      newEdges.push({
+        id: `e_${refId}_${plotId}`,
+        source: refId,
+        target: plotId,
+        targetHandle: 'references',
+        animated: false,
+        style: { stroke: '#c4c8d0' },
+      });
+
+      // --- Vertical chain: output(bottom) of plot i → input(top) of plot i+1
       if (i > 0) {
         newEdges.push({
-          id: `e_plot_chain_${i}`,
-          source: `plot_${plots[i - 1].id}`,
+          id: `e_chain_${i}`,
+          source: `chplot_${plots[i - 1].id}`,
           target: plotId,
           sourceHandle: 'output',
-          targetHandle: 'prev_plot',
+          targetHandle: 'input',
           animated: true,
           style: { stroke: '#4A90D9', strokeDasharray: '5 5' },
         });

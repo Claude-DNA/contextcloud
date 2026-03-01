@@ -244,9 +244,13 @@ function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData
 }
 
 /* --- HubNode --- 4-directional: top/bottom=chain, left=clouds, right=injections --- */
+const HUB_NODE_SIZES: Record<string, { width: number; minHeight: number }> = {
+  chapterPlot: { width: 200, minHeight: 160 },
+};
 function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { type, color, title, onDelete } = data;
   const chapterId = data.chapterId as string | undefined;
+  const size = HUB_NODE_SIZES[type] || { width: 190, minHeight: 72 };
   const config = NODE_TYPE_MAP[type];
   const nodeLabel = config?.label || type;
   const handles = HUB_HANDLES[type] || [];
@@ -257,7 +261,7 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
     <div
       className="group relative bg-white rounded-xl hover:shadow-md"
       style={{
-        width: 190, minHeight: 72,
+        width: size.width, minHeight: size.minHeight,
         border: selected ? `2px solid ${color}` : `1.5px solid #e5e7eb`,
         boxShadow: selected ? `0 0 0 3px ${color}22` : '0 1px 3px rgba(0,0,0,0.06)',
         padding: '10px 14px',
