@@ -77,15 +77,13 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
     label: 'World Cloud',
     emoji: '🌍',
     colorHex: '#06b6d4',
-    titlePlaceholder: 'Element name…',
-    contentPlaceholder: 'Describe this world-building element — rules, atmosphere, significance…',
-    tagLabel: 'Category',
-    tagPlaceholder: 'location, rule, system, faction…',
+    titlePlaceholder: 'Universe element… (e.g. The Totem System, Nano-bodies, The Meadows)',
+    contentPlaceholder: 'Describe this aspect of the universe — its nature, scope, how it came to be, what it means for everyone who lives inside it…',
+    tagLabel: 'Tags',
+    tagPlaceholder: 'ancient, biological, irreversible…',
     fields: [
-      {
-        key: 'category', label: 'Category', placeholder: 'location',
-        options: ['location', 'rule / law', 'system / tech', 'faction / group', 'history', 'lore', 'other'],
-      },
+      { key: 'scope', label: 'Scope', placeholder: 'e.g. civilisation-wide, planetary, cosmic, personal…' },
+      { key: 'origin', label: 'Origin / Age', placeholder: 'e.g. predates the partnership era, unknown…' },
     ],
   },
 };
