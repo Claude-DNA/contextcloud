@@ -23,17 +23,25 @@ export async function query(text: string, params?: unknown[]) {
 
 let dbAvailable: boolean | null = null;
 let lastCheck = 0;
+
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
 export async function isDbAvailable(): Promise<boolean> {
   const now = Date.now();
   if (dbAvailable === true) return true;
   if (dbAvailable === false && now - lastCheck < 10000) return false;
 
   lastCheck = now;
-  try {
-    await pool.query('SELECT 1');
-    dbAvailable = true;
-  } catch {
-    dbAvailable = false;
+  // Neon auto-pauses on free tier — retry up to 3x with 2s delay to let it wake
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await pool.query('SELECT 1');
+      dbAvailable = true;
+      return true;
+    } catch {
+      if (attempt < 2) await sleep(2000);
+    }
   }
-  return dbAvailable;
+  dbAvailable = false;
+  return false;
 }
