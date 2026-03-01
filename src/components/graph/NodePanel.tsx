@@ -801,6 +801,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                     stateFormula={stateFormula}
                     onColorChange={handleStateColorPick}
                     onFormulaChange={handleStateFormulaChange}
+                    theme="light"
                   />
                 )}
 
