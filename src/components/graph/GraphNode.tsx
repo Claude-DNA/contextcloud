@@ -34,6 +34,8 @@ export interface GraphNodeData {
   onStateColorChange?: (id: string, color: string) => void;
   onImageGenerated?: (id: string, url: string) => void;
   onDelete?: (id: string) => void;
+  /** Chapter canvas mode: source handle direction; also disables target handle */
+  handleSide?: 'top' | 'bottom' | 'left' | 'right';
   [key: string]: unknown;
 }
 
@@ -55,15 +57,43 @@ function IconBadge({ color, type, size = 36 }: { color: string; type: string; si
 
 /* --- ProxyNode --- compact badge node for characterProxy / sceneProxy --- */
 function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
-  const { color, parentNodeId, stateColor, onZoomToParent, onDelete, type } = data;
+  const { color, parentNodeId, stateColor, onZoomToParent, onDelete, type, handleSide } = data;
   const { bigNodes, onParentChange } = useContext(GraphContext);
+  const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
 
   const handleClick = useCallback(() => {
-    if (parentNodeId && onZoomToParent) {
-      onZoomToParent(parentNodeId);
-    }
+    if (parentNodeId && onZoomToParent) onZoomToParent(parentNodeId);
   }, [parentNodeId, onZoomToParent]);
 
+  // Chapter canvas mode — compact, no target handle, source at handleSide
+  if (handleSide) {
+    const srcPos = posMap[handleSide as keyof typeof posMap] ?? Position.Top;
+    return (
+      <div className="group relative rounded-lg shadow-sm">
+        {onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+            className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
+            title="Delete node"
+          >{'\u00D7'}</button>
+        )}
+        <div
+          style={{
+            width: 100, height: 46,
+            border: selected ? `2px solid ${color}` : `2px solid ${color}50`,
+            background: '#ffffff', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 6, padding: '0 8px',
+          }}
+        >
+          <Handle type="source" position={srcPos} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-white" />
+          <IconBadge color={color} type={type} size={26} />
+          <span className="text-[9px] text-gray-600 font-medium truncate">{NODE_TYPE_MAP[type]?.label || type}</span>
+        </div>
+      </div>
+    );
+  }
+
+  // Default mode — left target + right source + link dropdown
   return (
     <div className="group relative rounded-lg shadow-sm">
       {onDelete && (
@@ -77,36 +107,19 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
         onClick={handleClick}
         className="cursor-pointer"
         style={{
-          width: 120,
-          minHeight: 60,
+          width: 120, minHeight: 60,
           border: selected ? `2px solid ${color}` : `2px solid ${color}40`,
           boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
           background: '#ffffff',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: 8,
-          overflow: 'hidden',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          borderRadius: 8, overflow: 'hidden',
         }}
       >
         <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
-
-        {/* State color badge (top-right) */}
         <div
           className="absolute"
-          style={{
-            top: 4,
-            right: 4,
-            width: 16,
-            height: 16,
-            borderRadius: '50%',
-            background: stateColor || '#d1d5db',
-            border: '2px solid #e5e7eb',
-            zIndex: 2,
-          }}
+          style={{ top: 4, right: 4, width: 16, height: 16, borderRadius: '50%', background: stateColor || '#d1d5db', border: '2px solid #e5e7eb', zIndex: 2 }}
         />
-
         <IconBadge color={color} type={type} />
         <select
           value={parentNodeId || ''}
@@ -123,7 +136,6 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
             <option key={n.id} value={n.id}>{n.label || n.id}</option>
           ))}
         </select>
-
         <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
       </div>
     </div>
@@ -245,7 +257,7 @@ function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData
 
 /* --- HubNode --- 4-directional: top/bottom=chain, left=clouds, right=injections --- */
 const HUB_NODE_SIZES: Record<string, { width: number; minHeight: number }> = {
-  chapterPlot: { width: 200, minHeight: 160 },
+  chapterPlot: { width: 200, minHeight: 72 },
 };
 function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { type, color, title, onDelete } = data;
@@ -304,7 +316,7 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
       {/* Content */}
       <IconBadge color={color} type={type} size={26} />
       <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-        <span className="text-[11px] text-gray-800 font-semibold truncate leading-tight">{title || 'Untitled'}</span>
+        <span className="text-[11px] text-gray-800 font-semibold leading-tight line-clamp-2">{title || 'Untitled'}</span>
         <span className="text-[9px] text-gray-400 truncate mt-0.5">{nodeLabel}</span>
         {chapterId && (
           <Link
@@ -433,7 +445,8 @@ function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeDa
 
 /* --- AiNode --- special compact card with pulse ring --- */
 function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
-  const { color, onDelete } = data;
+  const { color, onDelete, handleSide } = data;
+  const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
   const model = (data.model as string) || AI_NODE_CONFIG.defaultModel;
   const hasApiKey = !!(data.apiKey as string);
   const modelInfo = AI_NODE_CONFIG.availableModels.find(m => m.id === model);
@@ -461,7 +474,7 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
           title="Delete node"
         >{'\u00D7'}</button>
       )}
-      <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />
+      {!handleSide && <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />}
 
       <div className="relative shrink-0">
         {hasApiKey && (
@@ -483,7 +496,11 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
         <span className="text-[9px] text-indigo-400 truncate">AI Agent</span>
       </div>
 
-      <Handle type="source" position={Position.Right} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />
+      <Handle
+        type="source"
+        position={handleSide ? (posMap[handleSide as keyof typeof posMap] ?? Position.Top) : Position.Right}
+        className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200"
+      />
 
       <style>{`
         @keyframes pulse {
@@ -537,7 +554,8 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
 
 /* --- IdeasProxyNode --- user-curated ideas from Ideas Cloud --- */
 function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
-  const { color, onDelete, onContentChange } = data;
+  const { color, onDelete, onContentChange, handleSide } = data;
+  const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
   const [allIdeas, setAllIdeas] = useState<Array<{ id: string; text: string; weight: number }>>([]);
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState(false);
@@ -584,7 +602,8 @@ function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeDat
           className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
         >×</button>
       )}
-      <Handle type="target" position={Position.Left} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />
+      {/* No target handle in chapter canvas mode (handleSide set) */}
+      {!handleSide && <Handle type="target" position={Position.Left} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />}
 
       {/* Header */}
       <div
@@ -644,7 +663,11 @@ function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeDat
         <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">Click header to select ideas</div>
       )}
 
-      <Handle type="source" position={Position.Right} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />
+      <Handle
+        type="source"
+        position={handleSide ? (posMap[handleSide as keyof typeof posMap] ?? Position.Top) : Position.Right}
+        className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200"
+      />
     </div>
   );
 }

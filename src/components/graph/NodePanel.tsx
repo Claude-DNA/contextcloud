@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useContext, useMemo, useEffect } from 'react';
+import { useCallback, useState, useContext, useMemo, useEffect, useRef } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
 import { NODE_TYPE_MAP, TYPED_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
 import type { StateFormula } from './nodeTypes';
@@ -74,6 +74,18 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
   const [cloudIdeasLoaded, setCloudIdeasLoaded] = useState(false);
   const [ideaPickerOpen, setIdeaPickerOpen] = useState(false);
   const { bigNodes, onParentChange } = useContext(GraphContext);
+
+  // Guard against app-switch clicks closing the panel
+  const lastWindowFocusTime = useRef(0);
+  useEffect(() => {
+    const onFocus = () => { lastWindowFocusTime.current = Date.now(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+  const handleBackdropClick = useCallback(() => {
+    if (Date.now() - lastWindowFocusTime.current < 600) return;
+    onClose();
+  }, [onClose]);
 
   const d = node?.data as Record<string, unknown> | undefined;
   const title = (d?.title as string) || '';
@@ -259,7 +271,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
       className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-200 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
     >
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px]" onClick={handleBackdropClick} />
       {/* Panel */}
       <div
         className={`relative w-full max-w-5xl mx-4 bg-white rounded-2xl shadow-2xl flex flex-col transition-transform duration-200 ${isOpen ? 'scale-100' : 'scale-95'}`}

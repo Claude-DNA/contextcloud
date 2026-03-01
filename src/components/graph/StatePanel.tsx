@@ -39,6 +39,7 @@ export default function StatePanel({
   const [fbName, setFbName] = useState<string>('');
   const [fbDesc, setFbDesc] = useState<string>('');
   const [saved, setSaved] = useState(false);
+  const [librarySearch, setLibrarySearch] = useState('');
 
   useEffect(() => { setLibrary(loadStateLibrary()); }, []);
 
@@ -185,7 +186,7 @@ export default function StatePanel({
             <input
               value={fbName}
               onChange={e => setFbName(e.target.value)}
-              placeholder="e.g. Jane's Activation State..."
+              placeholder="e.g. Honor, Despair, Warrior's Resolve..."
               style={{ width: '100%', background: bgSub, color: txt, fontSize: 13, borderRadius: 6, padding: '6px 10px', border: `1px solid ${bdr}`, outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
@@ -194,7 +195,7 @@ export default function StatePanel({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1 }}>Base States</div>
-              <div style={{ fontSize: 10, color: muted }}>click once = <b style={{ color: '#16a34a' }}>+add</b> · twice = <b style={{ color: '#dc2626' }}>−negate</b> · thrice = remove</div>
+              <div style={{ fontSize: 10, color: muted }}>1st click: add · 2nd: negative · 3rd: remove</div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {ATOMIC_STATES.map(state => {
@@ -227,7 +228,7 @@ export default function StatePanel({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1 }}>Modifier ×</div>
-              <div style={{ fontSize: 10, color: muted }}>click = add · click again = negate · third = remove</div>
+              <div style={{ fontSize: 10, color: muted }}>1st click: add · 2nd: negative · 3rd: remove</div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {ATOMIC_STATES.map(state => {
@@ -291,10 +292,31 @@ export default function StatePanel({
       {/* ── LIBRARY TAB ── */}
       {tab === 'library' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Search */}
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: muted, pointerEvents: 'none' }}>🔍</span>
+            <input
+              value={librarySearch}
+              onChange={e => setLibrarySearch(e.target.value)}
+              placeholder="Search formulas..."
+              style={{ width: '100%', background: bgSub, color: txt, fontSize: 12, borderRadius: 6, padding: '5px 10px 5px 28px', border: `1px solid ${bdr}`, outline: 'none', boxSizing: 'border-box' }}
+            />
+            {librarySearch && (
+              <button
+                onClick={() => setLibrarySearch('')}
+                style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: muted, fontSize: 14, lineHeight: 1, padding: 0 }}
+              >×</button>
+            )}
+          </div>
+
           <div>
             <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Preset Formulas</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 240, overflowY: 'auto' }}>
-              {PRESET_FORMULAS.map(f => (
+              {PRESET_FORMULAS.filter(f => {
+                const q = librarySearch.toLowerCase();
+                return !q || f.name.toLowerCase().includes(q) || fmtF(f).toLowerCase().includes(q) || (f.description || '').toLowerCase().includes(q);
+              }).map(f => (
                 <button
                   key={f.id}
                   onClick={() => { applyFormula(f); setTab('formula'); }}
@@ -321,7 +343,10 @@ export default function StatePanel({
               <div style={{ fontSize: 11, color: muted, fontStyle: 'italic', padding: '4px 2px' }}>No saved formulas yet — build one in the Formula tab.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflowY: 'auto' }}>
-                {library.map(f => {
+                {library.filter(f => {
+                  const q = librarySearch.toLowerCase();
+                  return !q || f.name.toLowerCase().includes(q) || fmtF(f).toLowerCase().includes(q) || (f.description || '').toLowerCase().includes(q);
+                }).map(f => {
                   const col = deriveFormulaColor(f);
                   return (
                     <div key={f.id} style={{ display: 'flex', gap: 1 }}>

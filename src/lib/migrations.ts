@@ -166,6 +166,23 @@ export async function runMigrations() {
       )
     `);
 
+    // Cloud items — shared table for Characters, References, Scenes, World clouds
+    await query(`
+      CREATE TABLE IF NOT EXISTS cloud_items (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        cloud_type TEXT NOT NULL CHECK (cloud_type IN ('characters', 'references', 'scenes', 'world')),
+        title TEXT NOT NULL,
+        content TEXT NOT NULL DEFAULT '',
+        tags TEXT[] NOT NULL DEFAULT '{}',
+        metadata JSONB NOT NULL DEFAULT '{}',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_items_user_type ON cloud_items (user_id, cloud_type)`);
+
     console.log('Migrations complete');
   } catch (e) {
     console.error('Migration error:', e);
