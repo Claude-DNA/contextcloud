@@ -124,26 +124,29 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
     ...extra,
   }), [draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode]);
 
-  // Build plots as initial nodes — vertical pipeline per plot sketch
-  // Layout: Input(top) → Plot → Output(bottom), proxies LEFT, content handles RIGHT
+  // Build plots as initial nodes — horizontal pipeline per plot sketch
+  // Layout: Input(left) → [Plot | Open] → Output(right)
+  //   TOP: Characters, Scenes, References flow DOWN into plot
+  //   BOTTOM: AI, World, Ideas cloud proxies flow UP into plot
   const buildPlotNodes = useCallback((plots: PlotRow[]) => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 
-    const PLOT_X = 280;       // plot node x position (center column)
-    const PLOT_H = 160;       // approximate plot node height
-    const ROW_GAP = 80;       // gap between plot nodes
-    const ROW_STEP = PLOT_H + ROW_GAP;
+    const PLOT_W = 220;       // plot node width (approximate)
+    const COL_GAP = 200;      // horizontal gap between plot nodes (space for proxies to the sides)
+    const COL_STEP = PLOT_W + COL_GAP;
+    const PLOT_Y = 220;       // plot node y (center row)
+    const PROXY_W = 90;       // proxy node width (approximate)
 
     plots.forEach((plot, i) => {
       const plotId = `chplot_${plot.id}`;
-      const py = 60 + i * ROW_STEP;
+      const px = 120 + i * COL_STEP;
 
-      // --- chapterPlot node (vertical handles) ---
+      // --- chapterPlot node ---
       newNodes.push({
         id: plotId,
         type: 'chapterPlot',
-        position: { x: PLOT_X, y: py },
+        position: { x: px, y: PLOT_Y },
         dragging: false, selected: false,
         data: makeNodeData('chapterPlot', {
           title: plot.name || plot.title || `Plot ${i + 1}`,
@@ -151,21 +154,21 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
         }),
       });
 
-      // --- Proxy clouds on LEFT —  AI / World / Ideas
-      // Align vertically with left handles (20% / 50% / 80% of node height ≈ 32 / 80 / 128)
-      const leftProxies: Array<{ type: string; handle: string; dy: number }> = [
-        { type: 'aiNode',     handle: 'ai',    dy: 0   },
-        { type: 'worldProxy', handle: 'world', dy: 60  },
-        { type: 'ideasProxy', handle: 'ideas', dy: 120 },
+      // --- BOTTOM proxies: AI / World / Ideas — source handle at TOP (edge goes up into plot's bottom)
+      const bottomProxies: Array<{ type: string; handle: string; pctX: number }> = [
+        { type: 'aiNode',     handle: 'ai',    pctX: 0.20 },
+        { type: 'worldProxy', handle: 'world', pctX: 0.50 },
+        { type: 'ideasProxy', handle: 'ideas', pctX: 0.80 },
       ];
-      leftProxies.forEach(({ type, handle, dy }) => {
+      bottomProxies.forEach(({ type, handle, pctX }) => {
         const proxyId = `${type}_${plot.id}`;
+        const proxyX = px + pctX * PLOT_W - PROXY_W / 2;
         newNodes.push({
           id: proxyId,
           type,
-          position: { x: PLOT_X - 230, y: py + dy },
+          position: { x: proxyX, y: PLOT_Y + 100 },
           dragging: false, selected: false,
-          data: makeNodeData(type, { title: '', content: '' }),
+          data: makeNodeData(type, { title: '', content: '', handleSide: 'top' }),
         });
         newEdges.push({
           id: `e_${proxyId}_${plotId}`,
@@ -177,14 +180,14 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
         });
       });
 
-      // --- References proxy on RIGHT (connects to 'references' handle at 75%)
+      // --- TOP proxies: References — source handle at BOTTOM (edge goes down into plot's top)
       const refId = `referencesProxy_${plot.id}`;
       newNodes.push({
         id: refId,
         type: 'referencesProxy',
-        position: { x: PLOT_X + 230, y: py + 100 },
+        position: { x: px + 0.75 * PLOT_W - PROXY_W / 2, y: PLOT_Y - 80 },
         dragging: false, selected: false,
-        data: makeNodeData('referencesProxy', { title: '', content: '' }),
+        data: makeNodeData('referencesProxy', { title: '', content: '', handleSide: 'bottom' }),
       });
       newEdges.push({
         id: `e_${refId}_${plotId}`,
@@ -195,7 +198,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
         style: { stroke: '#c4c8d0' },
       });
 
-      // --- Vertical chain: output(bottom) of plot i → input(top) of plot i+1
+      // --- Horizontal chain: output(right) of plot i-1 → input(left) of plot i
       if (i > 0) {
         newEdges.push({
           id: `e_chain_${i}`,
@@ -306,8 +309,10 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
       };
       if (n.data.isProxy) clean.isProxy = true;
       if (n.data.stateColor) clean.stateColor = n.data.stateColor;
+      if (n.data.stateFormula) clean.stateFormula = n.data.stateFormula;
       if (n.data.parentNodeId) clean.parentNodeId = n.data.parentNodeId;
       if (n.data.parentLabel) clean.parentLabel = n.data.parentLabel;
+      if (n.data.handleSide) clean.handleSide = n.data.handleSide;
       return { ...n, data: clean };
     });
   }, []);
