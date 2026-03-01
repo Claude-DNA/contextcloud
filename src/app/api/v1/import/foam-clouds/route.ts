@@ -120,34 +120,78 @@ OTHER:
 - Lines starting with "🎬" → film reference; "🎵" → music; "🖼️" → art; "📚" → book
 `;
 
-// ── Pass 1: Arc (chapters + plots) ───────────────────────────────────────
-async function extractArc(text: string) {
-  const prompt = `Extract the story arc structure from this document. The document is a story bible / chapter outline.
+// ── Pass 1a: Arc name + chapter names only ────────────────────────────────
+async function extractArcMeta(text: string) {
+  const prompt = `Extract the story title and chapter names from this document.
 RETURN ONLY valid JSON — no markdown, no explanation.
 
-Shape:
-{"name":"story title","description":"one sentence","chapters":[{"name":"chapter name as written","plots":[{"name":"short plot title","content":"full plot description from the PLOT section"}]}]}
+Shape: {"name":"story title","description":"one sentence summary","chapters":["Chapter 1 name","Chapter 2 name",...]}
 
 Rules:
-1. STORY TITLE: Look for the main title at the top of the document. It should be something like "Foam on the Sand". Do NOT use "Imported Arc" or any generic name.
-2. CHAPTERS: The document has 9 chapters (CHAPTER 1 through CHAPTER 9). Find each one using any of:
-   - A line containing "CHAPTER" followed by a number and dash
-   - A heading like "## CHAPTER 1 — Name" (markdown) OR "CHAPTER 1 — Name" (plain text)
-   Collect ALL 9 chapters.
-3. PLOTS: For each chapter, find the PLOT section (line/heading containing 📖 or "PLOT") and summarize it in 2-4 sentences max. Keep "content" concise — do NOT copy the entire section verbatim.
-4. Preserve chapter order (1 through 9).
-5. If a chapter has no 📖 section, use a brief summary of whatever story description follows the chapter heading.
+1. TITLE: Find the main story title near the top (e.g. "Foam on the Sand"). Do NOT return "Imported Arc".
+2. CHAPTERS: List ALL chapter names in order. The document should have ~9 chapters. Look for lines containing "CHAPTER" followed by a number.
+3. Return ONLY the chapter name string, exactly as written after "CHAPTER X — ".
+4. No plot content — just names.
+
+${SECTION_HEADER}
+
+DOCUMENT:
+${text.slice(0, 30_000)}`;
+
+  return await geminiCall(prompt) as { name: string; description: string; chapters: string[] };
+}
+
+// ── Pass 1b: Plot summaries for ALL chapters (one short sentence each) ───
+async function extractPlotSummaries(text: string, chapterNames: string[]) {
+  const chapterList = chapterNames.map((n, i) => `${i + 1}. ${n}`).join('\n');
+
+  const prompt = `For each chapter listed below, find its 📖 PLOT section in the document and write ONE sentence (max 25 words) summarizing what happens.
+RETURN ONLY valid JSON — no markdown, no explanation.
+
+Shape: [{"chapter":"exact chapter name","plot":"one sentence summary"}]
+
+Chapters to summarize:
+${chapterList}
+
+Rules:
+- One entry per chapter — match by chapter name
+- "plot" = 1 sentence, max 25 words, describing the core story event
+- If a chapter has a "Hidden truth:" note, include it briefly
+- Keep output TINY — this is a summary only
 
 ${SECTION_HEADER}
 
 DOCUMENT:
 ${text.slice(0, 80_000)}`;
 
-  const data = await geminiCall(prompt) as {
-    name: string; description: string;
-    chapters: Array<{ name: string; plots: Array<{ name: string; content: string }> }>;
+  return await geminiCall(prompt) as Array<{ chapter: string; plot: string }>;
+}
+
+// ── Pass 1: Arc (combines meta + plot summaries) ──────────────────────────
+async function extractArc(text: string) {
+  const meta = await extractArcMeta(text);
+  const chapterNames = (meta.chapters || []).map(c =>
+    typeof c === 'string' ? c : (c as { name?: string }).name || String(c)
+  );
+
+  if (chapterNames.length === 0) {
+    return { name: meta.name || 'Foam on the Sand', description: meta.description || '', chapters: [] };
+  }
+
+  const plotSummaries = await extractPlotSummaries(text, chapterNames);
+  const plotMap = new Map((plotSummaries || []).map(p => [p.chapter?.toLowerCase(), p.plot]));
+
+  return {
+    name: meta.name || 'Foam on the Sand',
+    description: meta.description || '',
+    chapters: chapterNames.map(name => ({
+      name,
+      plots: [{
+        name: 'Plot',
+        content: plotMap.get(name.toLowerCase()) || plotMap.get(name.split('—')[1]?.trim().toLowerCase() || '') || '',
+      }],
+    })),
   };
-  return data;
 }
 
 // ── Pass 2: Characters ────────────────────────────────────────────────────
