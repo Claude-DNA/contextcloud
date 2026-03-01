@@ -115,6 +115,29 @@ export default function VisualCanvas() {
     if (selectedNodeId === nodeId) setSelectedNodeId(null);
   }, [setNodes, setEdges, selectedNodeId]);
 
+  // Bulk delete — triggered by keyboard Delete/Backspace on selected nodes
+  const onNodesDelete = useCallback((deleted: Node[]) => {
+    const ids = new Set(deleted.map(n => n.id));
+    setEdges(eds => eds.filter(e => !ids.has(e.source) && !ids.has(e.target)));
+    setSelectedNodeId(prev => (prev && ids.has(prev) ? null : prev));
+  }, [setEdges]);
+
+  // Track how many nodes are currently selected for the toolbar button
+  const [selectedCount, setSelectedCount] = useState(0);
+  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[]; edges: Edge[] }) => {
+    setSelectedCount(sel.length);
+  }, []);
+
+  const handleDeleteSelected = useCallback(() => {
+    const selected = reactFlowInstance.getNodes().filter(n => n.selected);
+    if (selected.length === 0) return;
+    const ids = new Set(selected.map(n => n.id));
+    setNodes(nds => nds.filter(n => !ids.has(n.id)));
+    setEdges(eds => eds.filter(e => !ids.has(e.source) && !ids.has(e.target)));
+    setSelectedNodeId(prev => (prev && ids.has(prev) ? null : prev));
+    setSelectedCount(0);
+  }, [reactFlowInstance, setNodes, setEdges]);
+
   // Node data change handlers
   const handleTitleChange = useCallback((nodeId: string, newTitle: string) => {
     setNodes(nds =>
@@ -809,9 +832,13 @@ export default function VisualCanvas() {
             isValidConnection={isValidConnection}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            onNodesDelete={onNodesDelete}
+            onSelectionChange={onSelectionChange}
             nodeTypes={nodeTypes}
             connectionMode={ConnectionMode.Loose}
             deleteKeyCode={['Backspace', 'Delete']}
+            selectionOnDrag={true}
+            multiSelectionKeyCode="Shift"
             fitView
             className="bg-[#f5f5fa]"
           >
@@ -857,6 +884,18 @@ export default function VisualCanvas() {
                 >
                   {publishing ? 'Publishing...' : 'Publish'}
                 </button>
+                {selectedCount > 0 && (
+                  <>
+                    <div className="w-px h-6 bg-gray-200 mx-1" />
+                    <button
+                      onClick={handleDeleteSelected}
+                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
+                      title={`Delete ${selectedCount} selected node${selectedCount > 1 ? 's' : ''}`}
+                    >
+                      🗑 Delete {selectedCount}
+                    </button>
+                  </>
+                )}
                 <div className="w-px h-6 bg-gray-200 mx-1" />
                 <button
                   onClick={copyForAI}
