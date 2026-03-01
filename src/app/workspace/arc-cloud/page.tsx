@@ -101,6 +101,19 @@ export default function ArcCloudPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Delete arc
+  const handleDeleteArc = async (arcId: string, arcName: string) => {
+    if (!confirm(`Delete arc "${arcName}" and all its chapters/plots? This cannot be undone.`)) return;
+    try {
+      await fetch(`/api/v1/arcs/${arcId}`, { method: 'DELETE' });
+      if (selectedArcId === arcId) setSelectedArcId(null);
+      await fetchArcs();
+      setArcDropdownOpen(false);
+    } catch (err) {
+      console.error('Failed to delete arc:', err);
+    }
+  };
+
   // Create new arc
   const handleNewArc = async () => {
     const name = prompt('New arc name:');
@@ -298,17 +311,23 @@ export default function ArcCloudPage() {
                 <div className="absolute right-0 top-full mt-1 w-56 bg-card-bg border border-border rounded-xl shadow-lg z-20 overflow-hidden">
                   <div className="max-h-60 overflow-y-auto">
                     {arcs.map(arc => (
-                      <button
-                        key={arc.id}
-                        onClick={() => { setSelectedArcId(arc.id); setArcDropdownOpen(false); }}
-                        className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
-                          arc.id === selectedArcId
-                            ? 'bg-accent/10 text-accent font-medium'
-                            : 'text-foreground hover:bg-gray-50'
-                        }`}
-                      >
-                        {arc.name}
-                      </button>
+                      <div key={arc.id} className="group flex items-center">
+                        <button
+                          onClick={() => { setSelectedArcId(arc.id); setArcDropdownOpen(false); }}
+                          className={`flex-1 text-left px-4 py-2.5 text-sm transition-colors ${
+                            arc.id === selectedArcId
+                              ? 'bg-accent/10 text-accent font-medium'
+                              : 'text-foreground hover:bg-gray-50'
+                          }`}
+                        >
+                          {arc.name}
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteArc(arc.id, arc.name); }}
+                          className="opacity-0 group-hover:opacity-100 px-2 py-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 transition-all text-xs"
+                          title="Delete arc"
+                        >✕</button>
+                      </div>
                     ))}
                   </div>
                   <div className="border-t border-border">
