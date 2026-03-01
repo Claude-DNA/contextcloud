@@ -141,23 +141,23 @@ ${text.slice(0, 30_000)}`;
   return await geminiCall(prompt) as { name: string; description: string; chapters: string[] };
 }
 
-// ── Pass 1b: Plot summaries for ALL chapters (one short sentence each) ───
+// ── Pass 1b: Full plot content for ALL chapters ───────────────────────────
 async function extractPlotSummaries(text: string, chapterNames: string[]) {
   const chapterList = chapterNames.map((n, i) => `${i + 1}. ${n}`).join('\n');
 
-  const prompt = `For each chapter listed below, find its 📖 PLOT section in the document and write ONE sentence (max 25 words) summarizing what happens.
+  const prompt = `For each chapter listed below, find its 📖 PLOT section in the document and extract the full plot description.
 RETURN ONLY valid JSON — no markdown, no explanation.
 
-Shape: [{"chapter":"exact chapter name","plot":"one sentence summary"}]
+Shape: [{"chapter":"exact chapter name","plot":"full plot description"}]
 
-Chapters to summarize:
+Chapters:
 ${chapterList}
 
 Rules:
 - One entry per chapter — match by chapter name
-- "plot" = 1 sentence, max 25 words, describing the core story event
-- If a chapter has a "Hidden truth:" note, include it briefly
-- Keep output TINY — this is a summary only
+- "plot" = copy the full content of the 📖 PLOT section for that chapter (including Hidden truth, Act notes, etc.)
+- Preserve all detail — do NOT summarize
+- If the plot section has sub-points (Phase 1/2/3, bullet points), include them
 
 ${SECTION_HEADER}
 
