@@ -98,29 +98,45 @@ async function geminiCall(prompt: string): Promise<unknown> {
 }
 
 const SECTION_HEADER = `
-SECTION MARKERS in this document:
-- ## CHAPTER X — Title  → chapter boundary
-- ### 📖 PLOT           → plot/story content
-- ### 👤 CHARACTERS     → character descriptions
-- ### 🎭 STAGE          → locations/settings
-- ### 🌍 UNIVERSE       → world concepts, factions, tech, systems
-- ### ✨ DETAILS — REFERENCES → 🎬 film  🎵 music  🖼️ art  📚 book
-- | rows |              → character formula tables — use in character arc fields
+SECTION MARKERS — the document may be markdown (.md) or plain text stripped from docx. Handle BOTH:
+
+CHAPTER BOUNDARIES (any of these patterns):
+- "## CHAPTER X — Title"  (markdown)
+- "CHAPTER X — Title"     (plain text, possibly on its own line)
+- "Chapter X —"           (variant)
+
+SECTION HEADINGS (any of these patterns — look for the EMOJI):
+- "### 📖 PLOT" or just "📖 PLOT" or a line containing "📖" → plot/story content follows
+- "### 👤 CHARACTERS" or "👤 CHARACTERS" → character descriptions follow
+- "### 🎭 STAGE" or "🎭 STAGE" → location/setting description follows
+- "### 🌍 UNIVERSE" or "🌍 UNIVERSE" → world concepts follow
+- "### ✨ DETAILS" or "✨ DETAILS" or "DETAILS — REFERENCES" → references follow (🎬 film 🎵 music 🖼️ art 📚 book)
+- "### 🔗 ASSOCIATIONS" or "🔗 ASSOCIATIONS" → thematic associations follow
+
+OTHER:
+- "| Character | ... |" table rows → character formula/arc data
+- "# ACT X" or "ACT X:" → act label (Act 1 = The Seduction, Act 2 = The Capture, etc.)
+- Lines starting with "- **Name**" or "**Name** —" → character/item entries
+- Lines starting with "🎬" → film reference; "🎵" → music; "🖼️" → art; "📚" → book
 `;
 
 // ── Pass 1: Arc (chapters + plots) ───────────────────────────────────────
 async function extractArc(text: string) {
-  const prompt = `Extract the story arc structure from this document.
+  const prompt = `Extract the story arc structure from this document. The document is a story bible / chapter outline.
 RETURN ONLY valid JSON — no markdown, no explanation.
 
 Shape:
 {"name":"story title","description":"one sentence","chapters":[{"name":"chapter name as written","plots":[{"name":"short plot title","content":"full plot description from the PLOT section"}]}]}
 
 Rules:
-- One chapter object per ## CHAPTER heading
-- Each chapter's ### 📖 PLOT section = one plot object (split into multiple if the plot section covers distinct events)
-- Preserve chapter order
-- "name" = exact chapter heading text
+1. STORY TITLE: Look for the main title at the top of the document. It should be something like "Foam on the Sand". Do NOT use "Imported Arc" or any generic name.
+2. CHAPTERS: The document has 9 chapters (CHAPTER 1 through CHAPTER 9). Find each one using any of:
+   - A line containing "CHAPTER" followed by a number and dash
+   - A heading like "## CHAPTER 1 — Name" (markdown) OR "CHAPTER 1 — Name" (plain text)
+   Collect ALL 9 chapters.
+3. PLOTS: For each chapter, find the PLOT section (line/heading containing 📖 or "PLOT") and summarize it in 2-4 sentences max. Keep "content" concise — do NOT copy the entire section verbatim.
+4. Preserve chapter order (1 through 9).
+5. If a chapter has no 📖 section, use a brief summary of whatever story description follows the chapter heading.
 
 ${SECTION_HEADER}
 
