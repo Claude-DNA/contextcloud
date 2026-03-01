@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import CloudItemTransformationsModal from './CloudItemTransformationsModal';
+import CloudItemFinalStateModal from './CloudItemFinalStateModal';
 
 export type CloudType = 'characters' | 'references' | 'scenes' | 'world';
 
@@ -230,12 +232,35 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState('');
+  const [transCounts, setTransCounts] = useState<Record<string, number>>({});
+  const [transModalItem, setTransModalItem] = useState<CloudItem | null>(null);
+  const [fsModalItem, setFsModalItem] = useState<CloudItem | null>(null);
+
+  const withTransformations = cloudType === 'characters';
 
   const fetchItems = useCallback(async () => {
     try {
       const res = await fetch(`/api/v1/cloud-items?type=${cloudType}`);
       const data = await res.json();
-      setItems(data.items || []);
+      const fetched: CloudItem[] = data.items || [];
+      setItems(fetched);
+
+      // Fetch transformation counts for characters
+      if (cloudType === 'characters' && fetched.length > 0) {
+        const counts: Record<string, number> = {};
+        await Promise.all(
+          fetched.map(async (item) => {
+            try {
+              const tRes = await fetch(`/api/v1/cloud-items/${item.id}/transformations`);
+              const tData = await tRes.json();
+              counts[item.id] = (tData.transformations || []).length;
+            } catch {
+              counts[item.id] = 0;
+            }
+          })
+        );
+        setTransCounts(counts);
+      }
     } catch { /* ignore */ }
     setLoading(false);
   }, [cloudType]);
@@ -431,15 +456,36 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                               </div>
                             )}
                           </div>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                            <button
-                              onClick={() => { setEditingId(item.id); setAdding(false); }}
-                              className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
-                            >Edit</button>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              className="px-2 py-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            >Delete</button>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {/* Transformation + Final State badges (characters only) */}
+                            {withTransformations && (
+                              <>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setTransModalItem(item); }}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                                  title="Transformations"
+                                >
+                                  T:{transCounts[item.id] ?? 0}
+                                </button>
+                                <button
+                                  onClick={(e) => { e.stopPropagation(); setFsModalItem(item); }}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                                  title="Final State"
+                                >
+                                  FS
+                                </button>
+                              </>
+                            )}
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => { setEditingId(item.id); setAdding(false); }}
+                                className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
+                              >Edit</button>
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                className="px-2 py-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                              >Delete</button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -452,6 +498,22 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
           </div>
         </div>
       </main>
+
+      {/* Modals — characters cloud */}
+      {transModalItem && (
+        <CloudItemTransformationsModal
+          item={transModalItem}
+          colorHex={config.colorHex}
+          onClose={() => { setTransModalItem(null); fetchItems(); }}
+        />
+      )}
+      {fsModalItem && (
+        <CloudItemFinalStateModal
+          item={fsModalItem}
+          colorHex={config.colorHex}
+          onClose={() => setFsModalItem(null)}
+        />
+      )}
     </div>
   );
 }

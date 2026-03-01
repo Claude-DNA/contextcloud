@@ -697,6 +697,127 @@ function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeDat
   );
 }
 
+/* --- CharactersProxyNode --- curated characters from Characters Cloud --- */
+function CharactersProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { color, onDelete, onContentChange, handleSide } = data;
+  const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
+  const [allChars, setAllChars] = useState<Array<{ id: string; title: string; metadata: Record<string, string> }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [picking, setPicking] = useState(false);
+
+  // Selected IDs stored in data.content as JSON
+  const selectedIds: string[] = (() => {
+    try { return JSON.parse((data.content as string) || '[]'); } catch { return []; }
+  })();
+
+  useEffect(() => {
+    fetch('/api/v1/cloud-items?type=characters')
+      .then(r => r.json())
+      .then(d => setAllChars(d.items || []))
+      .catch(() => setAllChars([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const toggle = useCallback((charId: string) => {
+    const next = selectedIds.includes(charId)
+      ? selectedIds.filter(x => x !== charId)
+      : [...selectedIds, charId];
+    if (onContentChange) onContentChange(id, JSON.stringify(next));
+  }, [id, selectedIds, onContentChange]);
+
+  const shown = selectedIds.length > 0
+    ? allChars.filter(c => selectedIds.includes(c.id))
+    : [];
+
+  return (
+    <div
+      className="group relative bg-white rounded-xl shadow-sm"
+      style={{
+        width: 220,
+        border: selected ? `2px solid ${color}` : `1.5px solid ${color}60`,
+        boxShadow: selected ? `0 0 0 3px ${color}22` : undefined,
+        overflow: 'visible',
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
+        >×</button>
+      )}
+      {!handleSide && <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-2.5 !h-2.5 !border-2 !border-indigo-200" />}
+
+      {/* Header */}
+      <div
+        className="nodrag nopan flex items-center justify-between px-2.5 py-1.5 rounded-t-xl border-b border-gray-100 cursor-pointer select-none"
+        style={{ background: `${color}18` }}
+        onClick={() => setPicking(p => !p)}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm">👤</span>
+          <span className="text-[11px] font-semibold text-gray-700">Characters Cloud</span>
+        </div>
+        <span className="text-[10px] text-gray-400">{picking ? '▲' : '▼'} {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'pick'}</span>
+      </div>
+
+      {/* Picker (expanded) */}
+      {picking && (
+        <div className="nodrag nopan border-b border-gray-100 max-h-40 overflow-y-auto" onMouseDown={(e) => e.stopPropagation()}>
+          {loading ? (
+            <div className="px-2 py-2 text-[10px] text-gray-400">Loading...</div>
+          ) : allChars.length === 0 ? (
+            <div className="px-2 py-2 text-[10px] text-gray-400">No characters yet</div>
+          ) : allChars.map(char => (
+            <label
+              key={char.id}
+              className="flex items-center gap-1.5 px-2 py-1 hover:bg-indigo-50 cursor-pointer"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(char.id)}
+                onChange={() => toggle(char.id)}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="nodrag nopan w-3 h-3 accent-indigo-500"
+              />
+              <span className="text-[10px] text-gray-700 truncate leading-tight">{char.title}</span>
+              {char.metadata?.role && (
+                <span className="text-[9px] text-gray-400 shrink-0">{char.metadata.role}</span>
+              )}
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Selected characters display */}
+      {shown.length > 0 && (
+        <div className="px-2 py-1.5 space-y-0.5" style={{ borderRadius: '0 0 10px 10px', background: '#f5f3ff' }}>
+          {shown.map(char => (
+            <div key={char.id} className="flex items-center gap-1.5">
+              <span className="shrink-0 rounded text-white text-[8px] font-bold px-1" style={{ background: color, minWidth: 28, textAlign: 'center' }}>
+                {char.metadata?.role ? char.metadata.role.slice(0, 4) : '👤'}
+              </span>
+              <span className="text-[10px] text-gray-700 truncate leading-tight">{char.title}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {shown.length === 0 && !picking && (
+        <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">Click header to select characters</div>
+      )}
+
+      <Handle
+        type="source"
+        position={handleSide ? (posMap[handleSide as keyof typeof posMap] ?? Position.Top) : Position.Right}
+        className="!bg-indigo-400 !w-2.5 !h-2.5 !border-2 !border-indigo-200"
+      />
+    </div>
+  );
+}
+
 /* --- Set of types that use hub layout (4-directional) --- */
 const HUB_HANDLE_TYPES = new Set(Object.keys(HUB_HANDLES));
 
@@ -708,6 +829,7 @@ function GraphNodeComponent({ id, data, selected }: NodeProps) {
   const d = data as unknown as GraphNodeData;
 
   if (d.type === 'ideasProxy') return <IdeasProxyNode id={id} data={d} selected={selected} />;
+  if (d.type === 'charactersProxy') return <CharactersProxyNode id={id} data={d} selected={selected} />;
   if (d.isProxy) return <ProxyNode id={id} data={d} selected={selected} />;
   if (d.type === 'state') return <StateNode id={id} data={d} />;
   if (d.type === 'aiNode') return <AiNode id={id} data={d} selected={selected} />;

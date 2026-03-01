@@ -183,6 +183,26 @@ export async function runMigrations() {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_items_user_type ON cloud_items (user_id, cloud_type)`);
 
+    // Cloud item final states (columns added to cloud_items)
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS final_state_manual TEXT`);
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS final_state_generated TEXT`);
+
+    // Cloud item transformations
+    await query(`
+      CREATE TABLE IF NOT EXISTS cloud_item_transformations (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cloud_item_id UUID NOT NULL REFERENCES cloud_items(id) ON DELETE CASCADE,
+        source_node_id TEXT,
+        source_node_level TEXT,
+        text TEXT NOT NULL,
+        weight NUMERIC(5,2) NOT NULL DEFAULT 1.0,
+        locked BOOLEAN NOT NULL DEFAULT false,
+        transform_type TEXT NOT NULL DEFAULT 'additive',
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_trans_item_id ON cloud_item_transformations (cloud_item_id)`);
+
     console.log('Migrations complete');
   } catch (e) {
     console.error('Migration error:', e);
