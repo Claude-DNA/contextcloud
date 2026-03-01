@@ -120,86 +120,82 @@ OTHER:
 - Lines starting with "🎬" → film reference; "🎵" → music; "🖼️" → art; "📚" → book
 `;
 
-// ── Pass 1a: Arc name + chapter names only ────────────────────────────────
-async function extractArcMeta(text: string) {
-  const prompt = `Extract the story title and chapter names from this document.
-RETURN ONLY valid JSON — no markdown, no explanation.
+// ── Pass 1: Arc — direct text parser (no Gemini, 100% reliable) ──────────
+function parseArcFromText(text: string): {
+  name: string; description: string;
+  chapters: Array<{ name: string; plots: Array<{ name: string; content: string }> }>;
+} {
+  // Extract story title from first heading
+  const titleMatch = text.match(/^#\s+(.+?)(?:\s*—\s*.+)?$/m)
+    || text.match(/^(.+?)\s*(?:—|–)\s*By Chapter/m)
+    || text.match(/^(.+?)\n/);
+  const name = titleMatch
+    ? titleMatch[1].replace(/\*+/g, '').trim()
+    : 'Foam on the Sand';
 
-Shape: {"name":"story title","description":"one sentence summary","chapters":["Chapter 1 name","Chapter 2 name",...]}
+  // Split into chapter blocks by "## CHAPTER" (markdown) or bare "CHAPTER" on its own line
+  const chapterSplitRe = /(?:^|\n)(?:##\s*)?CHAPTER\s+\d+\s*[—–-]/gi;
+  const chapterMatches = [...text.matchAll(/(?:^|\n)((?:##\s*)?CHAPTER\s+\d+\s*[—–-][^\n]+)/gi)];
 
-Rules:
-1. TITLE: Find the main story title near the top (e.g. "Foam on the Sand"). Do NOT return "Imported Arc".
-2. CHAPTERS: List ALL chapter names in order. The document should have ~9 chapters. Look for lines containing "CHAPTER" followed by a number.
-3. Return ONLY the chapter name string, exactly as written after "CHAPTER X — ".
-4. No plot content — just names.
-
-${SECTION_HEADER}
-
-DOCUMENT:
-${text.slice(0, 30_000)}`;
-
-  return await geminiCall(prompt) as { name: string; description: string; chapters: string[] };
-}
-
-// ── Pass 1b: Full plot content for ALL chapters (index-based) ────────────
-async function extractPlotSummaries(text: string, chapterNames: string[]) {
-  const chapterList = chapterNames.map((n, i) => `${i + 1}. ${n}`).join('\n');
-
-  const prompt = `For each numbered chapter below, find its PLOT section in the document and return the full plot text.
-RETURN ONLY valid JSON array — no markdown, no explanation.
-
-The array must have EXACTLY ${chapterNames.length} elements, one per chapter, in order.
-Shape: ["plot text for chapter 1", "plot text for chapter 2", ..., "plot text for chapter ${chapterNames.length}"]
-
-Chapters (in order):
-${chapterList}
-
-Rules:
-- Return a JSON ARRAY of strings — one string per chapter, in the SAME ORDER as the list above
-- Each string = the full content of the 📖 PLOT section for that chapter
-- Include Hidden truth notes, Act notes, sub-points, bullet points — everything under the PLOT heading
-- If a chapter has no PLOT section, return an empty string ""
-- Do NOT return an object — return a plain array
-
-${SECTION_HEADER}
-
-DOCUMENT:
-${text.slice(0, 80_000)}`;
-
-  const data = await geminiCall(prompt);
-  // Handle both array and object responses
-  if (Array.isArray(data)) return data as string[];
-  // Fallback: if Gemini returned an object, try to extract values in order
-  if (data && typeof data === 'object') {
-    return Object.values(data as Record<string, string>);
+  if (chapterMatches.length === 0) {
+    // Fallback: try to get title by Gemini if format is totally unexpected
+    return { name, description: '', chapters: [] };
   }
-  return [];
+
+  const chapters: Array<{ name: string; plots: Array<{ name: string; content: string }> }> = [];
+
+  for (let i = 0; i < chapterMatches.length; i++) {
+    const fullHeading = chapterMatches[i][1];
+    // Chapter name = everything after "CHAPTER X — "
+    const chapterName = fullHeading
+      .replace(/^##\s*/, '')
+      .replace(/^CHAPTER\s+\d+\s*[—–-]\s*/i, '')
+      .trim();
+
+    // Chapter body = text from this heading to the next
+    const startIdx = text.indexOf(chapterMatches[i][0], chapterMatches[i].index ?? 0);
+    const endIdx = i + 1 < chapterMatches.length
+      ? text.indexOf(chapterMatches[i + 1][0], chapterMatches[i + 1].index ?? 0)
+      : text.length;
+    const chapterBody = text.slice(startIdx, endIdx);
+
+    // Extract PLOT section: between "📖 PLOT" and next "###" / "##" / next emoji section
+    const plotMatch = chapterBody.match(
+      /📖\s*PLOT\s*\n([\s\S]*?)(?=\n(?:###|##|\*\*|👤|🎭|🌍|🔗|✨)|$)/i
+    );
+    const plotContent = plotMatch ? plotMatch[1].trim() : '';
+
+    chapters.push({
+      name: chapterName,
+      plots: [{ name: 'Plot', content: plotContent }],
+    });
+  }
+
+  return { name, description: '', chapters };
 }
 
-// ── Pass 1: Arc (combines meta + plot summaries) ──────────────────────────
+// ── Pass 1: Arc wrapper ───────────────────────────────────────────────────
 async function extractArc(text: string) {
-  const meta = await extractArcMeta(text);
-  const chapterNames = (meta.chapters || []).map(c =>
-    typeof c === 'string' ? c : (c as { name?: string }).name || String(c)
-  );
+  const parsed = parseArcFromText(text);
 
-  if (chapterNames.length === 0) {
-    return { name: meta.name || 'Foam on the Sand', description: meta.description || '', chapters: [] };
+  // If parser found chapters, use them directly
+  if (parsed.chapters.length > 0) {
+    return parsed;
   }
 
-  const plotContents = await extractPlotSummaries(text, chapterNames);
+  // Fallback to Gemini if the format was unrecognised (e.g. heavily reformatted docx)
+  const prompt = `Extract the story arc structure from this document.
+RETURN ONLY valid JSON — no markdown, no explanation.
+Shape: {"name":"title","description":"one sentence","chapters":[{"name":"chapter name","plots":[{"name":"Plot","content":"full plot text"}]}]}
+Rules: include ALL chapters; copy the full 📖 PLOT section verbatim for each chapter.
+${SECTION_HEADER}
+DOCUMENT: ${text.slice(0, 80_000)}`;
 
-  return {
-    name: meta.name || 'Foam on the Sand',
-    description: meta.description || '',
-    chapters: chapterNames.map((name, i) => ({
-      name,
-      plots: [{
-        name: 'Plot',
-        content: (Array.isArray(plotContents) ? (plotContents[i] as string) : '') || '',
-      }],
-    })),
-  };
+  try {
+    return await geminiCall(prompt) as typeof parsed;
+  } catch {
+    return parsed;
+  }
 }
 
 // ── Pass 2: Characters ────────────────────────────────────────────────────

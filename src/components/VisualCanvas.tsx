@@ -365,6 +365,39 @@ export default function VisualCanvas() {
             },
           });
 
+          // Proxy nodes below each chapter — Characters, World, References, Ideas
+          const proxyDefs = [
+            { type: 'charactersProxy', color: '#6366f1', label: 'Characters', emoji: '👤', dx: 0,   dy: 200 },
+            { type: 'world',           color: '#06B6D4', label: 'World',      emoji: '🌍', dx: 170,  dy: 200 },
+            { type: 'reference',       color: '#F97316', label: 'References', emoji: '📑', dx: -170, dy: 200 },
+            { type: 'ideasProxy',      color: '#eab308', label: 'Ideas',      emoji: '💡', dx: 0,   dy: 340 },
+          ];
+          for (const pd of proxyDefs) {
+            const proxyId = `proxy_${pd.type}_ch${ci}_${arc.id}`;
+            newNodes.push({
+              id: proxyId,
+              type: pd.type,
+              position: { x: chapX + pd.dx, y: chapY + pd.dy },
+              dragging: false, selected: false,
+              data: {
+                type: pd.type, label: pd.label, emoji: pd.emoji, color: pd.color,
+                title: `${pd.label}`, content: '[]',
+                isProxy: true, isContainer: false, stateColor: null,
+                parentNodeId: chapNodeId, parentLabel: chapter.name, graphId: draftId,
+                onTitleChange: handleTitleChange, onContentChange: handleContentChange,
+                onZoomToParent, onStateColorChange: handleStateColorChange,
+                onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
+              },
+            });
+            newEdges.push({
+              id: `e_proxy_${proxyId}`,
+              source: chapNodeId,
+              target: proxyId,
+              animated: false,
+              style: { stroke: pd.color, strokeWidth: 1.5, opacity: 0.5 },
+            });
+          }
+
           if (ci === 0) {
             // Arc → first chapter only
             newEdges.push({
