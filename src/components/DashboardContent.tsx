@@ -3,6 +3,7 @@
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import FoamImportModal from './FoamImportModal';
 
 interface Draft {
   id: string;
@@ -70,11 +71,16 @@ export default function DashboardContent() {
     );
   }
 
+  const [importOpen, setImportOpen] = useState(false);
   const draftItems = drafts.filter((d) => d.status === 'draft');
   const publishedItems = drafts.filter((d) => d.status === 'published');
 
   return (
     <div className="p-8 max-w-6xl">
+      {importOpen && (
+        <FoamImportModal onClose={() => setImportOpen(false)} />
+      )}
+
       <div className="mb-8">
         <h1 className="text-2xl font-semibold">
           Welcome back{session.user?.name ? `, ${session.user.name}` : ''}
@@ -83,7 +89,7 @@ export default function DashboardContent() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-10">
         <Link
           href="/workspace/traditional?type=cloud"
           className="group p-5 rounded-xl border border-border hover:border-accent/30 hover:shadow-sm transition-all"
@@ -122,6 +128,19 @@ export default function DashboardContent() {
           <div className="font-medium text-sm">Visual Editor</div>
           <div className="text-xs text-muted mt-1">Node-based canvas workspace</div>
         </Link>
+
+        <button
+          onClick={() => setImportOpen(true)}
+          className="group p-5 rounded-xl border border-dashed border-emerald-200 bg-emerald-50/50 hover:border-emerald-400 hover:bg-emerald-50 hover:shadow-sm transition-all text-left"
+        >
+          <div className="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+            </svg>
+          </div>
+          <div className="font-medium text-sm text-emerald-800">Import Document</div>
+          <div className="text-xs text-muted mt-1">Populate all clouds from .md / .docx</div>
+        </button>
       </div>
 
       {/* Drafts */}
