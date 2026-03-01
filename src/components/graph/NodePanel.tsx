@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useContext, useMemo } from 'react';
+import { useCallback, useState, useContext, useMemo, useEffect } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
 import { NODE_TYPE_MAP, STATE_COLORS, TYPED_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
 import { GraphContext } from './GraphContext';
@@ -68,6 +68,9 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
   const [newIdeaName, setNewIdeaName] = useState('');
   const [newIdeaTransformation, setNewIdeaTransformation] = useState('');
   const [expandedIdeaIdx, setExpandedIdeaIdx] = useState<number | null>(null);
+  const [cloudIdeas, setCloudIdeas] = useState<Array<{ id: string; text: string; weight: number }>>([]);
+  const [cloudIdeasLoaded, setCloudIdeasLoaded] = useState(false);
+  const [ideaPickerOpen, setIdeaPickerOpen] = useState(false);
   const { bigNodes, onParentChange } = useContext(GraphContext);
 
   const d = node?.data as Record<string, unknown> | undefined;
@@ -86,6 +89,16 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
   const isReference = ['musicReference', 'bookReference', 'artReference', 'filmReference', 'realEventReference'].includes(nodeType);
   const isState = nodeType === 'state';
+
+  // Load Ideas Cloud data when an ideasProxy node is selected
+  useEffect(() => {
+    if (nodeType === 'ideasProxy' && !cloudIdeasLoaded) {
+      fetch('/api/v1/ideas')
+        .then(r => r.json())
+        .then(data => { setCloudIdeas(data.ideas || []); setCloudIdeasLoaded(true); })
+        .catch(() => setCloudIdeasLoaded(true));
+    }
+  }, [nodeType, cloudIdeasLoaded]);
 
   // Compute incoming / outgoing connections
   const incomingConnections = useMemo(() => {
@@ -797,17 +810,65 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {isProxy && nodeType === 'ideasProxy' && (() => {
                   type IdeaEntry = { id: string; name: string; transformation: string };
                   const ideas = (d?.ideas as IdeaEntry[]) || [];
+                  const selectedIds = new Set(ideas.map(i => i.id));
                   const updateIdeas = (updated: IdeaEntry[]) => { if (node) onUpdate(node.id, 'ideas', updated); };
+
+                  const toggleCloudIdea = (cloudIdea: { id: string; text: string; weight: number }) => {
+                    if (selectedIds.has(cloudIdea.id)) {
+                      updateIdeas(ideas.filter(i => i.id !== cloudIdea.id));
+                    } else {
+                      updateIdeas([...ideas, { id: cloudIdea.id, name: cloudIdea.text, transformation: '' }]);
+                    }
+                  };
+
                   return (
                     <div className="space-y-3">
-                      <label className="text-xs text-gray-500 uppercase tracking-wider font-medium block">Ideas in this context</label>
-                      {ideas.length === 0 && (
-                        <p className="text-xs text-gray-300 italic">No ideas added yet</p>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Ideas in this context</label>
+                        <button
+                          onClick={() => setIdeaPickerOpen(p => !p)}
+                          className="text-[10px] font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200 transition-colors"
+                        >
+                          {ideaPickerOpen ? '▲ Close' : '+ Pick from Cloud'}
+                        </button>
+                      </div>
+
+                      {/* Ideas Cloud picker */}
+                      {ideaPickerOpen && (
+                        <div className="rounded-lg border border-yellow-200 bg-yellow-50 overflow-hidden">
+                          <div className="px-3 py-1.5 border-b border-yellow-200 bg-yellow-100">
+                            <span className="text-[10px] text-yellow-800 font-semibold uppercase tracking-wider">💡 Ideas Cloud</span>
+                          </div>
+                          <div className="max-h-48 overflow-y-auto divide-y divide-yellow-100">
+                            {!cloudIdeasLoaded ? (
+                              <div className="px-3 py-2 text-xs text-gray-400">Loading...</div>
+                            ) : cloudIdeas.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-gray-400">No ideas in Ideas Cloud yet</div>
+                            ) : cloudIdeas.map(ci => (
+                              <label key={ci.id} className="flex items-start gap-2.5 px-3 py-2 hover:bg-yellow-100 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={selectedIds.has(ci.id)}
+                                  onChange={() => toggleCloudIdea(ci)}
+                                  className="mt-0.5 w-3.5 h-3.5 accent-yellow-500 shrink-0"
+                                />
+                                <div className="min-w-0">
+                                  <span className="text-xs text-gray-800 leading-snug line-clamp-2">{ci.text}</span>
+                                  <span className="text-[9px] text-yellow-600 font-medium">{Math.round(ci.weight * 100)}% weight</span>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Selected ideas list */}
+                      {ideas.length === 0 && !ideaPickerOpen && (
+                        <p className="text-xs text-gray-300 italic">No ideas selected — click &quot;Pick from Cloud&quot;</p>
                       )}
                       <div className="space-y-2">
                         {ideas.map((idea, idx) => (
                           <div key={idea.id} className="rounded-lg border border-gray-200 overflow-hidden">
-                            {/* Idea header row */}
                             <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
                               <span className="flex-1 text-sm font-medium text-gray-800 truncate">{idea.name || '(unnamed)'}</span>
                               <button
@@ -820,7 +881,6 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                 title="Remove"
                               >&times;</button>
                             </div>
-                            {/* Transformation field (expandable) */}
                             {expandedIdeaIdx === idx && (
                               <div className="px-3 pb-2 pt-1 bg-white border-t border-gray-100">
                                 <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">How this idea evolves here</label>
@@ -839,54 +899,6 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                             )}
                           </div>
                         ))}
-                      </div>
-                      {/* Add idea form */}
-                      {addingIdea ? (
-                        <div className="bg-yellow-50 rounded-lg p-3 border border-yellow-200 space-y-2">
-                          <input
-                            value={newIdeaName}
-                            onChange={(e) => setNewIdeaName(e.target.value)}
-                            placeholder="Idea Name or ID..."
-                            className="w-full text-sm bg-white rounded px-2 py-1.5 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/30"
-                            autoFocus
-                          />
-                          <textarea
-                            value={newIdeaTransformation}
-                            onChange={(e) => setNewIdeaTransformation(e.target.value)}
-                            placeholder="Transformation (optional) — how it evolves here..."
-                            rows={2}
-                            className="w-full text-xs bg-white rounded px-2 py-1 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/30 resize-none"
-                          />
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                if (newIdeaName.trim() && node) {
-                                  updateIdeas([...ideas, { id: `idea_${Date.now()}`, name: newIdeaName.trim(), transformation: newIdeaTransformation.trim() }]);
-                                  setNewIdeaName(''); setNewIdeaTransformation(''); setAddingIdea(false);
-                                }
-                              }}
-                              className="px-3 py-1 text-xs font-medium bg-yellow-500 text-white rounded hover:bg-yellow-600 transition-colors"
-                            >Add Idea</button>
-                            <button
-                              onClick={() => { setAddingIdea(false); setNewIdeaName(''); setNewIdeaTransformation(''); }}
-                              className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
-                            >Cancel</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => setAddingIdea(true)}
-                          className="w-full py-1.5 text-xs font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 rounded-lg border border-yellow-200 transition-colors"
-                        >+ Add Idea</button>
-                      )}
-                      {/* Upload / Generate row */}
-                      <div className="flex gap-2 pt-1">
-                        <button className="flex-1 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg border border-gray-200 transition-colors">
-                          Upload
-                        </button>
-                        <button className="flex-1 py-1.5 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg border border-indigo-200 transition-colors">
-                          ✨ Generate
-                        </button>
                       </div>
                     </div>
                   );
