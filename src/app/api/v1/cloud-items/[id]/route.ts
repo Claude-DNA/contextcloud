@@ -4,6 +4,19 @@ import { query, isDbAvailable } from '@/lib/db';
 
 type Params = { params: Promise<{ id: string }> };
 
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (!(await isDbAvailable())) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+  }
+  const { id } = await params;
+  await query('DELETE FROM cloud_items WHERE id=$1 AND user_id=$2', [id, session.user.id]);
+  return NextResponse.json({ ok: true });
+}
+
 export async function PATCH(req: NextRequest, { params }: Params) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -38,27 +51,4 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   return NextResponse.json({ item: res.rows[0] });
-}
-
-export async function DELETE(_req: NextRequest, { params }: Params) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-  }
-  if (!(await isDbAvailable())) {
-    return NextResponse.json({ error: 'Database not available' }, { status: 503 });
-  }
-
-  const { id } = await params;
-
-  const res = await query(
-    'DELETE FROM cloud_items WHERE id = $1 AND user_id = $2 RETURNING id',
-    [id, session.user.id]
-  );
-
-  if (!res.rows.length) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  }
-
-  return NextResponse.json({ ok: true });
 }

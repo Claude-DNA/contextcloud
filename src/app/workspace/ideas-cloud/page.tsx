@@ -173,13 +173,27 @@ export default function IdeasCloudPage() {
           {/* Title bar */}
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-xl font-semibold text-foreground">Ideas Cloud</h1>
-            <button
-              onClick={handleAdd}
-              disabled={adding}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
-            >
-              {adding ? 'Adding...' : '+ Add'}
-            </button>
+            <div className="flex gap-2">
+              {ideas.length > 0 && (
+                <button
+                  onClick={async () => {
+                    if (!confirm('Delete ALL ideas? This cannot be undone.')) return;
+                    await fetch('/api/v1/ideas?all=true', { method: 'DELETE' });
+                    setIdeas([]);
+                  }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                >
+                  Clear All
+                </button>
+              )}
+              <button
+                onClick={handleAdd}
+                disabled={adding}
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
+              >
+                {adding ? 'Adding...' : '+ Add'}
+              </button>
+            </div>
           </div>
 
           {/* Ideas list */}
@@ -214,6 +228,7 @@ export default function IdeasCloudPage() {
                   idea={idea}
                   transCount={transCounts[idea.id] || 0}
                   onEdit={() => setEditModalIdea(idea)}
+                  onDelete={handleDeleteIdea}
                   onWeightClick={() => setWeightModalOpen(true)}
                   onTransClick={() => setTransModalIdea(idea)}
                   onFSClick={() => setFsModalIdea(idea)}

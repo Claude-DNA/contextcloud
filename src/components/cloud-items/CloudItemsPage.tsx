@@ -238,6 +238,12 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
 
   const withTransformations = cloudType === 'characters';
 
+  const handleClearAll = async () => {
+    if (!confirm(`Delete ALL ${config.label} items? This cannot be undone.`)) return;
+    await fetch(`/api/v1/cloud-items?type=${cloudType}`, { method: 'DELETE' });
+    await fetchItems();
+  };
+
   const fetchItems = useCallback(async () => {
     try {
       const res = await fetch(`/api/v1/cloud-items?type=${cloudType}`);
@@ -344,6 +350,14 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 {config.emoji} {config.label}
               </h1>
               <div className="flex gap-2">
+                {items.length > 0 && (
+                  <button
+                    onClick={handleClearAll}
+                    className="px-4 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                )}
                 <button
                   onClick={handleUpload}
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"

@@ -3,6 +3,7 @@
 interface IdeaRowProps {
   idea: any;
   onEdit: () => void;
+  onDelete: (id: string) => void;
   onWeightClick: () => void;
   onTransClick: () => void;
   onFSClick: () => void;
@@ -12,6 +13,7 @@ interface IdeaRowProps {
 export default function IdeaRow({
   idea,
   onEdit,
+  onDelete,
   onWeightClick,
   onTransClick,
   onFSClick,
@@ -56,6 +58,12 @@ export default function IdeaRow({
         >
           FS
         </button>
+
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(idea.id); }}
+          className="opacity-0 group-hover:opacity-100 px-2 py-0.5 rounded text-xs font-medium text-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
+          title="Delete idea"
+        >✕</button>
       </div>
     </div>
   );

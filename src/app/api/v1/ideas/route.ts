@@ -58,3 +58,20 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ idea: res.rows[0] }, { status: 201 });
 }
+
+// DELETE ?all=true — clears all ideas for this user
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (!(await isDbAvailable())) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+  }
+  const all = req.nextUrl.searchParams.get('all');
+  if (all !== 'true') {
+    return NextResponse.json({ error: 'Pass ?all=true to confirm bulk delete' }, { status: 400 });
+  }
+  const res = await query('DELETE FROM ideas WHERE project_id=$1', [session.user.id]);
+  return NextResponse.json({ ok: true, deleted: res.rowCount ?? 0 });
+}

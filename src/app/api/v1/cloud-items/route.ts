@@ -65,3 +65,23 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({ item: res.rows[0] }, { status: 201 });
 }
+
+// DELETE ?type=characters — clears all items of a cloud type for this user
+export async function DELETE(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+  }
+  if (!(await isDbAvailable())) {
+    return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+  }
+  const cloudType = req.nextUrl.searchParams.get('type') as CloudType | null;
+  if (!cloudType || !VALID_TYPES.includes(cloudType)) {
+    return NextResponse.json({ error: 'Invalid cloud type' }, { status: 400 });
+  }
+  const res = await query(
+    'DELETE FROM cloud_items WHERE user_id=$1 AND cloud_type=$2',
+    [session.user.id, cloudType]
+  );
+  return NextResponse.json({ ok: true, deleted: res.rowCount ?? 0 });
+}
