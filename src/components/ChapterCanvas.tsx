@@ -42,7 +42,8 @@ interface ChapterInfo {
 
 interface PlotRow {
   id: string;
-  title: string;
+  name?: string;
+  title?: string;
   content?: string;
   predictability?: number;
   sort_order?: number;
@@ -135,7 +136,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
         type: 'plot',
         position: { x: 80 + i * 320, y: 200 },
         dragging: false, selected: false,
-        data: makeNodeData('plot', { title: plot.title || `Plot ${i + 1}`, content: plot.content || '' }),
+        data: makeNodeData('plot', { title: plot.name || plot.title || `Plot ${i + 1}`, content: plot.content || '' }),
       });
 
       if (i > 0) {

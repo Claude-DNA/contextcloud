@@ -297,7 +297,7 @@ export default function VisualCanvas() {
         });
 
         // Fetch chapters + plots for this arc
-        let chapters: Array<{ id: string; name: string; description?: string; plots: Array<{ id: string; title: string; content?: string }> }> = [];
+        let chapters: Array<{ id: string; name: string; description?: string; plots: Array<{ id: string; name?: string; title?: string; content?: string }> }> = [];
         try {
           const chapRes = await fetch(`/api/v1/arcs/${arc.id}/chapters`);
           const chapData = await chapRes.json();
@@ -342,7 +342,7 @@ export default function VisualCanvas() {
               dragging: false, selected: false,
               data: {
                 type: 'plot', label: 'Plot', emoji: '📖', color: '#4A90D9',
-                title: plot.title || `Plot ${pi + 1}`, content: plot.content || '',
+                title: plot.name || plot.title || `Plot ${pi + 1}`, content: plot.content || '',
                 isProxy: false, isContainer: false, stateColor: null,
                 parentNodeId: '', parentLabel: '', graphId: draftId,
                 onTitleChange: handleTitleChange, onContentChange: handleContentChange,
