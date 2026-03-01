@@ -2,7 +2,9 @@
 
 import { useCallback, useState, useContext, useMemo, useEffect } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
-import { NODE_TYPE_MAP, STATE_COLORS, TYPED_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
+import { NODE_TYPE_MAP, TYPED_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
+import type { StateFormula } from './nodeTypes';
+import StatePanel from './StatePanel';
 import { GraphContext } from './GraphContext';
 import { type LucideProps } from 'lucide-react';
 import * as Icons from 'lucide-react';
@@ -79,6 +81,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
   const label = (d?.label as string) || config?.label || '';
   const color = (d?.color as string) || config?.color || '#6b7280';
   const stateColor = (d?.stateColor as string) || '';
+  const stateFormula = (d?.stateFormula as StateFormula) || null;
   const isProxy = !!d?.isProxy;
   const parentNodeId = (d?.parentNodeId as string) || '';
   const thumbnail = (d?.thumbnail as string) || '';
@@ -151,6 +154,10 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
   const handleStateColorPick = useCallback((hex: string) => {
     if (node) onUpdate(node.id, 'stateColor', hex);
+  }, [node, onUpdate]);
+
+  const handleStateFormulaChange = useCallback((formula: StateFormula | null) => {
+    if (node) onUpdate(node.id, 'stateFormula', formula);
   }, [node, onUpdate]);
 
   const handleFieldChange = useCallback((field: string, value: string) => {
@@ -786,24 +793,15 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                   </div>
                 )}
 
-                {/* State node color picker */}
+                {/* State node — formula builder + library */}
                 {isState && (
-                  <div>
-                    <label className="text-xs text-gray-500 uppercase tracking-wider mb-2 block font-medium">Emotional State</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {Object.entries(STATE_COLORS).map(([key, { hex, label: colorLabel }]) => (
-                        <button
-                          key={key}
-                          onClick={() => handleStateColorPick(hex)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-50 transition-colors"
-                          style={{ border: stateColor === hex ? `2px solid ${hex}` : '1px solid #e5e7eb' }}
-                        >
-                          <span style={{ width: 16, height: 16, borderRadius: '50%', background: hex, display: 'inline-block', flexShrink: 0 }} />
-                          <span className="text-[11px] text-gray-600">{colorLabel}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  <StatePanel
+                    nodeId={node.id}
+                    stateColor={stateColor}
+                    stateFormula={stateFormula}
+                    onColorChange={handleStateColorPick}
+                    onFormulaChange={handleStateFormulaChange}
+                  />
                 )}
 
                 {/* Ideas Proxy — specialized idea list with per-idea transformations */}

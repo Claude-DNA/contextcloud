@@ -133,19 +133,18 @@ export interface HubHandleConfig {
 // All inputs LEFT, single output RIGHT — clean n8n pattern
 export const HUB_HANDLES: Record<string, HubHandleConfig[]> = {
   chapterPlot: [
-    // TOP: input from previous plot / arc
-    { id: 'input',      label: 'Input',      type: 'target', position: 'top',    color: '#4A90D9', offset: '35%' },
-    { id: 'arc_point',  label: 'Arc',        type: 'target', position: 'top',    color: '#0891b2', offset: '65%' },
-    // LEFT: cloud proxies feed in
-    { id: 'ai',         label: 'AI',         type: 'target', position: 'left',   color: '#6366f1', offset: '20%' },
-    { id: 'world',      label: 'World',      type: 'target', position: 'left',   color: '#0ea5e9', offset: '50%' },
-    { id: 'ideas',      label: 'Ideas',      type: 'target', position: 'left',   color: '#eab308', offset: '80%' },
-    // RIGHT: content connections
-    { id: 'characters', label: 'Characters', type: 'target', position: 'right',  color: '#8b5cf6', offset: '25%' },
-    { id: 'scenes',     label: 'Scenes',     type: 'target', position: 'right',  color: '#10b981', offset: '50%' },
-    { id: 'references', label: 'References', type: 'target', position: 'right',  color: '#64748b', offset: '75%' },
-    // BOTTOM: output to next stage / Gen node
-    { id: 'output',     label: 'Output',     type: 'source', position: 'bottom', color: '#4A90D9', offset: '50%' },
+    // LEFT: pipeline input (entry from previous plot)
+    { id: 'input',      label: 'Input',      type: 'target', position: 'left',   color: '#4A90D9', offset: '50%' },
+    // TOP: content context flows DOWN into plot
+    { id: 'characters', label: 'Characters', type: 'target', position: 'top',    color: '#8b5cf6', offset: '25%' },
+    { id: 'scenes',     label: 'Scenes',     type: 'target', position: 'top',    color: '#10b981', offset: '50%' },
+    { id: 'references', label: 'References', type: 'target', position: 'top',    color: '#64748b', offset: '75%' },
+    // BOTTOM: cloud proxies flow UP into plot
+    { id: 'ai',         label: 'AI',         type: 'target', position: 'bottom', color: '#6366f1', offset: '20%' },
+    { id: 'world',      label: 'World',      type: 'target', position: 'bottom', color: '#0ea5e9', offset: '50%' },
+    { id: 'ideas',      label: 'Ideas',      type: 'target', position: 'bottom', color: '#eab308', offset: '80%' },
+    // RIGHT: pipeline output (to next plot)
+    { id: 'output',     label: 'Output',     type: 'source', position: 'right',  color: '#4A90D9', offset: '50%' },
   ],
   chapterAct: [
     // Top: References (left) + Arc (right)
@@ -207,3 +206,189 @@ export const AI_NODE_CONFIG = {
     Google: 'https://aistudio.google.com/apikey',
   } as Record<string, string>,
 };
+
+// --- States Model ---
+
+export interface AtomicState {
+  id: string;
+  label: string;
+  axis: 'love' | 'fear' | 'neutral' | 'burden' | 'active' | 'saddle';
+  color: string;
+  description: string;
+}
+
+export const ATOMIC_STATES: AtomicState[] = [
+  // Love axis
+  { id: 'love',      label: 'Love',      axis: 'love',    color: '#E91E8C', description: 'Attachment pull; focus on what you have' },
+  { id: 'hope',      label: 'Hope',      axis: 'love',    color: '#4CAF50', description: 'Love - logic; belief despite evidence' },
+  { id: 'joy',       label: 'Joy',       axis: 'love',    color: '#FFD600', description: 'Present-tense positive state' },
+  { id: 'wonder',    label: 'Wonder',    axis: 'love',    color: '#29B6F6', description: 'Passive openness to the unknown' },
+  { id: 'curiosity', label: 'Curiosity', axis: 'active',  color: '#26C6DA', description: 'Active pursuit of the unknown (not Wonder)' },
+  // Fear axis
+  { id: 'fear',      label: 'Fear',      axis: 'fear',    color: '#1565C0', description: 'Exposure to unknown × self-preservation; default state' },
+  { id: 'despair',   label: 'Despair',   axis: 'fear',    color: '#263238', description: 'Fear - logic; hopelessness despite evidence' },
+  { id: 'rage',      label: 'Rage',      axis: 'active',  color: '#B71C1C', description: 'Reactive force; present-tense' },
+  { id: 'disgust',   label: 'Disgust',   axis: 'fear',    color: '#558B2F', description: 'Boundary enforcement, rejection' },
+  { id: 'distrust',  label: 'Distrust',  axis: 'fear',    color: '#37474F', description: 'Not believing in others\' intentions' },
+  { id: 'confusion', label: 'Confusion', axis: 'neutral', color: '#757575', description: 'Epistemic zero-vector; Soul-Mind disconnection' },
+  // Burdens (carry trapped Love)
+  { id: 'guilt',     label: 'Guilt',     axis: 'burden',  color: '#6A1B9A', description: 'I DID wrong; Love trapped in violation awareness' },
+  { id: 'shame',     label: 'Shame',     axis: 'burden',  color: '#4A148C', description: 'I AM wrong; self-collapse' },
+  { id: 'grief',     label: 'Grief',     axis: 'burden',  color: '#37474F', description: 'Love trapped in loss; backward-facing' },
+  // Masks / Modifiers
+  { id: 'pride',     label: 'Pride',     axis: 'fear',    color: '#F57F17', description: 'Fear\'s most successful mask; self-expansion' },
+  // Saddle point
+  { id: 'envy',      label: 'Envy',      axis: 'saddle',  color: '#2E7D32', description: 'Inherently unstable; always resolves (→ Admiration or Resentment)' },
+  // Longing
+  { id: 'longing',   label: 'Longing',   axis: 'burden',  color: '#7B1FA2', description: 'Desire for something absent; bridge between Love and Grief' },
+];
+
+export interface StateFormula {
+  id: string;
+  name: string;
+  base: string[];       // atomic state ids
+  modifier?: string;    // atomic state id (optional)
+  description?: string;
+  isPreset?: boolean;
+  color?: string;       // display color (auto-derived if empty)
+}
+
+export const PRESET_FORMULAS: StateFormula[] = [
+  // Field equations
+  {
+    id: 'evil-formula',
+    name: 'Evil Formula',
+    base: ['love', 'confusion'],
+    modifier: 'pride',
+    description: 'Love loses direction via Confusion; Pride (Fear\'s mask) fills the vacuum. Person inside feels love, not evil.',
+    isPreset: true,
+    color: '#B71C1C',
+  },
+  {
+    id: 'honor',
+    name: 'Honor',
+    base: ['pride'],
+    description: 'Pride liberated from its Fear driver. Same energy, purified.',
+    isPreset: true,
+    color: '#F57F17',
+  },
+  {
+    id: 'compassion',
+    name: 'Compassion',
+    base: ['love', 'curiosity'],
+    description: 'Always active. Moves toward. Sees the other clearly through Love.',
+    isPreset: true,
+    color: '#E91E8C',
+  },
+  {
+    id: 'cynicism',
+    name: 'Cynicism',
+    base: ['fear', 'wonder'],
+    description: 'Passive by default. Sees clearly — through Fear. When activated: aggression, lies, betrayal.',
+    isPreset: true,
+    color: '#1565C0',
+  },
+  {
+    id: 'admiration',
+    name: 'Admiration',
+    base: ['envy', 'wonder'],
+    modifier: 'curiosity',
+    description: 'Proactive. Curiosity converts Envy + Wonder into movement toward. The stable resolution of Envy.',
+    isPreset: true,
+    color: '#26C6DA',
+  },
+  {
+    id: 'contempt',
+    name: 'Contempt',
+    base: ['pride', 'disgust'],
+    modifier: 'fear',
+    description: 'Passive. Looks down, withdraws, dismisses. When activated: cruelty, humiliation.',
+    isPreset: true,
+    color: '#558B2F',
+  },
+  {
+    id: 'resentment',
+    name: 'Resentment',
+    base: ['pride', 'confusion'],
+    modifier: 'rage',
+    description: 'Feeling you should be more than your situation + not knowing why. Variable modifier.',
+    isPreset: true,
+    color: '#B71C1C',
+  },
+  {
+    id: 'warrior-honor',
+    name: 'Warrior Honor',
+    base: ['fear', 'curiosity'],
+    modifier: 'love',
+    description: 'Fear keeps stakes real. Curiosity sees opponent as someone to understand. Love as modifier: you fight but the enemy has a face.',
+    isPreset: true,
+    color: '#F57F17',
+  },
+  {
+    id: 'sociopathy',
+    name: 'Sociopathy',
+    base: ['fear', 'distrust'],
+    description: 'Clear, operational, cold. Has concluded: everyone is a potential threat.',
+    isPreset: true,
+    color: '#263238',
+  },
+  {
+    id: 'paranoia',
+    name: 'Paranoia',
+    base: ['fear', 'distrust', 'confusion'],
+    description: 'Same base as Sociopathy but no stable target. Confusion makes the threat spiral and shift.',
+    isPreset: true,
+    color: '#1A237E',
+  },
+  {
+    id: 'remorse',
+    name: 'Remorse',
+    base: ['guilt', 'curiosity'],
+    description: 'Catalyst that releases Love from Guilt. Active turn toward what was broken. Not guilt about guilt.',
+    isPreset: true,
+    color: '#6A1B9A',
+  },
+  {
+    id: 'warrior-sociopathy',
+    name: 'Warrior Sociopathy',
+    base: ['fear', 'distrust'],
+    modifier: 'confusion',
+    description: 'Dehumanization replaces Curiosity with Distrust, Compassion with Confusion. Committed while confused.',
+    isPreset: true,
+    color: '#37474F',
+  },
+];
+
+export const ATOMIC_STATE_MAP = Object.fromEntries(ATOMIC_STATES.map(s => [s.id, s]));
+
+export function deriveFormulaColor(formula: StateFormula): string {
+  if (formula.color) return formula.color;
+  // Derive from dominant base state
+  const dominant = formula.modifier
+    ? ATOMIC_STATE_MAP[formula.modifier]
+    : formula.base.length > 0 ? ATOMIC_STATE_MAP[formula.base[0]] : null;
+  return dominant?.color || '#888888';
+}
+
+const LIBRARY_KEY = 'contextube_state_library';
+
+export function loadStateLibrary(): StateFormula[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(LIBRARY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+export function saveToStateLibrary(formula: StateFormula): StateFormula[] {
+  const lib = loadStateLibrary().filter(f => f.id !== formula.id);
+  const updated = [formula, ...lib];
+  localStorage.setItem(LIBRARY_KEY, JSON.stringify(updated));
+  return updated;
+}
+
+export function deleteFromStateLibrary(id: string): StateFormula[] {
+  const updated = loadStateLibrary().filter(f => f.id !== id);
+  localStorage.setItem(LIBRARY_KEY, JSON.stringify(updated));
+  return updated;
+}
