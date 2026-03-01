@@ -141,30 +141,39 @@ ${text.slice(0, 30_000)}`;
   return await geminiCall(prompt) as { name: string; description: string; chapters: string[] };
 }
 
-// ── Pass 1b: Full plot content for ALL chapters ───────────────────────────
+// ── Pass 1b: Full plot content for ALL chapters (index-based) ────────────
 async function extractPlotSummaries(text: string, chapterNames: string[]) {
   const chapterList = chapterNames.map((n, i) => `${i + 1}. ${n}`).join('\n');
 
-  const prompt = `For each chapter listed below, find its 📖 PLOT section in the document and extract the full plot description.
-RETURN ONLY valid JSON — no markdown, no explanation.
+  const prompt = `For each numbered chapter below, find its PLOT section in the document and return the full plot text.
+RETURN ONLY valid JSON array — no markdown, no explanation.
 
-Shape: [{"chapter":"exact chapter name","plot":"full plot description"}]
+The array must have EXACTLY ${chapterNames.length} elements, one per chapter, in order.
+Shape: ["plot text for chapter 1", "plot text for chapter 2", ..., "plot text for chapter ${chapterNames.length}"]
 
-Chapters:
+Chapters (in order):
 ${chapterList}
 
 Rules:
-- One entry per chapter — match by chapter name
-- "plot" = copy the full content of the 📖 PLOT section for that chapter (including Hidden truth, Act notes, etc.)
-- Preserve all detail — do NOT summarize
-- If the plot section has sub-points (Phase 1/2/3, bullet points), include them
+- Return a JSON ARRAY of strings — one string per chapter, in the SAME ORDER as the list above
+- Each string = the full content of the 📖 PLOT section for that chapter
+- Include Hidden truth notes, Act notes, sub-points, bullet points — everything under the PLOT heading
+- If a chapter has no PLOT section, return an empty string ""
+- Do NOT return an object — return a plain array
 
 ${SECTION_HEADER}
 
 DOCUMENT:
 ${text.slice(0, 80_000)}`;
 
-  return await geminiCall(prompt) as Array<{ chapter: string; plot: string }>;
+  const data = await geminiCall(prompt);
+  // Handle both array and object responses
+  if (Array.isArray(data)) return data as string[];
+  // Fallback: if Gemini returned an object, try to extract values in order
+  if (data && typeof data === 'object') {
+    return Object.values(data as Record<string, string>);
+  }
+  return [];
 }
 
 // ── Pass 1: Arc (combines meta + plot summaries) ──────────────────────────
@@ -178,17 +187,16 @@ async function extractArc(text: string) {
     return { name: meta.name || 'Foam on the Sand', description: meta.description || '', chapters: [] };
   }
 
-  const plotSummaries = await extractPlotSummaries(text, chapterNames);
-  const plotMap = new Map((plotSummaries || []).map(p => [p.chapter?.toLowerCase(), p.plot]));
+  const plotContents = await extractPlotSummaries(text, chapterNames);
 
   return {
     name: meta.name || 'Foam on the Sand',
     description: meta.description || '',
-    chapters: chapterNames.map(name => ({
+    chapters: chapterNames.map((name, i) => ({
       name,
       plots: [{
         name: 'Plot',
-        content: plotMap.get(name.toLowerCase()) || plotMap.get(name.split('—')[1]?.trim().toLowerCase() || '') || '',
+        content: (Array.isArray(plotContents) ? (plotContents[i] as string) : '') || '',
       }],
     })),
   };
