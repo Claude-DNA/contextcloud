@@ -4,6 +4,8 @@ import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 import { unzipSync, strFromU8 } from 'fflate';
 
+export const maxDuration = 60; // seconds — 4 parallel Gemini calls need headroom
+
 const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY || '';
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
@@ -71,108 +73,175 @@ interface ExtractedData {
   }>;
 }
 
-async function extractWithGemini(text: string): Promise<ExtractedData> {
-  if (!GOOGLE_AI_API_KEY) throw new Error('GOOGLE_AI_API_KEY not configured');
-
-  const prompt = `You are a story analyst and structured data extractor. Parse the story document below and extract all elements into the JSON structure specified.
-
-RETURN ONLY VALID JSON — no markdown, no code fences, no explanation.
-
-Required JSON shape:
-{
-  "arc": {
-    "name": "story title",
-    "description": "one-sentence description",
-    "chapters": [
-      {
-        "name": "Chapter name as written",
-        "plots": [
-          { "name": "Plot point title", "content": "Full plot description from the PLOT section" }
-        ]
-      }
-    ]
-  },
-  "characters": [
-    {
-      "title": "Character name",
-      "content": "Full description — who they are, what drives them, their emotional formula arc across all acts they appear in",
-      "role": "Protagonist / Antagonist / Supporting / etc",
-      "arc": "Emotional formula arc — e.g. (Fear + Longing) × Wonder → (Guilt + Wonder) × Curiosity",
-      "tags": ["list", "of", "relevant", "tags"]
-    }
-  ],
-  "stages": [
-    {
-      "title": "Stage name / state as written (e.g. The VR Meadows — Explorer NP state)",
-      "content": "Full description of this location/state",
-      "act": "Act 1 / Act 2 / etc",
-      "tags": ["relevant", "tags"]
-    }
-  ],
-  "world": [
-    {
-      "title": "Concept/system/faction name",
-      "content": "Full description",
-      "category": "System / Faction / Technology / Ship / Civilization / Protocol / etc",
-      "tags": ["relevant", "tags"]
-    }
-  ],
-  "references": [
-    {
-      "title": "Work title (year if available)",
-      "content": "Why it was referenced — the emotional/thematic connection",
-      "refType": "film OR music OR art OR book",
-      "chapter": "Chapter where it appears"
-    }
-  ]
-}
-
-EXTRACTION RULES:
-1. CHARACTERS: One entry per unique character. DEDUPLICATE across chapters — merge all information about each character into a single rich entry. Include emotional formula arcs if present (shown as mathematical notation like (Fear + Longing) × Wonder). The "arc" field must capture their full emotional journey across all acts.
-2. STAGES: One entry per unique location/state. DEDUPLICATE — same place in different states = separate entries (e.g. "Nebula — Arrival" and "Nebula — Battle" are different entries). Include sensory details from the SENSORY section.
-3. WORLD: Extract every named system, faction, technology, ship, protocol, or civilization concept from UNIVERSE sections. One entry per concept. DEDUPLICATE.
-4. REFERENCES: Extract every 🎬 (film), 🎵 (music), 🖼️ (art), 📚 (book) reference. Each line = one entry. refType must be exactly: film, music, art, or book.
-5. ARC: Preserve chapter order. Each chapter gets its PLOT section content as a plot entry. If a chapter has multiple plot points, split them into separate plot objects.
-6. Be THOROUGH — extract EVERYTHING. Do not summarize or omit. The content fields should be rich and complete.
-7. Tags should be 3-6 meaningful keywords per item.
-
-SECTION FORMAT (the document uses these markers):
-- ## CHAPTER X — Title → chapter boundary
-- ### 📖 PLOT → plot content
-- ### 👤 CHARACTERS → character descriptions  
-- ### 🎭 STAGE → stage/location
-- ### 🌍 UNIVERSE → world concepts
-- ### 🔗 ASSOCIATIONS → thematic connections (include notable ones in world entries)
-- ### ✨ DETAILS — REFERENCES → 🎬 film, 🎵 music, 🖼️ art, 📚 book
-- | Character | Act X | Formula | → formula table rows go into character arc fields
-- Act headings (# ACT X) define which act a chapter belongs to
-
-DOCUMENT:
-${text.slice(0, 100_000)}`;
-
+// ── Single Gemini call ────────────────────────────────────────────────────
+async function geminiCall(prompt: string): Promise<unknown> {
   const res = await fetch(`${GEMINI_URL}?key=${GOOGLE_AI_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 16384,
+        temperature: 0.1,
+        maxOutputTokens: 8192,
         responseMimeType: 'application/json',
       },
     }),
   });
-
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 300)}`);
+    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`);
   }
-
   const data = await res.json();
-  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
   const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  const parsed: ExtractedData = JSON.parse(cleaned);
-  return parsed;
+  return JSON.parse(cleaned);
+}
+
+const SECTION_HEADER = `
+SECTION MARKERS in this document:
+- ## CHAPTER X — Title  → chapter boundary
+- ### 📖 PLOT           → plot/story content
+- ### 👤 CHARACTERS     → character descriptions
+- ### 🎭 STAGE          → locations/settings
+- ### 🌍 UNIVERSE       → world concepts, factions, tech, systems
+- ### ✨ DETAILS — REFERENCES → 🎬 film  🎵 music  🖼️ art  📚 book
+- | rows |              → character formula tables — use in character arc fields
+`;
+
+// ── Pass 1: Arc (chapters + plots) ───────────────────────────────────────
+async function extractArc(text: string) {
+  const prompt = `Extract the story arc structure from this document.
+RETURN ONLY valid JSON — no markdown, no explanation.
+
+Shape:
+{"name":"story title","description":"one sentence","chapters":[{"name":"chapter name as written","plots":[{"name":"short plot title","content":"full plot description from the PLOT section"}]}]}
+
+Rules:
+- One chapter object per ## CHAPTER heading
+- Each chapter's ### 📖 PLOT section = one plot object (split into multiple if the plot section covers distinct events)
+- Preserve chapter order
+- "name" = exact chapter heading text
+
+${SECTION_HEADER}
+
+DOCUMENT:
+${text.slice(0, 80_000)}`;
+
+  const data = await geminiCall(prompt) as {
+    name: string; description: string;
+    chapters: Array<{ name: string; plots: Array<{ name: string; content: string }> }>;
+  };
+  return data;
+}
+
+// ── Pass 2: Characters ────────────────────────────────────────────────────
+async function extractCharacters(text: string) {
+  const prompt = `Extract ALL named characters from this story document.
+RETURN ONLY valid JSON array — no markdown, no explanation.
+
+Shape:
+[{"title":"Character name","content":"Full description — who they are, personality, role, what drives them, how they change","role":"Protagonist/Antagonist/Supporting/Squad/Alien/etc","arc":"Their full emotional formula journey across all acts, e.g. (Fear+Longing)×Wonder → (Guilt+Wonder)×Curiosity","tags":["tag1","tag2","tag3"]}]
+
+Rules:
+- ONE entry per unique character — DEDUPLICATE across all chapters
+- Merge all information about each character from every chapter they appear in
+- Include emotional formula notation if present (e.g. (Fear + Longing) × Wonder)
+- The "arc" field = their complete formula journey across all acts from the formula table and character sections
+- Extract: Daniel, Jane, Warrior Human, Explorer AI, The Squad, The Aliens, and any others named
+- 3-5 tags per character
+
+${SECTION_HEADER}
+
+DOCUMENT:
+${text.slice(0, 80_000)}`;
+
+  return await geminiCall(prompt) as Array<{
+    title: string; content: string; role: string; arc: string; tags: string[];
+  }>;
+}
+
+// ── Pass 3: Stages + World ────────────────────────────────────────────────
+async function extractStagesAndWorld(text: string) {
+  const prompt = `Extract all STAGES and WORLD concepts from this story document.
+RETURN ONLY valid JSON — no markdown, no explanation.
+
+Shape:
+{
+  "stages": [{"title":"Stage name — State (exact as written)","content":"Full description including sensory details","act":"Act 1/2/3/etc","tags":["tag1","tag2"]}],
+  "world": [{"title":"Concept name","content":"Full description","category":"System/Protocol/Faction/Technology/Ship/Civilization/Principle","tags":["tag1","tag2"]}]
+}
+
+Rules:
+STAGES:
+- Extract every location/setting from ### 🎭 STAGE sections
+- Same place in different states = separate entries (e.g. "The Great Nebula — Arrival state" and "The Great Nebula — Battle state")
+- Include all sensory details from the SENSORY lines
+- DEDUPLICATE exact same title
+
+WORLD:
+- Extract every named concept from ### 🌍 UNIVERSE sections: protocols, factions, ships, technologies, civilizations, systems, principles
+- One entry per concept
+- DEDUPLICATE
+- category must be one of: System, Protocol, Faction, Technology, Ship, Civilization, Principle, Mechanic
+
+${SECTION_HEADER}
+
+DOCUMENT:
+${text.slice(0, 80_000)}`;
+
+  return await geminiCall(prompt) as {
+    stages: Array<{ title: string; content: string; act: string; tags: string[] }>;
+    world: Array<{ title: string; content: string; category: string; tags: string[] }>;
+  };
+}
+
+// ── Pass 4: References ────────────────────────────────────────────────────
+async function extractReferences(text: string) {
+  const prompt = `Extract ALL film, music, art, and book references from this story document.
+RETURN ONLY valid JSON array — no markdown, no explanation.
+
+Shape:
+[{"title":"Work title (year if given)","content":"Why referenced — emotional/thematic connection note","refType":"film OR music OR art OR book","chapter":"Chapter X name where it appears"}]
+
+Rules:
+- 🎬 lines → refType: "film"
+- 🎵 lines → refType: "music"
+- 🖼️ lines → refType: "art"
+- 📚 lines → refType: "book"
+- Extract EVERY reference line — do not skip any
+- "content" = the note/description after the dash on that line
+- DEDUPLICATE by title (if same work appears in multiple chapters, keep the richest note)
+- "chapter" = the ## CHAPTER heading it appears under
+
+${SECTION_HEADER}
+
+DOCUMENT:
+${text.slice(0, 80_000)}`;
+
+  return await geminiCall(prompt) as Array<{
+    title: string; content: string; refType: 'film' | 'music' | 'art' | 'book'; chapter: string;
+  }>;
+}
+
+// ── Orchestrate all passes ────────────────────────────────────────────────
+async function extractWithGemini(text: string): Promise<ExtractedData> {
+  if (!GOOGLE_AI_API_KEY) throw new Error('GOOGLE_AI_API_KEY not configured');
+
+  // Run passes sequentially to avoid rate limits
+  const [arc, characters, stagesAndWorld, references] = await Promise.all([
+    extractArc(text),
+    extractCharacters(text),
+    extractStagesAndWorld(text),
+    extractReferences(text),
+  ]);
+
+  return {
+    arc,
+    characters: characters || [],
+    stages: stagesAndWorld?.stages || [],
+    world: stagesAndWorld?.world || [],
+    references: references || [],
+  };
 }
 
 // ── DB helpers ─────────────────────────────────────────────────────────────
