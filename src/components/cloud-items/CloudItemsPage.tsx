@@ -114,6 +114,26 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
   const [content, setContent] = useState(initial?.content || '');
   const [tagsRaw, setTagsRaw] = useState((initial?.tags || []).join(', '));
   const [meta, setMeta] = useState<Record<string, string>>(initial?.metadata || {});
+  const [generatingTags, setGeneratingTags] = useState(false);
+
+  const handleGenerateTags = async () => {
+    if (!title.trim() && !content.trim()) return;
+    setGeneratingTags(true);
+    try {
+      const res = await fetch('/api/v1/cloud-items/generate-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cloudType: config.type, title, content }),
+      });
+      const data = await res.json();
+      if (data.tags?.length) {
+        const existing = tagsRaw.split(',').map((t: string) => t.trim()).filter(Boolean);
+        const merged = [...new Set([...existing, ...data.tags])];
+        setTagsRaw(merged.join(', '));
+      }
+    } catch { /* ignore */ }
+    setGeneratingTags(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,12 +162,23 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
         rows={4}
         className={textareaCls}
       />
-      <input
-        value={tagsRaw}
-        onChange={e => setTagsRaw(e.target.value)}
-        placeholder={`${config.tagLabel}: ${config.tagPlaceholder}`}
-        className={inputCls}
-      />
+      <div className="flex gap-2 items-center">
+        <input
+          value={tagsRaw}
+          onChange={e => setTagsRaw(e.target.value)}
+          placeholder={`${config.tagLabel}: ${config.tagPlaceholder}`}
+          className={inputCls}
+        />
+        <button
+          type="button"
+          onClick={handleGenerateTags}
+          disabled={generatingTags || (!title.trim() && !content.trim())}
+          className="shrink-0 px-3 py-2 rounded-lg text-sm font-medium border border-border text-muted hover:text-foreground hover:bg-gray-50 disabled:opacity-40 transition-colors whitespace-nowrap"
+          title="Generate tags from title + description"
+        >
+          {generatingTags ? '…' : '✦ Generate'}
+        </button>
+      </div>
       {(config.fields || []).map(f => (
         <div key={f.key}>
           <label className="text-xs text-muted mb-1 block">{f.label}</label>
