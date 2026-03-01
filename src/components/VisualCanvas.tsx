@@ -308,11 +308,13 @@ export default function VisualCanvas() {
         for (let ci = 0; ci < chapters.length; ci++) {
           const chapter = chapters[ci];
           const chapNodeId = `chap_import_${chapter.id}`;
-          const chHandleId = ci === 0 ? 'ch_1' : ci === 1 ? 'ch_2' : 'ch_3';
+          // Chapters laid out horizontally in a chain to the right of the arc
+          const chapX = xOffset + 260 + ci * 280;
+          const chapY = 60;
           newNodes.push({
             id: chapNodeId,
             type: 'chapterAct',
-            position: { x: xOffset + 240, y: yOffset },
+            position: { x: chapX, y: chapY },
             dragging: false, selected: false,
             data: {
               type: 'chapterAct', label: 'Chapter / Act', emoji: '📑', color: '#4A90D9',
@@ -325,19 +327,34 @@ export default function VisualCanvas() {
               onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
             },
           });
-          // Arc → Chapter: use explicit arc source handle so it doesn't stray
-          newEdges.push({
-            id: `e_arc_chap_${arcNodeId}_${chapNodeId}`,
-            source: arcNodeId,
-            sourceHandle: chHandleId,
-            target: chapNodeId,
-            animated: true,
-            style: { stroke: '#0891b2', strokeDasharray: '5 5' },
-          });
-          yOffset += 180;
-          // Plots are shown inside the chapter sub-canvas — not imported here
+
+          if (ci === 0) {
+            // Arc → first chapter only
+            newEdges.push({
+              id: `e_arc_ch0_${arcNodeId}`,
+              source: arcNodeId,
+              sourceHandle: 'chapters_out',
+              target: chapNodeId,
+              targetHandle: 'arc',
+              animated: true,
+              style: { stroke: '#0891b2', strokeDasharray: '5 5' },
+            });
+          } else {
+            // Chapter chain: prev chapter Out → this chapter In
+            const prevChapId = `chap_import_${chapters[ci - 1].id}`;
+            newEdges.push({
+              id: `e_chap_chain_${ci}`,
+              source: prevChapId,
+              sourceHandle: 'next_chapter',
+              target: chapNodeId,
+              targetHandle: 'prev_chapter',
+              animated: true,
+              style: { stroke: '#4A90D9', strokeDasharray: '5 5' },
+            });
+          }
+          // Plots are inside the chapter sub-canvas — not shown in main canvas
         }
-        xOffset += 520;
+        xOffset += 260 + chapters.length * 280 + 60;
       }
 
       setNodes(nds => {
