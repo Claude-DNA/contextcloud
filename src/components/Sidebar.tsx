@@ -9,7 +9,7 @@ const NAV_ITEMS = [
   { label: 'Arc Cloud', href: '/workspace/arc-cloud', icon: ArcIcon },
   { label: 'Characters Cloud', href: '/workspace/characters-cloud', icon: CharactersIcon },
   { label: 'References Cloud', href: '/workspace/references-cloud', icon: ReferencesIcon },
-  { label: 'Scenes Cloud', href: '/workspace/scenes-cloud', icon: ScenesIcon },
+  { label: 'Stage Cloud', href: '/workspace/scenes-cloud', icon: ScenesIcon },
   { label: 'World Cloud', href: '/workspace/world-cloud', icon: WorldIcon },
   { label: 'New Cloud', href: '/workspace/traditional?type=cloud', icon: CloudIcon },
   { label: 'New Flow', href: '/workspace/traditional?type=flow', icon: FlowIcon },

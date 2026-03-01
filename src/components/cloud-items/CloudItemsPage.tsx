@@ -57,16 +57,19 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
   },
   scenes: {
     type: 'scenes',
-    label: 'Scenes Cloud',
-    emoji: '🎬',
+    label: 'Stage Cloud',
+    emoji: '🎭',
     colorHex: '#10b981',
-    titlePlaceholder: 'Scene title…',
-    contentPlaceholder: 'What happens in this scene? What does it reveal or shift?',
-    tagLabel: 'Characters',
-    tagPlaceholder: 'Jane, Daniel…',
+    titlePlaceholder: 'Location name… (e.g. Ship bridge, Alien forest, Jane\'s cell)',
+    contentPlaceholder: 'Describe this place — atmosphere, sensory details, how it feels to be here, what it reveals about the world…',
+    tagLabel: 'Tags',
+    tagPlaceholder: 'interior, alien, enclosed, hostile…',
     fields: [
-      { key: 'emotionalState', label: 'Emotional State', placeholder: 'e.g. (Guilt + Wonder) × Curiosity' },
-      { key: 'chapter', label: 'Chapter / Act', placeholder: 'Act 3, Ch 7…' },
+      {
+        key: 'locationType', label: 'Type', placeholder: 'interior',
+        options: ['interior', 'exterior', 'space', 'virtual / VR', 'transitional', 'other'],
+      },
+      { key: 'scale', label: 'Scale / Size', placeholder: 'vast, claustrophobic, human-sized…' },
     ],
   },
   world: {
