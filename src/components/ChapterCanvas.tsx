@@ -124,24 +124,58 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
     ...extra,
   }), [draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode]);
 
-  // Build plots as initial nodes
+  // Build plots as initial nodes — each plot gets its proxy cloud nodes pre-connected
   const buildPlotNodes = useCallback((plots: PlotRow[]) => {
     const newNodes: Node[] = [];
     const newEdges: Edge[] = [];
 
+    const COL_WIDTH = 560; // horizontal gap between plot columns
+    const PLOT_Y = 260;    // plot node vertical center
+
     plots.forEach((plot, i) => {
       const plotId = `plot_${plot.id}`;
+      const cx = 240 + i * COL_WIDTH; // plot center x
+
+      // --- Plot node ---
       newNodes.push({
         id: plotId,
         type: 'plot',
-        position: { x: 80 + i * 320, y: 200 },
+        position: { x: cx, y: PLOT_Y },
         dragging: false, selected: false,
         data: makeNodeData('plot', { title: plot.name || plot.title || `Plot ${i + 1}`, content: plot.content || '' }),
       });
 
+      // --- Proxy clouds (left side) ---
+      const proxies: Array<{ type: string; handle: string; dx: number; dy: number }> = [
+        { type: 'ideasProxy',      handle: 'ideas',      dx: -240, dy:  80 },
+        { type: 'worldProxy',      handle: 'world',      dx: -240, dy: -20 },
+        { type: 'aiNode',          handle: 'ai',         dx: -240, dy: -120 },
+        { type: 'referencesProxy', handle: 'references', dx: -240, dy:  180 },
+      ];
+
+      proxies.forEach(({ type, handle, dx, dy }) => {
+        const proxyId = `${type}_${plot.id}`;
+        newNodes.push({
+          id: proxyId,
+          type,
+          position: { x: cx + dx, y: PLOT_Y + dy },
+          dragging: false, selected: false,
+          data: makeNodeData(type, { title: '', content: '' }),
+        });
+        newEdges.push({
+          id: `e_${proxyId}_${plotId}`,
+          source: proxyId,
+          target: plotId,
+          targetHandle: handle,
+          animated: false,
+          style: { stroke: '#c4c8d0' },
+        });
+      });
+
+      // --- Prev-plot chain edge ---
       if (i > 0) {
         newEdges.push({
-          id: `e_plot_${i - 1}_${i}`,
+          id: `e_plot_chain_${i}`,
           source: `plot_${plots[i - 1].id}`,
           target: plotId,
           sourceHandle: 'output',
@@ -437,6 +471,24 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
                   📑 {chapterInfo?.name || 'Chapter'}
                 </span>
                 <div className="w-px h-5 bg-gray-200" />
+                <button
+                  onClick={async () => {
+                    // Re-fetch plots and rebuild scaffold from scratch
+                    try {
+                      const res = await fetch(`/api/v1/chapter-plots/${chapterId}`);
+                      const data = await res.json();
+                      const { newNodes, newEdges } = buildPlotNodes(data.plots || []);
+                      setNodes(newNodes);
+                      setEdges(newEdges);
+                      setDraftId(null); // clear saved draft reference
+                      showToast('Reloaded from Arc Cloud');
+                      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.1 }), 200);
+                    } catch { showToast('Reload failed'); }
+                  }}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+                >
+                  ↺ Reload
+                </button>
                 <button
                   onClick={save}
                   disabled={saving}
