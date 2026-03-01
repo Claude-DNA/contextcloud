@@ -635,6 +635,31 @@ export default function VisualCanvas() {
               />
             </div>
 
+            {/* Import from Clouds — prominent, above node palette */}
+            <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 overflow-hidden">
+              <div className="px-2.5 py-1.5 border-b border-emerald-100 bg-emerald-100">
+                <span className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider">Import from Clouds</span>
+              </div>
+              <div className="p-1.5 space-y-0.5">
+                <button
+                  onClick={importIdeas}
+                  disabled={importingIdeas}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
+                >
+                  <span>💡</span>
+                  <span>{importingIdeas ? 'Importing...' : 'Ideas Cloud'}</span>
+                </button>
+                <button
+                  onClick={importArcs}
+                  disabled={importingArcs}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
+                >
+                  <span>📖</span>
+                  <span>{importingArcs ? 'Importing...' : 'Arc Cloud'}</span>
+                </button>
+              </div>
+            </div>
+
             <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
 
             {/* Container Nodes */}
@@ -731,29 +756,6 @@ export default function VisualCanvas() {
                 </div>
               </div>
             )}
-
-            {/* Import from Clouds */}
-            <div className="mb-4 pt-3 border-t border-gray-100">
-              <div className="text-xs text-emerald-600 font-medium mb-2">Import from Clouds</div>
-              <div className="space-y-0.5">
-                <button
-                  onClick={importIdeas}
-                  disabled={importingIdeas}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-50 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
-                >
-                  <span>💡</span>
-                  <span>{importingIdeas ? 'Importing...' : 'Ideas Cloud'}</span>
-                </button>
-                <button
-                  onClick={importArcs}
-                  disabled={importingArcs}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-50 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
-                >
-                  <span>📖</span>
-                  <span>{importingArcs ? 'Importing...' : 'Arc Cloud'}</span>
-                </button>
-              </div>
-            </div>
 
             {/* Meta Nodes */}
             {categorized.meta.length > 0 && (
