@@ -246,8 +246,10 @@ export const ATOMIC_STATES: AtomicState[] = [
 export interface StateFormula {
   id: string;
   name: string;
-  base: string[];       // atomic state ids
-  modifier?: string;    // atomic state id (optional)
+  base: string[];                     // atomic state ids
+  signs?: Record<string, 1 | -1>;    // +1 (default) or -1 (negated); e.g. { love: -1 } means −Love
+  modifier?: string;                  // atomic state id (optional)
+  modifierSign?: 1 | -1;              // modifier can also be negated
   description?: string;
   isPreset?: boolean;
   color?: string;       // display color (auto-derived if empty)

@@ -59,6 +59,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const lastWindowFocusTime = useRef(0);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
   const nodeCounter = useRef(0);
@@ -344,8 +345,19 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
     setEdges(eds => addEdge({ ...connection, animated: true, style: { stroke: '#c4c8d0', strokeDasharray: '5 5' } }, eds));
   }, [setEdges]);
 
+  // Guard against window focus-triggered pane clicks closing the panel
+  useEffect(() => {
+    const onFocus = () => { lastWindowFocusTime.current = Date.now(); };
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, []);
+
   const onNodeClick = useCallback((_: React.MouseEvent, node: Node) => setSelectedNodeId(node.id), []);
-  const onPaneClick = useCallback(() => setSelectedNodeId(null), []);
+  const onPaneClick = useCallback(() => {
+    // Ignore clicks that happen within 400ms of the window receiving focus (app-switch return)
+    if (Date.now() - lastWindowFocusTime.current < 400) return;
+    setSelectedNodeId(null);
+  }, []);
 
   const bigNodes = useMemo(() =>
     nodes.filter(n => n.type === 'character' || n.type === 'scene')
@@ -484,7 +496,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
             onPaneClick={onPaneClick}
             nodeTypes={nodeTypes}
             connectionMode={ConnectionMode.Loose}
-            deleteKeyCode={['Backspace', 'Delete']}
+            deleteKeyCode={selectedNodeId ? null : ['Delete']}
             fitView
             className="bg-[#f5f5fa]"
           >
