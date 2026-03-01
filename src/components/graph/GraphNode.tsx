@@ -1,6 +1,6 @@
 'use client';
 
-import React, { memo, useCallback, useContext, Fragment } from 'react';
+import React, { memo, useCallback, useContext, Fragment, useState, useEffect } from 'react';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, HUB_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
 import { GraphContext } from './GraphContext';
@@ -114,7 +114,8 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
             if (opt && onParentChange) onParentChange(id, opt.id, opt.label);
           }}
           onClick={(e) => e.stopPropagation()}
-          className="text-[9px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-1 py-0.5 w-full max-w-[100px] mt-1"
+          onMouseDown={(e) => e.stopPropagation()}
+          className="nodrag nopan text-[9px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-1 py-0.5 w-full max-w-[100px] mt-1"
         >
           <option value="">Link to node...</option>
           {(bigNodes || []).map(n => (
@@ -518,6 +519,72 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
   );
 }
 
+/* --- IdeasProxyNode --- shows live ideas from Ideas Cloud --- */
+function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
+  const { color, onDelete } = data;
+  const [ideas, setIdeas] = useState<Array<{ id: string; text: string; weight: number }>>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/v1/ideas')
+      .then(r => r.json())
+      .then(d => setIdeas((d.ideas || []).slice(0, 8)))
+      .catch(() => setIdeas([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div
+      className="group relative bg-white rounded-xl shadow-sm"
+      style={{
+        width: 200,
+        minHeight: 80,
+        border: selected ? `2px solid ${color}` : `1.5px solid ${color}60`,
+        boxShadow: selected ? `0 0 0 3px ${color}22` : undefined,
+        overflow: 'hidden',
+      }}
+    >
+      {onDelete && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
+        >×</button>
+      )}
+      <Handle type="target" position={Position.Left} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />
+
+      {/* Header */}
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-gray-100" style={{ background: `${color}15` }}>
+        <span className="text-sm">💡</span>
+        <span className="text-[11px] font-semibold text-gray-700">Ideas Cloud</span>
+      </div>
+
+      {/* Ideas list */}
+      <div className="nodrag nopan px-2 py-1.5 space-y-0.5">
+        {loading ? (
+          <span className="text-[10px] text-gray-400">Loading...</span>
+        ) : ideas.length === 0 ? (
+          <span className="text-[10px] text-gray-400">No ideas yet</span>
+        ) : ideas.map(idea => (
+          <div key={idea.id} className="flex items-center gap-1.5">
+            <span
+              className="shrink-0 rounded text-white text-[8px] font-bold px-1"
+              style={{ background: color, minWidth: 24, textAlign: 'center' }}
+            >
+              {Math.round(idea.weight * 100)}%
+            </span>
+            <span className="text-[10px] text-gray-700 truncate leading-tight">{idea.text}</span>
+          </div>
+        ))}
+        {ideas.length === 8 && (
+          <span className="text-[9px] text-gray-400 pl-7">+ more in Ideas Cloud</span>
+        )}
+      </div>
+
+      <Handle type="source" position={Position.Right} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />
+    </div>
+  );
+}
+
 /* --- Set of types that use hub layout (4-directional) --- */
 const HUB_HANDLE_TYPES = new Set(Object.keys(HUB_HANDLES));
 
@@ -528,6 +595,7 @@ const TYPED_HANDLE_TYPES = new Set(Object.keys(TYPED_HANDLES));
 function GraphNodeComponent({ id, data, selected }: NodeProps) {
   const d = data as unknown as GraphNodeData;
 
+  if (d.type === 'ideasProxy') return <IdeasProxyNode id={id} data={d} selected={selected} />;
   if (d.isProxy) return <ProxyNode id={id} data={d} selected={selected} />;
   if (d.type === 'state') return <StateNode id={id} data={d} />;
   if (d.type === 'aiNode') return <AiNode id={id} data={d} selected={selected} />;

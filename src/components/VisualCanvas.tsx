@@ -622,7 +622,7 @@ export default function VisualCanvas() {
     <div className="flex h-[calc(100vh-3.5rem)]">
       {/* Node type sidebar */}
       {sidebarOpen && (
-        <div className="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0">
+        <div className="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0" onMouseDown={e => e.stopPropagation()}>
           <div className="p-3">
             {/* Title input */}
             <div className="mb-3">
