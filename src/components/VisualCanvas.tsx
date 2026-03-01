@@ -92,6 +92,8 @@ export default function VisualCanvas() {
   const [showDraftBrowser, setShowDraftBrowser] = useState(false);
   const nodeCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importingIdeas, setImportingIdeas] = useState(false);
+  const [importingArcs, setImportingArcs] = useState(false);
 
   // Show toast helper
   const showToast = useCallback((msg: string) => {
@@ -212,6 +214,164 @@ export default function VisualCanvas() {
     };
     setNodes(nds => [...nds, newNode]);
   }, [setNodes, draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode]);
+
+  // Import Ideas from Ideas Cloud
+  const importIdeas = useCallback(async () => {
+    setImportingIdeas(true);
+    try {
+      const res = await fetch('/api/v1/ideas');
+      const data = await res.json();
+      const ideas: Array<{ id: string; text: string; weight: number }> = data.ideas || [];
+      if (!ideas.length) { showToast('No ideas in Ideas Cloud'); return; }
+
+      const newNodes: Node[] = ideas.map((idea, i) => ({
+        id: `idea_import_${idea.id}`,
+        type: 'theme',
+        position: { x: -320, y: 60 + i * 160 },
+        dragging: false,
+        selected: false,
+        data: {
+          type: 'theme',
+          label: 'Idea',
+          emoji: '💡',
+          color: '#f59e0b',
+          title: idea.text.slice(0, 80),
+          content: `Weight: ${Math.round((idea.weight ?? 0) * 100)}%`,
+          isProxy: false,
+          isContainer: false,
+          stateColor: null,
+          parentNodeId: '',
+          parentLabel: '',
+          graphId: draftId,
+          onTitleChange: handleTitleChange,
+          onContentChange: handleContentChange,
+          onZoomToParent,
+          onStateColorChange: handleStateColorChange,
+          onImageGenerated: handleImageGenerated,
+          onDelete: handleDeleteNode,
+        },
+      }));
+
+      setNodes(nds => {
+        const existingIds = new Set(nds.map(n => n.id));
+        return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
+      });
+      showToast(`Imported ${newNodes.length} idea${newNodes.length !== 1 ? 's' : ''}`);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
+    } catch {
+      showToast('Failed to import ideas');
+    } finally {
+      setImportingIdeas(false);
+    }
+  }, [draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+
+  // Import Arcs from Arc Cloud
+  const importArcs = useCallback(async () => {
+    setImportingArcs(true);
+    try {
+      const arcsRes = await fetch('/api/v1/arcs');
+      const arcsData = await arcsRes.json();
+      const arcs: Array<{ id: string; name: string; description?: string }> = arcsData.arcs || [];
+      if (!arcs.length) { showToast('No arcs in Arc Cloud'); return; }
+
+      const newNodes: Node[] = [];
+      const newEdges: Edge[] = [];
+      let xOffset = 400;
+
+      for (const arc of arcs) {
+        const arcNodeId = `arc_import_${arc.id}`;
+        newNodes.push({
+          id: arcNodeId,
+          type: 'arc',
+          position: { x: xOffset, y: 60 },
+          dragging: false, selected: false,
+          data: {
+            type: 'arc', label: 'Arc', emoji: '📈', color: '#0891b2',
+            title: arc.name, content: arc.description || '',
+            isProxy: false, isContainer: false, stateColor: null,
+            parentNodeId: '', parentLabel: '', graphId: draftId,
+            onTitleChange: handleTitleChange, onContentChange: handleContentChange,
+            onZoomToParent, onStateColorChange: handleStateColorChange,
+            onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
+          },
+        });
+
+        // Fetch chapters + plots for this arc
+        let chapters: Array<{ id: string; name: string; description?: string; plots: Array<{ id: string; title: string; content?: string }> }> = [];
+        try {
+          const chapRes = await fetch(`/api/v1/arcs/${arc.id}/chapters`);
+          const chapData = await chapRes.json();
+          chapters = chapData.chapters || [];
+        } catch { /* no chapters */ }
+
+        let yOffset = 240;
+        for (let ci = 0; ci < chapters.length; ci++) {
+          const chapter = chapters[ci];
+          const chapNodeId = `chap_import_${chapter.id}`;
+          newNodes.push({
+            id: chapNodeId,
+            type: 'chapterAct',
+            position: { x: xOffset, y: yOffset },
+            dragging: false, selected: false,
+            data: {
+              type: 'chapterAct', label: 'Chapter / Act', emoji: '📑', color: '#4A90D9',
+              title: chapter.name, content: chapter.description || '',
+              isProxy: false, isContainer: false, stateColor: null,
+              parentNodeId: '', parentLabel: '', graphId: draftId,
+              onTitleChange: handleTitleChange, onContentChange: handleContentChange,
+              onZoomToParent, onStateColorChange: handleStateColorChange,
+              onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
+            },
+          });
+          newEdges.push({
+            id: `e_arc_chap_${arcNodeId}_${chapNodeId}`,
+            source: arcNodeId, target: chapNodeId,
+            animated: true, style: { stroke: '#0891b2', strokeDasharray: '5 5' },
+          });
+          yOffset += 160;
+
+          // Plot nodes to the right of each chapter
+          for (let pi = 0; pi < (chapter.plots || []).length; pi++) {
+            const plot = chapter.plots[pi];
+            const plotNodeId = `plot_import_${plot.id}`;
+            newNodes.push({
+              id: plotNodeId,
+              type: 'plot',
+              position: { x: xOffset + 260, y: yOffset - 160 + pi * 140 },
+              dragging: false, selected: false,
+              data: {
+                type: 'plot', label: 'Plot', emoji: '📖', color: '#4A90D9',
+                title: plot.title || `Plot ${pi + 1}`, content: plot.content || '',
+                isProxy: false, isContainer: false, stateColor: null,
+                parentNodeId: '', parentLabel: '', graphId: draftId,
+                onTitleChange: handleTitleChange, onContentChange: handleContentChange,
+                onZoomToParent, onStateColorChange: handleStateColorChange,
+                onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
+              },
+            });
+            newEdges.push({
+              id: `e_chap_plot_${chapNodeId}_${plotNodeId}`,
+              source: chapNodeId, target: plotNodeId,
+              animated: true, style: { stroke: '#4A90D9', strokeDasharray: '5 5' },
+            });
+          }
+        }
+        xOffset += 600;
+      }
+
+      setNodes(nds => {
+        const existingIds = new Set(nds.map(n => n.id));
+        return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
+      });
+      setEdges(eds => [...eds, ...newEdges]);
+      showToast(`Imported ${arcs.length} arc${arcs.length !== 1 ? 's' : ''} from Arc Cloud`);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
+    } catch {
+      showToast('Failed to import arcs');
+    } finally {
+      setImportingArcs(false);
+    }
+  }, [draftId, setNodes, setEdges, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
 
   // Connect edges
   const onConnect = useCallback(
@@ -570,6 +730,29 @@ export default function VisualCanvas() {
                 </div>
               </div>
             )}
+
+            {/* Import from Clouds */}
+            <div className="mb-4 pt-3 border-t border-gray-100">
+              <div className="text-xs text-emerald-600 font-medium mb-2">Import from Clouds</div>
+              <div className="space-y-0.5">
+                <button
+                  onClick={importIdeas}
+                  disabled={importingIdeas}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-50 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
+                >
+                  <span>💡</span>
+                  <span>{importingIdeas ? 'Importing...' : 'Ideas Cloud'}</span>
+                </button>
+                <button
+                  onClick={importArcs}
+                  disabled={importingArcs}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-50 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
+                >
+                  <span>📖</span>
+                  <span>{importingArcs ? 'Importing...' : 'Arc Cloud'}</span>
+                </button>
+              </div>
+            </div>
 
             {/* Meta Nodes */}
             {categorized.meta.length > 0 && (
