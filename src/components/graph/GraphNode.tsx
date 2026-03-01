@@ -1,6 +1,7 @@
 'use client';
 
 import React, { memo, useCallback, useContext, Fragment, useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, HUB_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
 import { GraphContext } from './GraphContext';
@@ -245,6 +246,7 @@ function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData
 /* --- HubNode --- 4-directional: top/bottom=chain, left=clouds, right=injections --- */
 function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { type, color, title, onDelete } = data;
+  const chapterId = data.chapterId as string | undefined;
   const config = NODE_TYPE_MAP[type];
   const nodeLabel = config?.label || type;
   const handles = HUB_HANDLES[type] || [];
@@ -300,6 +302,16 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
       <div className="flex flex-col overflow-hidden min-w-0 flex-1">
         <span className="text-[11px] text-gray-800 font-semibold truncate leading-tight">{title || 'Untitled'}</span>
         <span className="text-[9px] text-gray-400 truncate mt-0.5">{nodeLabel}</span>
+        {chapterId && (
+          <Link
+            href={`/workspace/visual/chapter/${chapterId}`}
+            onClick={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            className="nodrag nopan text-[9px] text-indigo-500 hover:text-indigo-700 font-medium mt-0.5 truncate"
+          >
+            Open plots →
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -519,66 +531,114 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
   );
 }
 
-/* --- IdeasProxyNode --- shows live ideas from Ideas Cloud --- */
+/* --- IdeasProxyNode --- user-curated ideas from Ideas Cloud --- */
 function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
-  const { color, onDelete } = data;
-  const [ideas, setIdeas] = useState<Array<{ id: string; text: string; weight: number }>>([]);
+  const { color, onDelete, onContentChange } = data;
+  const [allIdeas, setAllIdeas] = useState<Array<{ id: string; text: string; weight: number }>>([]);
   const [loading, setLoading] = useState(true);
+  const [picking, setPicking] = useState(false);
+
+  // selected IDs stored in data.content as JSON
+  const selectedIds: string[] = (() => {
+    try { return JSON.parse((data.content as string) || '[]'); } catch { return []; }
+  })();
 
   useEffect(() => {
     fetch('/api/v1/ideas')
       .then(r => r.json())
-      .then(d => setIdeas((d.ideas || []).slice(0, 8)))
-      .catch(() => setIdeas([]))
+      .then(d => setAllIdeas(d.ideas || []))
+      .catch(() => setAllIdeas([]))
       .finally(() => setLoading(false));
   }, []);
+
+  const toggle = useCallback((ideaId: string) => {
+    const next = selectedIds.includes(ideaId)
+      ? selectedIds.filter(x => x !== ideaId)
+      : [...selectedIds, ideaId];
+    if (onContentChange) onContentChange(id, JSON.stringify(next));
+  }, [id, selectedIds, onContentChange]);
+
+  const shown = selectedIds.length > 0
+    ? allIdeas.filter(i => selectedIds.includes(i.id))
+    : [];
 
   return (
     <div
       className="group relative bg-white rounded-xl shadow-sm"
       style={{
-        width: 200,
-        minHeight: 80,
+        width: 220,
         border: selected ? `2px solid ${color}` : `1.5px solid ${color}60`,
         boxShadow: selected ? `0 0 0 3px ${color}22` : undefined,
-        overflow: 'hidden',
+        overflow: 'visible',
       }}
     >
+      {/* Delete — outside overflow context */}
       {onDelete && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(id); }}
-          className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
         >×</button>
       )}
       <Handle type="target" position={Position.Left} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />
 
       {/* Header */}
-      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-gray-100" style={{ background: `${color}15` }}>
-        <span className="text-sm">💡</span>
-        <span className="text-[11px] font-semibold text-gray-700">Ideas Cloud</span>
+      <div
+        className="nodrag nopan flex items-center justify-between px-2.5 py-1.5 rounded-t-xl border-b border-gray-100 cursor-pointer select-none"
+        style={{ background: `${color}18` }}
+        onClick={() => setPicking(p => !p)}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-1.5">
+          <span className="text-sm">💡</span>
+          <span className="text-[11px] font-semibold text-gray-700">Ideas Cloud</span>
+        </div>
+        <span className="text-[10px] text-gray-400">{picking ? '▲' : '▼'} {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'pick'}</span>
       </div>
 
-      {/* Ideas list */}
-      <div className="nodrag nopan px-2 py-1.5 space-y-0.5">
-        {loading ? (
-          <span className="text-[10px] text-gray-400">Loading...</span>
-        ) : ideas.length === 0 ? (
-          <span className="text-[10px] text-gray-400">No ideas yet</span>
-        ) : ideas.map(idea => (
-          <div key={idea.id} className="flex items-center gap-1.5">
-            <span
-              className="shrink-0 rounded text-white text-[8px] font-bold px-1"
-              style={{ background: color, minWidth: 24, textAlign: 'center' }}
+      {/* Picker (expanded) */}
+      {picking && (
+        <div className="nodrag nopan border-b border-gray-100 max-h-40 overflow-y-auto" onMouseDown={(e) => e.stopPropagation()}>
+          {loading ? (
+            <div className="px-2 py-2 text-[10px] text-gray-400">Loading...</div>
+          ) : allIdeas.length === 0 ? (
+            <div className="px-2 py-2 text-[10px] text-gray-400">No ideas yet</div>
+          ) : allIdeas.map(idea => (
+            <label
+              key={idea.id}
+              className="flex items-center gap-1.5 px-2 py-1 hover:bg-yellow-50 cursor-pointer"
+              onMouseDown={(e) => e.stopPropagation()}
             >
-              {Math.round(idea.weight * 100)}%
-            </span>
-            <span className="text-[10px] text-gray-700 truncate leading-tight">{idea.text}</span>
-          </div>
-        ))}
-        {ideas.length === 8 && (
-          <span className="text-[9px] text-gray-400 pl-7">+ more in Ideas Cloud</span>
-        )}
-      </div>
+              <input
+                type="checkbox"
+                checked={selectedIds.includes(idea.id)}
+                onChange={() => toggle(idea.id)}
+                onMouseDown={(e) => e.stopPropagation()}
+                className="nodrag nopan w-3 h-3 accent-yellow-500"
+              />
+              <span className="text-[10px] text-gray-700 truncate leading-tight">{idea.text}</span>
+            </label>
+          ))}
+        </div>
+      )}
+
+      {/* Selected ideas display */}
+      {shown.length > 0 && (
+        <div className="px-2 py-1.5 space-y-0.5" style={{ borderRadius: '0 0 10px 10px', background: '#fffdf0' }}>
+          {shown.map(idea => (
+            <div key={idea.id} className="flex items-center gap-1.5">
+              <span className="shrink-0 rounded text-white text-[8px] font-bold px-1" style={{ background: color, minWidth: 28, textAlign: 'center' }}>
+                {Math.round(idea.weight * 100)}%
+              </span>
+              <span className="text-[10px] text-gray-700 truncate leading-tight">{idea.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {shown.length === 0 && !picking && (
+        <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">Click header to select ideas</div>
+      )}
 
       <Handle type="source" position={Position.Right} className="!bg-yellow-400 !w-2.5 !h-2.5 !border-2 !border-yellow-200" />
     </div>

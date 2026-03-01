@@ -316,6 +316,7 @@ export default function VisualCanvas() {
             data: {
               type: 'chapterAct', label: 'Chapter / Act', emoji: '📑', color: '#4A90D9',
               title: chapter.name, content: chapter.description || '',
+              chapterId: chapter.id,
               isProxy: false, isContainer: false, stateColor: null,
               parentNodeId: '', parentLabel: '', graphId: draftId,
               onTitleChange: handleTitleChange, onContentChange: handleContentChange,
