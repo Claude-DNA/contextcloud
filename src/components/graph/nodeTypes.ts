@@ -183,10 +183,9 @@ export const HUB_HANDLES: Record<string, HubHandleConfig[]> = {
     { id: 'output',     label: 'Output',     type: 'source', position: 'right', color: '#10b981', offset: '50%' },
   ],
   arc: [
-    { id: 'chapter',    label: 'Chapter',    type: 'target', position: 'left', color: '#0891b2', offset: '50%' },
-    { id: 'output_1',   label: 'Plot 1',     type: 'source', position: 'right', color: '#0891b2', offset: '30%' },
-    { id: 'output_2',   label: 'Plot 2',     type: 'source', position: 'right', color: '#0891b2', offset: '50%' },
-    { id: 'output_3',   label: 'Plot 3',     type: 'source', position: 'right', color: '#0891b2', offset: '70%' },
+    { id: 'ch_1', label: 'Ch 1', type: 'source', position: 'right', color: '#0891b2', offset: '25%' },
+    { id: 'ch_2', label: 'Ch 2', type: 'source', position: 'right', color: '#0891b2', offset: '50%' },
+    { id: 'ch_3', label: 'Ch 3', type: 'source', position: 'right', color: '#0891b2', offset: '75%' },
   ],
 };
 

@@ -308,10 +308,11 @@ export default function VisualCanvas() {
         for (let ci = 0; ci < chapters.length; ci++) {
           const chapter = chapters[ci];
           const chapNodeId = `chap_import_${chapter.id}`;
+          const chHandleId = ci === 0 ? 'ch_1' : ci === 1 ? 'ch_2' : 'ch_3';
           newNodes.push({
             id: chapNodeId,
             type: 'chapterAct',
-            position: { x: xOffset, y: yOffset },
+            position: { x: xOffset + 240, y: yOffset },
             dragging: false, selected: false,
             data: {
               type: 'chapterAct', label: 'Chapter / Act', emoji: '📑', color: '#4A90D9',
@@ -324,40 +325,19 @@ export default function VisualCanvas() {
               onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
             },
           });
+          // Arc → Chapter: use explicit arc source handle so it doesn't stray
           newEdges.push({
             id: `e_arc_chap_${arcNodeId}_${chapNodeId}`,
-            source: arcNodeId, target: chapNodeId,
-            animated: true, style: { stroke: '#0891b2', strokeDasharray: '5 5' },
+            source: arcNodeId,
+            sourceHandle: chHandleId,
+            target: chapNodeId,
+            animated: true,
+            style: { stroke: '#0891b2', strokeDasharray: '5 5' },
           });
-          yOffset += 160;
-
-          // Plot nodes to the right of each chapter
-          for (let pi = 0; pi < (chapter.plots || []).length; pi++) {
-            const plot = chapter.plots[pi];
-            const plotNodeId = `plot_import_${plot.id}`;
-            newNodes.push({
-              id: plotNodeId,
-              type: 'plot',
-              position: { x: xOffset + 260, y: yOffset - 160 + pi * 140 },
-              dragging: false, selected: false,
-              data: {
-                type: 'plot', label: 'Plot', emoji: '📖', color: '#4A90D9',
-                title: plot.name || plot.title || `Plot ${pi + 1}`, content: plot.content || '',
-                isProxy: false, isContainer: false, stateColor: null,
-                parentNodeId: '', parentLabel: '', graphId: draftId,
-                onTitleChange: handleTitleChange, onContentChange: handleContentChange,
-                onZoomToParent, onStateColorChange: handleStateColorChange,
-                onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
-              },
-            });
-            newEdges.push({
-              id: `e_chap_plot_${chapNodeId}_${plotNodeId}`,
-              source: chapNodeId, target: plotNodeId,
-              animated: true, style: { stroke: '#4A90D9', strokeDasharray: '5 5' },
-            });
-          }
+          yOffset += 180;
+          // Plots are shown inside the chapter sub-canvas — not imported here
         }
-        xOffset += 600;
+        xOffset += 520;
       }
 
       setNodes(nds => {
