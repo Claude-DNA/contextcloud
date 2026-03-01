@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { query, isDbAvailable } from '@/lib/db';
+import { runMigrations } from '@/lib/migrations';
 
 const VALID_TYPES = ['characters', 'references', 'scenes', 'world'] as const;
 type CloudType = typeof VALID_TYPES[number];
@@ -19,6 +20,8 @@ export async function GET(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ items: [] });
   }
+
+  await runMigrations();
 
   const res = await query(
     'SELECT * FROM cloud_items WHERE user_id = $1 AND cloud_type = $2 ORDER BY sort_order ASC, created_at ASC',
