@@ -388,15 +388,16 @@ export async function POST(req: NextRequest) {
   }
   const userId = session.user.id;
 
-  // Resolve BYOT key
-  const resolvedKey = await getGeminiKey(session.user.id, session.user.email);
-  if (!resolvedKey) return noKeyResponse();
-  GOOGLE_AI_API_KEY = resolvedKey;
-
+  // Wake DB first (retries built in), then resolve key (which may also query DB)
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
   await runMigrations();
+
+  // Resolve BYOT key (DB is awake now, query will succeed)
+  const resolvedKey = await getGeminiKey(session.user.id, session.user.email);
+  if (!resolvedKey) return noKeyResponse();
+  GOOGLE_AI_API_KEY = resolvedKey;
 
   let file: File | null = null;
   try {
