@@ -85,7 +85,8 @@ async function geminiCall(prompt: string): Promise<unknown> {
       generationConfig: {
         temperature: 0.1,
         maxOutputTokens: 8192,
-        responseMimeType: 'application/json',
+        // NOTE: no responseMimeType — JSON mode forces empty [] on complex schemas
+        // Instead we rely on prompt instruction + manual cleanup below
       },
     }),
   });
@@ -318,13 +319,26 @@ ${text.slice(0, 80_000)}`;
 async function extractWithGemini(text: string): Promise<ExtractedData & { ideas: string[] }> {
   if (!GOOGLE_AI_API_KEY) throw new Error('No API key configured — add your Google AI key in Settings');
 
-  const [arc, characters, stagesAndWorld, references, ideas] = await Promise.all([
+  const [arcResult, charsResult, stagesWorldResult, refsResult, ideasResult] = await Promise.allSettled([
     extractArc(text),
     extractCharacters(text),
     extractStagesAndWorld(text),
     extractReferences(text),
     extractIdeas(text),
   ]);
+
+  // Log failures so Vercel logs reveal the root cause
+  if (arcResult.status === 'rejected') console.error('[import] arc extraction failed:', arcResult.reason);
+  if (charsResult.status === 'rejected') console.error('[import] characters extraction failed:', charsResult.reason);
+  if (stagesWorldResult.status === 'rejected') console.error('[import] stages/world extraction failed:', stagesWorldResult.reason);
+  if (refsResult.status === 'rejected') console.error('[import] references extraction failed:', refsResult.reason);
+  if (ideasResult.status === 'rejected') console.error('[import] ideas extraction failed:', ideasResult.reason);
+
+  const arc = arcResult.status === 'fulfilled' ? arcResult.value : { name: '', description: '', chapters: [] };
+  const characters = charsResult.status === 'fulfilled' ? (charsResult.value || []) : [];
+  const stagesAndWorld = stagesWorldResult.status === 'fulfilled' ? stagesWorldResult.value : null;
+  const references = refsResult.status === 'fulfilled' ? (refsResult.value || []) : [];
+  const ideas = ideasResult.status === 'fulfilled' ? (ideasResult.value || []) : [];
 
   return {
     arc,
