@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 const CLOUD_TAG_CONTEXT: Record<string, string> = {
   characters: 'a character in a story',
@@ -14,10 +15,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
-  }
+  const apiKey = await getGeminiKey(session.user.id, session.user.email);
+  if (!apiKey) return noKeyResponse();
 
   const { cloudType, title, content } = await req.json();
   const context = CLOUD_TAG_CONTEXT[cloudType] || 'a creative element';

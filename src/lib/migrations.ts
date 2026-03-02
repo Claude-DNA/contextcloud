@@ -203,6 +203,9 @@ export async function runMigrations() {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_trans_item_id ON cloud_item_transformations (cloud_item_id)`);
 
+    // BYOT — user-stored Google AI key
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_ai_key TEXT`);
+
     console.log('Migrations complete');
   } catch (e) {
     console.error('Migration error:', e);

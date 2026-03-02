@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { unzipSync, strFromU8 } from 'fflate';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
-const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY || '';
+// Mutable per-invocation key — set at start of POST handler
+let GOOGLE_AI_API_KEY = '';
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const VALID_NODE_TYPES = [
@@ -137,6 +139,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
+
+  const resolvedKey = await getGeminiKey(session.user.id, session.user.email);
+  if (!resolvedKey) return noKeyResponse();
+  GOOGLE_AI_API_KEY = resolvedKey;
 
   try {
     const formData = await req.formData();

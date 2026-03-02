@@ -3,10 +3,12 @@ import { auth } from '@/lib/auth-config';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 import { unzipSync, strFromU8 } from 'fflate';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 export const maxDuration = 60; // seconds — 4 parallel Gemini calls need headroom
 
-const GOOGLE_AI_API_KEY = process.env.GOOGLE_AI_API_KEY || '';
+// Mutable per-invocation key — set at start of POST handler (serverless: one req per instance)
+let GOOGLE_AI_API_KEY = '';
 const GEMINI_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
@@ -314,7 +316,7 @@ ${text.slice(0, 80_000)}`;
 
 // ── Orchestrate all passes ────────────────────────────────────────────────
 async function extractWithGemini(text: string): Promise<ExtractedData & { ideas: string[] }> {
-  if (!GOOGLE_AI_API_KEY) throw new Error('GOOGLE_AI_API_KEY not configured');
+  if (!GOOGLE_AI_API_KEY) throw new Error('No API key configured — add your Google AI key in Settings');
 
   const [arc, characters, stagesAndWorld, references, ideas] = await Promise.all([
     extractArc(text),
@@ -371,6 +373,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   const userId = session.user.id;
+
+  // Resolve BYOT key
+  const resolvedKey = await getGeminiKey(session.user.id, session.user.email);
+  if (!resolvedKey) return noKeyResponse();
+  GOOGLE_AI_API_KEY = resolvedKey;
 
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 interface ArcWeightsBody {
   events: Array<{ id: string; text: string }>;
@@ -19,10 +20,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'No events provided' }, { status: 400 });
   }
 
-  const apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
-  }
+  const apiKey = await getGeminiKey(session.user.id, session.user.email);
+  if (!apiKey) return noKeyResponse();
 
   const eventList = events.map(e => `- ${e.id}: "${e.text}"`).join('\n');
   const prompt = `You are analyzing a narrative arc for a story.${description ? ` Arc description: "${description}".` : ''} Given these narrative events, assign importance weights (integers, must sum to 100). Consider: climactic moments get higher weights, setup/transitions get lower weights. Return ONLY valid JSON: { "weights": { "<eventId>": <number> } }. Events:\n${eventList}`;

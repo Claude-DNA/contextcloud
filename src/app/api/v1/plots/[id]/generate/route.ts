@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
+import { getGeminiKey } from '@/lib/ai-key';
 import { query } from '@/lib/db';
 import {
   buildNarrativePrompt,
@@ -140,21 +141,18 @@ export async function POST(
 
     // 7. Generate
     let content: string;
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
+    const apiKey = aiNode?.apiKey || await getGeminiKey(session.user.id, session.user.email) || '';
 
-    if (aiNode?.apiKey && aiNode?.model) {
-      // BYOT — caller provided their own key/model
+    if (aiNode?.apiKey && aiNode?.model && aiNode.model.startsWith('gemini')) {
       const temp = aiNode.temperature ?? temperature;
-      if (aiNode.model.startsWith('gemini')) {
-        content = await callGemini(prompt, aiNode.apiKey, temp);
-      } else {
-        // Fallback to Gemini default if unsupported model in this route
-        if (!apiKey) throw new Error('GOOGLE_AI_API_KEY not configured');
-        content = await callGemini(prompt, apiKey, temp);
-      }
+      content = await callGemini(prompt, aiNode.apiKey, temp);
     } else {
       if (!apiKey) {
-        return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
+        return NextResponse.json({
+          error: 'Google AI API key required',
+          message: 'Add your key in Settings, or provide it via the AI node.',
+          code: 'BYOT_REQUIRED',
+        }, { status: 402 });
       }
       content = await callGemini(prompt, apiKey, temperature);
     }

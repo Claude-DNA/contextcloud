@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 interface SuggestBody {
   nodeType: string;
@@ -117,11 +118,9 @@ export async function POST(req: NextRequest) {
         text = await callGemini(prompt, aiNode.apiKey, aiNode.model, temperature);
       }
     } else {
-      // Default: use server-side Gemini API key
-      const apiKey = process.env.GOOGLE_AI_API_KEY;
-      if (!apiKey) {
-        return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
-      }
+      // Default: use user's BYOT key (or admin env fallback)
+      const apiKey = await getGeminiKey(session.user.id, session.user.email);
+      if (!apiKey) return noKeyResponse();
       text = await callGemini(prompt, apiKey, 'gemini-2.0-flash', 0.8);
     }
 

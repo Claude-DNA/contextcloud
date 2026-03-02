@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { query } from '@/lib/db';
 import {
   buildVectorizationPrompt,
@@ -71,8 +72,8 @@ export async function POST(req: NextRequest) {
     }
 
     // Build vectorization prompt and call Gemini
-    const apiKey = process.env.GOOGLE_AI_API_KEY;
-    if (!apiKey) return NextResponse.json({ error: 'GOOGLE_AI_API_KEY not configured' }, { status: 500 });
+    const apiKey = await getGeminiKey(session.user.id, session.user.email);
+    if (!apiKey) return noKeyResponse();
 
     const prompt = buildVectorizationPrompt(elementType, elementText);
     const geminiResponse = await callGemini(prompt, apiKey);
