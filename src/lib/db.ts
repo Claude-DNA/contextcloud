@@ -24,12 +24,16 @@ export async function query(text: string, params?: unknown[]) {
 let dbAvailable: boolean | null = null;
 let lastCheck = 0;
 
+// TTLs: re-check healthy DB every 60s, retry failed DB after 10s
+const DB_OK_TTL = 60_000;
+const DB_FAIL_TTL = 10_000;
+
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 export async function isDbAvailable(): Promise<boolean> {
   const now = Date.now();
-  if (dbAvailable === true) return true;
-  if (dbAvailable === false && now - lastCheck < 10000) return false;
+  if (dbAvailable === true && now - lastCheck < DB_OK_TTL) return true;
+  if (dbAvailable === false && now - lastCheck < DB_FAIL_TTL) return false;
 
   lastCheck = now;
   // Neon auto-pauses on free tier — retry up to 5x with 1.5s delay (5s timeout × 5 + 1.5s × 4 = ~31s max)
