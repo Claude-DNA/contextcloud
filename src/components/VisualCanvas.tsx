@@ -95,6 +95,7 @@ export default function VisualCanvas() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importingIdeas, setImportingIdeas] = useState(false);
   const [importingArcs, setImportingArcs] = useState(false);
+  const [importingCloud, setImportingCloud] = useState(false);
 
   // Show toast helper
   const showToast = useCallback((msg: string) => {
@@ -441,6 +442,59 @@ export default function VisualCanvas() {
     }
   }, [draftId, setNodes, setEdges, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
 
+  // Import from Cloud (all cloud_items → visual nodes)
+  const importFromCloud = useCallback(async () => {
+    setImportingCloud(true);
+    try {
+      const res = await fetch('/api/v1/cloud-items/to-nodes');
+      const data = await res.json();
+      const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = data.nodes || [];
+      if (!cloudNodes.length) { showToast('No cloud items to import'); return; }
+
+      const newNodes: Node[] = cloudNodes.map((cn) => {
+        const config = NODE_TYPE_MAP[cn.type];
+        return {
+          id: cn.id,
+          type: cn.type,
+          position: cn.position,
+          dragging: false,
+          selected: false,
+          data: {
+            type: cn.type,
+            label: config?.label || cn.type,
+            emoji: config?.emoji || '',
+            color: config?.color || '#4A90D9',
+            title: cn.title,
+            content: cn.content,
+            isProxy: false,
+            isContainer: false,
+            stateColor: null,
+            parentNodeId: '',
+            parentLabel: '',
+            graphId: draftId,
+            onTitleChange: handleTitleChange,
+            onContentChange: handleContentChange,
+            onZoomToParent,
+            onStateColorChange: handleStateColorChange,
+            onImageGenerated: handleImageGenerated,
+            onDelete: handleDeleteNode,
+          },
+        };
+      });
+
+      setNodes(nds => {
+        const existingIds = new Set(nds.map(n => n.id));
+        return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
+      });
+      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} imported from Cloud`);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
+    } catch {
+      showToast('Failed to import from Cloud');
+    } finally {
+      setImportingCloud(false);
+    }
+  }, [draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+
   // Connect edges
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -723,6 +777,14 @@ export default function VisualCanvas() {
                 >
                   <span>📖</span>
                   <span>{importingArcs ? 'Importing...' : 'Arc Cloud'}</span>
+                </button>
+                <button
+                  onClick={importFromCloud}
+                  disabled={importingCloud}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
+                >
+                  <span>☁️</span>
+                  <span>{importingCloud ? 'Importing...' : 'Import from Cloud'}</span>
                 </button>
               </div>
             </div>

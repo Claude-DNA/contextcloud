@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth-config';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
-const VALID_TYPES = ['characters', 'references', 'scenes', 'world'] as const;
+const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
 type CloudType = typeof VALID_TYPES[number];
 
 export async function GET(req: NextRequest) {

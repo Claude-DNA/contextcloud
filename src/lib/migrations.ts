@@ -183,6 +183,10 @@ export async function runMigrations() {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_items_user_type ON cloud_items (user_id, cloud_type)`);
 
+    // Expand cloud_type CHECK to include ideas + arc (chat-based creation)
+    await query(`ALTER TABLE cloud_items DROP CONSTRAINT IF EXISTS cloud_items_cloud_type_check`);
+    await query(`ALTER TABLE cloud_items ADD CONSTRAINT cloud_items_cloud_type_check CHECK (cloud_type IN ('characters', 'references', 'scenes', 'world', 'ideas', 'arc'))`);
+
     // Cloud item final states (columns added to cloud_items)
     await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS final_state_manual TEXT`);
     await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS final_state_generated TEXT`);

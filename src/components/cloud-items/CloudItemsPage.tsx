@@ -6,7 +6,7 @@ import Header from '@/components/Header';
 import CloudItemTransformationsModal from './CloudItemTransformationsModal';
 import CloudItemFinalStateModal from './CloudItemFinalStateModal';
 
-export type CloudType = 'characters' | 'references' | 'scenes' | 'world';
+export type CloudType = 'characters' | 'references' | 'scenes' | 'world' | 'ideas' | 'arc';
 
 export interface CloudTypeConfig {
   type: CloudType;
@@ -87,6 +87,28 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
       { key: 'scope', label: 'Scope', placeholder: 'civilisation-wide / planetary / cosmic / personal…' },
       { key: 'origin', label: 'Origin / Age', placeholder: 'ancient / recent / unknown…' },
     ],
+  },
+  ideas: {
+    type: 'ideas',
+    label: 'Ideas Cloud',
+    emoji: '💡',
+    colorHex: '#eab308',
+    titlePlaceholder: 'Theme or idea…',
+    contentPlaceholder: 'Describe the tension inside this idea — why it matters, what it challenges…',
+    tagLabel: 'Tags',
+    tagPlaceholder: 'philosophical, provocative, central…',
+    fields: [],
+  },
+  arc: {
+    type: 'arc',
+    label: 'Arc Cloud',
+    emoji: '🎬',
+    colorHex: '#ec4899',
+    titlePlaceholder: 'Story beat…',
+    contentPlaceholder: 'What happens at this turning point — the shift, the consequence, the surprise…',
+    tagLabel: 'Tags',
+    tagPlaceholder: 'inciting incident, climax, reversal…',
+    fields: [],
   },
 };
 
