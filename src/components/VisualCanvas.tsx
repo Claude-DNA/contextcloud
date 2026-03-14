@@ -1183,7 +1183,12 @@ export default function VisualCanvas() {
       const incomingEdges = data.edges || [];
 
       if (!incomingNodes.length) {
-        showToast('AI returned an empty graph. Add more cloud items first.');
+        const rawCount = (data.nodes as unknown[])?.length ?? 0;
+        showToast(rawCount > 0
+          ? `AI returned ${rawCount} nodes but all had invalid types — check console`
+          : 'AI returned an empty graph. Add items to your clouds first.'
+        );
+        console.warn('[graph-build] raw:', data);
         return;
       }
 
@@ -1195,6 +1200,8 @@ export default function VisualCanvas() {
       })));
       setEdges([]);
       setTimeout(() => setEdges(incomingEdges), 80);
+      // Fit view after nodes + edges are committed
+      setTimeout(() => reactFlowInstance.fitView({ duration: 600, padding: 0.15 }), 200);
 
       showToast(
         `✨ Graph built: ${incomingNodes.length} nodes, ${incomingEdges.length} edges${data.meta ? ` from ${data.meta.itemsUsed} cloud items` : ''}`
