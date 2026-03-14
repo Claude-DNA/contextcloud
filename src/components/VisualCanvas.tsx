@@ -160,6 +160,21 @@ interface CloudModalItem {
   content: string;
   position: { x: number; y: number };
 }
+interface BuildNode {
+  id: string;
+  type: string;
+  position: { x: number; y: number };
+  data: { title: string; content?: string; type: string };
+}
+interface BuildEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  animated?: boolean;
+  style?: Record<string, unknown>;
+}
 interface SceneListItem {
   id: string;
   title: string;
@@ -190,6 +205,7 @@ export default function VisualCanvas() {
   const [draftId, setDraftId] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [autoBuilding, setAutoBuilding] = useState(false);
   const [showDraftBrowser, setShowDraftBrowser] = useState(false);
   const nodeCounter = useRef(0);
   const windowJustFocused = useRef(false);
@@ -1113,6 +1129,59 @@ export default function VisualCanvas() {
     navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
   }, [title, nodes, edges, showToast]);
 
+  // ── Auto-Build Graph ─────────────────────────────────────────────────────────
+  // Calls /api/v1/graph-build, receives nodes+edges built by AI from cloud items,
+  // then replaces the canvas with the generated graph.
+  const handleAutoBuild = useCallback(async () => {
+    setAutoBuilding(true);
+    try {
+      const params: Record<string, string> = {};
+      if (activeProjectId) params.project_id = activeProjectId;
+
+      const res = await fetch('/api/v1/graph-build', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      const data = await res.json() as {
+        nodes?: BuildNode[];
+        edges?: BuildEdge[];
+        meta?: { itemsUsed: number; nodesGenerated: number; edgesGenerated: number };
+        error?: string;
+      };
+
+      if (!res.ok || data.error) {
+        showToast(data.error || 'Auto-build failed');
+        return;
+      }
+
+      const incomingNodes = data.nodes || [];
+      const incomingEdges = data.edges || [];
+
+      if (!incomingNodes.length) {
+        showToast('AI returned an empty graph. Add more cloud items first.');
+        return;
+      }
+
+      // Snapshot for undo, then replace canvas
+      captureBeforeAction();
+      setNodes(incomingNodes.map(n => ({
+        ...n,
+        data: { ...n.data, label: n.data.title, color: NODE_TYPE_MAP[n.type]?.color || '#4A90D9' },
+      })));
+      setEdges([]);
+      setTimeout(() => setEdges(incomingEdges), 80);
+
+      showToast(
+        `✨ Graph built: ${incomingNodes.length} nodes, ${incomingEdges.length} edges${data.meta ? ` from ${data.meta.itemsUsed} cloud items` : ''}`
+      );
+    } catch (err) {
+      showToast(`Auto-build error: ${err}`);
+    } finally {
+      setAutoBuilding(false);
+    }
+  }, [activeProjectId, showToast, captureBeforeAction, setNodes, setEdges]);
+
   // ── File import ─────────────────────────────────────────────────────────────
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1455,6 +1524,17 @@ export default function VisualCanvas() {
                     title={sceneId ? 'Reload scene items' : 'Load items from your Clouds or a Scene'}
                   >
                     {importingCloud ? 'Loading...' : sceneId ? '☁️ Reload Scene' : '☁️ Load from Cloud'}
+                  </button>
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* Auto-Build Graph */}
+                  <button
+                    onClick={handleAutoBuild}
+                    disabled={autoBuilding}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="AI builds a connected graph from your cloud items — scenes, characters, states, world"
+                  >
+                    {autoBuilding ? '⏳ Building...' : '✨ Auto-Build'}
                   </button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
