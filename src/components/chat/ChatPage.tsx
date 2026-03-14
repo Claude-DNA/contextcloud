@@ -127,6 +127,8 @@ export default function ChatPage() {
     const msgForApi: ChatMessage = { role: 'user', content: fullText };
     const updatedMessages = [...messagesRef.current, userMsg];
     const apiMessages = [...messagesRef.current, msgForApi];
+    messagesRef.current = updatedMessages; // sync ref immediately (before re-render)
+    localStorage.setItem(LS_KEY_MESSAGES, JSON.stringify(updatedMessages)); // eager save
     setMessages(updatedMessages);
     setStreaming(true);
     setStreamingText('');
@@ -185,6 +187,8 @@ export default function ChatPage() {
       // Finalize
       const assistantMsg: ChatMessage = { role: 'assistant', content: fullText };
       const finalMessages = [...updatedMessages, assistantMsg];
+      messagesRef.current = finalMessages; // sync ref
+      localStorage.setItem(LS_KEY_MESSAGES, JSON.stringify(finalMessages)); // eager save
       setMessages(finalMessages);
       setStreamingText('');
       updateCloudFromMessages(finalMessages);
