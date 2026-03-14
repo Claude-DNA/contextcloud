@@ -702,6 +702,27 @@ export default function VisualCanvas() {
     setSceneLoadLoading(false);
   }, []);
 
+  // Fallback: load ALL cloud items into the scene items list (no scene filter)
+  const loadAllCloudItemsIntoScene = useCallback(async () => {
+    setSceneLoadLoading(true);
+    try {
+      const res = await fetch(cloudItemsUrl);
+      const data = await res.json();
+      // to-nodes returns {id, type, cloud_type, title, content, position}
+      const items: SceneItem[] = (data.nodes || [])
+        .filter((n: { cloud_type: string }) => n.cloud_type !== 'arc')
+        .map((n: { id: string; cloud_type: string; title: string; content?: string }) => ({
+          id: n.id,
+          cloud_type: n.cloud_type,
+          title: n.title,
+          content: n.content || '',
+        }));
+      setSceneLoadItems(items);
+      setSceneLoadChecked(new Set(items.map(i => i.id)));
+    } catch { showToast('Failed to load items'); }
+    setSceneLoadLoading(false);
+  }, [cloudItemsUrl, showToast]);
+
   // ── Confirm load (both tabs) ────────────────────────────────────────────────
   const handleCloudLoadConfirm = useCallback(() => {
     if (cloudLoadTab === 'clouds') {
@@ -1590,9 +1611,24 @@ export default function VisualCanvas() {
                             Loading items...
                           </div>
                         ) : sceneLoadItems.length === 0 ? (
-                          <p className="text-sm text-gray-400 py-3">
-                            No items attached to this scene yet. Attach items in Arc Cloud.
-                          </p>
+                          <div className="py-3 space-y-2">
+                            <p className="text-sm text-gray-400">No items attached to this scene yet.</p>
+                            <div className="flex gap-2 flex-wrap">
+                              <button
+                                onClick={loadAllCloudItemsIntoScene}
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-200"
+                              >
+                                ☁️ Load all my cloud items
+                              </button>
+                              <a
+                                href="/workspace/arc-cloud"
+                                target="_blank"
+                                className="px-3 py-1.5 rounded-lg text-xs font-medium border border-pink-200 text-pink-600 hover:bg-pink-50 transition-colors"
+                              >
+                                ✏️ Attach items in Arc Cloud →
+                              </a>
+                            </div>
+                          </div>
                         ) : (
                           <div className="space-y-1 max-h-48 overflow-y-auto">
                             {sceneLoadItems.map(item => (
