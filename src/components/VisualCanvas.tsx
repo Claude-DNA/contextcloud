@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import {
   ReactFlow,
@@ -98,6 +99,15 @@ export default function VisualCanvas() {
   const [importingCloud, setImportingCloud] = useState(false);
   const [exportingRunway, setExportingRunway] = useState(false);
 
+  // Scene mode
+  const searchParams = useSearchParams();
+  const sceneId = searchParams.get('scene') || null;
+  const sceneNameParam = searchParams.get('sceneName') || null;
+  const [sceneName, setSceneName] = useState<string | null>(sceneNameParam);
+  const sceneLoaded = useRef(false);
+  const pendingSyncRef = useRef<Record<string, { title?: string; content?: string }>>({});
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Show toast helper
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -140,17 +150,22 @@ export default function VisualCanvas() {
     setSelectedCount(0);
   }, [reactFlowInstance, setNodes, setEdges]);
 
+  // Sync ref — filled in later, used by handlers
+  const scheduleSyncRef = useRef<(nodeId: string, field: 'title' | 'content', value: string) => void>(() => {});
+
   // Node data change handlers
   const handleTitleChange = useCallback((nodeId: string, newTitle: string) => {
     setNodes(nds =>
       nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, title: newTitle } } : n)
     );
+    scheduleSyncRef.current(nodeId, 'title', newTitle);
   }, [setNodes]);
 
   const handleContentChange = useCallback((nodeId: string, newContent: string) => {
     setNodes(nds =>
       nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, content: newContent } } : n)
     );
+    scheduleSyncRef.current(nodeId, 'content', newContent);
   }, [setNodes]);
 
   // Zoom to parent node (for proxy nodes)
@@ -503,6 +518,130 @@ export default function VisualCanvas() {
     }
   }, [draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
 
+  // Load scene items (scene mode)
+  const loadSceneItems = useCallback(async () => {
+    if (!sceneId) return;
+    setImportingCloud(true);
+    try {
+      const res = await fetch(`/api/v1/arc-scenes/${sceneId}/items`);
+      const data = await res.json();
+      const items: Array<{ id: string; cloud_type: string; title: string; content: string; metadata?: Record<string, unknown> }> = data.items || [];
+
+      if (!items.length) { showToast('No items attached to this scene'); return; }
+
+      // Same type mapping as to-nodes
+      const CLOUD_TYPE_TO_NODE: Record<string, string> = {
+        characters: 'character', scenes: 'scene', world: 'world', ideas: 'theme', arc: 'chapterAct',
+      };
+      const REF_TYPE_MAP: Record<string, string> = {
+        music: 'musicReference', film: 'filmReference', book: 'bookReference', art: 'artReference', 'real event': 'realEventReference',
+      };
+      function mapType(cloudType: string, metadata?: Record<string, unknown>): string {
+        if (cloudType === 'references') {
+          const refType = (metadata?.refType as string || '').toLowerCase();
+          return REF_TYPE_MAP[refType] || 'bookReference';
+        }
+        return CLOUD_TYPE_TO_NODE[cloudType] || 'theme';
+      }
+
+      // Group by type for column layout
+      const byType = new Map<string, typeof items>();
+      for (const item of items) {
+        const list = byType.get(item.cloud_type) || [];
+        list.push(item);
+        byType.set(item.cloud_type, list);
+      }
+
+      const newNodes: Node[] = [];
+      let colIndex = 0;
+      for (const [, typeItems] of byType) {
+        const x = 80 + colIndex * 380;
+        typeItems.forEach((item, rowIndex) => {
+          const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata || '{}') : (item.metadata || {});
+          const nodeType = mapType(item.cloud_type, metadata);
+          const config = NODE_TYPE_MAP[nodeType];
+          newNodes.push({
+            id: `cloud_${item.id}`,
+            type: nodeType,
+            position: { x, y: 80 + rowIndex * 220 },
+            dragging: false,
+            selected: false,
+            data: {
+              type: nodeType,
+              label: config?.label || nodeType,
+              emoji: config?.emoji || '',
+              color: config?.color || '#4A90D9',
+              title: item.title,
+              content: item.content || '',
+              isProxy: false, isContainer: false, stateColor: null,
+              parentNodeId: '', parentLabel: '', graphId: draftId,
+              onTitleChange: handleTitleChange, onContentChange: handleContentChange,
+              onZoomToParent, onStateColorChange: handleStateColorChange,
+              onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
+            },
+          });
+        });
+        colIndex++;
+      }
+
+      setNodes(newNodes);
+      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded from scene`);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
+    } catch {
+      showToast('Failed to load scene items');
+    } finally {
+      setImportingCloud(false);
+    }
+  }, [sceneId, draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+
+  // Auto-load scene items on mount in scene mode
+  useEffect(() => {
+    if (sceneId && !sceneLoaded.current && nodes.length === 0) {
+      sceneLoaded.current = true;
+      loadSceneItems();
+    }
+  }, [sceneId, nodes.length, loadSceneItems]);
+
+  // Fetch scene name if not provided via query param
+  useEffect(() => {
+    if (sceneId && !sceneName) {
+      fetch(`/api/v1/arc-scenes/${sceneId}/scene-info`)
+        .then(r => r.json())
+        .then(d => { if (d.title) setSceneName(d.title); })
+        .catch(() => {});
+    }
+  }, [sceneId, sceneName]);
+
+  // Debounced sync back to cloud_items
+  const flushSync = useCallback(() => {
+    const pending = { ...pendingSyncRef.current };
+    pendingSyncRef.current = {};
+    for (const [itemId, changes] of Object.entries(pending)) {
+      fetch(`/api/v1/cloud-items/${itemId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(changes),
+      }).catch(() => {
+        showToast('Failed to sync changes to cloud');
+      });
+    }
+  }, [showToast]);
+
+  const scheduleSyncForNode = useCallback((nodeId: string, field: 'title' | 'content', value: string) => {
+    if (!nodeId.startsWith('cloud_')) return;
+    const itemId = nodeId.replace('cloud_', '');
+    pendingSyncRef.current[itemId] = {
+      ...pendingSyncRef.current[itemId],
+      [field]: value,
+    };
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(flushSync, 1000);
+  }, [flushSync]);
+
+  // Wire up the sync ref so handlers can call it
+  scheduleSyncRef.current = sceneId ? scheduleSyncForNode : () => {};
+
   // Connect edges
   const onConnect = useCallback(
     (connection: Connection) => {
@@ -738,12 +877,12 @@ export default function VisualCanvas() {
                   <span>{importingArcs ? 'Importing...' : 'Arc Cloud'}</span>
                 </button>
                 <button
-                  onClick={importFromCloud}
+                  onClick={sceneId ? loadSceneItems : importFromCloud}
                   disabled={importingCloud}
                   className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
                 >
                   <span>☁️</span>
-                  <span>{importingCloud ? 'Importing...' : 'Import from Cloud'}</span>
+                  <span>{importingCloud ? 'Loading...' : sceneId ? 'Reload Scene Items' : 'Import from Cloud'}</span>
                 </button>
                 <button
                   onClick={async () => {
@@ -936,6 +1075,22 @@ export default function VisualCanvas() {
               className="!bg-white !border-gray-200"
             />
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
+
+            {/* Scene banner */}
+            {sceneId && (
+              <Panel position="top-center" className="!m-0">
+                <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 text-sm shadow-sm rounded-b-lg">
+                  <span className="text-gray-500">Scene:</span>
+                  <span className="font-medium text-gray-800">{sceneName || 'Loading...'}</span>
+                  <a
+                    href="/workspace/arc-cloud"
+                    className="ml-3 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                  >
+                    Back to Arc Cloud
+                  </a>
+                </div>
+              </Panel>
+            )}
 
             {/* Top toolbar */}
             <Panel position="top-left" className="!m-3">

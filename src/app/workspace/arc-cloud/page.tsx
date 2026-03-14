@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 
@@ -32,6 +33,7 @@ const TYPE_LABELS: Record<string, { label: string; color: string }> = {
 const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors bg-white';
 
 export default function ArcCloudPage() {
+  const router = useRouter();
   const [scenes, setScenes] = useState<ArcScene[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -328,13 +330,22 @@ export default function ArcCloudPage() {
                             ) : !attachedItems[scene.id] || attachedItems[scene.id].length === 0 ? (
                               <div className="text-center py-4">
                                 <p className="text-xs text-muted mb-2">No items attached to this scene yet.</p>
-                                <button
-                                  disabled
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
-                                  title="Coming soon"
-                                >
-                                  Attach items
-                                </button>
+                                <div className="flex items-center justify-center gap-2">
+                                  <button
+                                    disabled
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
+                                    title="Coming soon"
+                                  >
+                                    Attach items
+                                  </button>
+                                  <button
+                                    onClick={() => router.push(`/workspace/visual?scene=${scene.id}&sceneName=${encodeURIComponent(scene.title)}`)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                                    style={{ background: '#ec4899' }}
+                                  >
+                                    Open in Editor
+                                  </button>
+                                </div>
                               </div>
                             ) : (
                               <div className="space-y-3">
@@ -362,13 +373,20 @@ export default function ArcCloudPage() {
                                     </div>
                                   );
                                 })}
-                                <div className="pt-1">
+                                <div className="pt-1 flex items-center gap-2">
                                   <button
                                     disabled
                                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
                                     title="Coming soon"
                                   >
                                     Attach items
+                                  </button>
+                                  <button
+                                    onClick={() => router.push(`/workspace/visual?scene=${scene.id}&sceneName=${encodeURIComponent(scene.title)}`)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90 transition-opacity"
+                                    style={{ background: '#ec4899' }}
+                                  >
+                                    Open in Editor
                                   </button>
                                 </div>
                               </div>
