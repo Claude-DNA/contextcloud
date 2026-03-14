@@ -196,8 +196,8 @@ Note: No "hub_source" handles. Edges connect to named targetHandles: "characters
 CONTENT RULE — CRITICAL
 ════════════════════════════════
 
-For EVERY node: copy the full `content` field from the corresponding cloud item into `data.content`.
-NEVER leave `data.content` as an empty string "". NEVER use "..." as a placeholder.
+For EVERY node: copy the full "content" field from the cloud item into "data.content".
+NEVER leave "data.content" as an empty string "". NEVER use "..." as a placeholder.
 If the cloud item has content, use it verbatim. If it has none, write a 1-sentence summary of the title.
 
 ════════════════════════════════
