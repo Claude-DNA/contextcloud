@@ -52,6 +52,10 @@ export default function ArcCloudPage() {
   const [attachedItems, setAttachedItems] = useState<Record<string, AttachedItem[]>>({});
   const [attachedLoading, setAttachedLoading] = useState<string | null>(null);
 
+  // Legacy migration
+  const [hasLegacyData, setHasLegacyData] = useState(false);
+  const [migrating, setMigrating] = useState(false);
+
   // Attach items modal state
   const [attachModalSceneId, setAttachModalSceneId] = useState<string | null>(null);
   const [attachAllItems, setAttachAllItems] = useState<Record<string, CloudItem[]>>({});
@@ -89,6 +93,28 @@ export default function ArcCloudPage() {
   }, []);
 
   useEffect(() => { fetchScenes(); }, [fetchScenes]);
+
+  // Check for legacy arc data that needs migration
+  useEffect(() => {
+    fetch('/api/v1/arc-scenes/migrate-legacy')
+      .then(r => r.json())
+      .then(d => setHasLegacyData(d.hasLegacy || false))
+      .catch(() => {});
+  }, []);
+
+  const handleMigrateLegacy = async () => {
+    setMigrating(true);
+    try {
+      const res = await fetch('/api/v1/arc-scenes/migrate-legacy', { method: 'POST' });
+      const data = await res.json();
+      showToast(data.message || 'Migration complete');
+      setHasLegacyData(false);
+      await fetchScenes();
+    } catch {
+      showToast('Migration failed — try again');
+    }
+    setMigrating(false);
+  };
 
   const fetchAttached = async (arcItemId: string) => {
     setAttachedLoading(arcItemId);
@@ -276,6 +302,25 @@ export default function ArcCloudPage() {
                 + Add Scene
               </button>
             </div>
+
+            {/* Legacy migration banner */}
+            {hasLegacyData && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3">
+                <span className="text-amber-600 text-lg">📦</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800">You have story structure from the old Arc Cloud</p>
+                  <p className="text-xs text-amber-600 mt-0.5">Import your existing arcs & chapters into the new format with one click.</p>
+                </div>
+                <button
+                  onClick={handleMigrateLegacy}
+                  disabled={migrating}
+                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity hover:opacity-90"
+                  style={{ background: '#f59e0b' }}
+                >
+                  {migrating ? 'Importing…' : 'Import now'}
+                </button>
+              </div>
+            )}
 
             {/* Add form */}
             {adding && (
