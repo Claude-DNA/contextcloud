@@ -36,16 +36,19 @@ export async function isDbAvailable(): Promise<boolean> {
   if (dbAvailable === false && now - lastCheck < DB_FAIL_TTL) return false;
 
   lastCheck = now;
-  // Neon auto-pauses on free tier — retry up to 5x with 1.5s delay (5s timeout × 5 + 1.5s × 4 = ~31s max)
-  for (let attempt = 0; attempt < 5; attempt++) {
+  // Retry up to 3x with 1.5s delay
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
     try {
       await pool.query('SELECT 1');
       dbAvailable = true;
       return true;
-    } catch {
-      if (attempt < 4) await sleep(1500);
+    } catch (err) {
+      lastErr = err;
+      if (attempt < 2) await sleep(1500);
     }
   }
+  console.error('[db] isDbAvailable failed after retries:', lastErr);
   dbAvailable = false;
   return false;
 }

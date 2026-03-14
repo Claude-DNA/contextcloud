@@ -64,7 +64,7 @@ export async function GET() {
 
   let colIndex = 0;
   for (const [cloudType, typeItems] of byType) {
-    const x = 100 + colIndex * 250;
+    const x = 80 + colIndex * 380;
     typeItems.forEach((item, rowIndex) => {
       const metadata = typeof item.metadata === 'string'
         ? JSON.parse(item.metadata || '{}')
@@ -74,7 +74,7 @@ export async function GET() {
         type: mapCloudTypeToNodeType(cloudType, metadata),
         title: item.title,
         content: item.content || '',
-        position: { x, y: 100 + rowIndex * 150 },
+        position: { x, y: 80 + rowIndex * 220 },
       });
     });
     colIndex++;

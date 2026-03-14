@@ -121,6 +121,37 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
 
   return (
     <div className="flex flex-col h-full">
+      {/* Save error banner — fixed at top, hard to miss */}
+      {saveErrors.length > 0 && (
+        <div className="px-4 py-3 bg-red-600 text-white flex items-start gap-2 animate-pulse-once">
+          <span className="shrink-0 text-lg leading-none">&#9888;</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">
+              {saveErrors.length} item{saveErrors.length !== 1 ? 's' : ''} failed to save
+            </p>
+            <ul className="mt-1 space-y-0.5">
+              {saveErrors.map((e, i) => (
+                <li key={i} className="text-xs opacity-90 truncate">{e}</li>
+              ))}
+            </ul>
+          </div>
+          <button
+            onClick={() => setSaveErrors([])}
+            className="shrink-0 text-white/70 hover:text-white text-lg leading-none"
+            aria-label="Dismiss"
+          >
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Success banner */}
+      {lastSaveCount > 0 && saveErrors.length === 0 && (
+        <div className="px-4 py-2 bg-green-600 text-white text-sm font-medium text-center">
+          {lastSaveCount} item{lastSaveCount !== 1 ? 's' : ''} saved to your Cloud
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 py-3 border-b border-border bg-white">
         <div className="flex items-center justify-between">
@@ -223,26 +254,6 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
             <p className="text-xs text-green-600 mb-3">
               {totalItems} items across {grouped.size} layers. Select and save items above.
             </p>
-          </div>
-        )}
-
-        {/* Save errors */}
-        {saveErrors.length > 0 && (
-          <div className="rounded-xl border border-red-200 bg-red-50 p-3">
-            <p className="text-xs font-semibold text-red-700 mb-1">
-              ⚠️ {saveErrors.length} item{saveErrors.length !== 1 ? 's' : ''} failed to save:
-            </p>
-            <ul className="space-y-0.5">
-              {saveErrors.map((e, i) => (
-                <li key={i} className="text-xs text-red-600 truncate">{e}</li>
-              ))}
-            </ul>
-            <button
-              onClick={() => setSaveErrors([])}
-              className="mt-2 text-xs text-red-500 underline"
-            >
-              Dismiss
-            </button>
           </div>
         )}
 

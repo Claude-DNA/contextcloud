@@ -28,6 +28,11 @@ export default function ChatPage() {
   const messagesRef = useRef<ChatMessage[]>([]);
   messagesRef.current = messages;
 
+  // Warm the DB on mount so first chat send doesn't cold-start Neon
+  useEffect(() => {
+    fetch('/api/v1/ping').catch(() => { /* silent — just warming */ });
+  }, []);
+
   // Load from localStorage on mount
   useEffect(() => {
     try {
@@ -115,12 +120,21 @@ export default function ChatPage() {
     setStreaming(true);
     setStreamingText('');
 
+    // Helper: attempt a single chat fetch, returns Response or throws
+    const attemptFetch = () => fetch('/api/v1/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: apiMessages }),
+    });
+
     try {
-      const res = await fetch('/api/v1/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages }),
-      });
+      let res = await attemptFetch();
+
+      // Auto-retry once on cold-start failures (5xx / network) — but not on auth/billing errors
+      if (!res.ok && res.status >= 500) {
+        await new Promise(r => setTimeout(r, 2000));
+        res = await attemptFetch();
+      }
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Unknown error' }));
@@ -164,6 +178,35 @@ export default function ChatPage() {
       setStreamingText('');
       updateCloudFromMessages(finalMessages);
     } catch (err) {
+      // Network-level error (e.g. function cold start dropped connection) — retry once silently
+      try {
+        await new Promise(r => setTimeout(r, 2000));
+        const retryRes = await attemptFetch();
+        if (retryRes.ok) {
+          const reader = retryRes.body!.getReader();
+          const decoder = new TextDecoder();
+          let retryText = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunk = decoder.decode(value, { stream: true });
+            retryText += chunk;
+            setStreamingText(retryText);
+            const tempMessages = [...updatedMessages, { role: 'assistant' as const, content: retryText }];
+            setCloudItems(parseAllMessages(tempMessages));
+            const title = extractProjectTitle(retryText);
+            if (title) setProjectTitle(title);
+          }
+          const assistantMsg: ChatMessage = { role: 'assistant', content: retryText };
+          const finalMessages = [...updatedMessages, assistantMsg];
+          setMessages(finalMessages);
+          setStreamingText('');
+          updateCloudFromMessages(finalMessages);
+          return;
+        }
+      } catch {
+        // retry also failed — fall through to error message
+      }
       console.error('Chat error:', err);
       setMessages(prev => [
         ...prev,

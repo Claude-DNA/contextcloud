@@ -259,6 +259,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   const [fsModalItem, setFsModalItem] = useState<CloudItem | null>(null);
   const [exportingRunway, setExportingRunway] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const withTransformations = cloudType === 'characters';
 
@@ -269,9 +270,16 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   };
 
   const fetchItems = useCallback(async () => {
+    setLoading(true);
+    setFetchError(null);
     try {
       const res = await fetch(`/api/v1/cloud-items?type=${cloudType}`);
       const data = await res.json();
+      if (!res.ok) {
+        setFetchError(data.error || `Failed to load items (${res.status})`);
+        setLoading(false);
+        return;
+      }
       const fetched: CloudItem[] = data.items || [];
       setItems(fetched);
 
@@ -291,9 +299,16 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
         );
         setTransCounts(counts);
       }
-    } catch { /* ignore */ }
+    } catch (err) {
+      setFetchError(err instanceof Error ? err.message : 'Failed to load items — check connection');
+    }
     setLoading(false);
   }, [cloudType]);
+
+  // Warm Neon on mount before fetching — reduces cold-start blank flashes
+  useEffect(() => {
+    fetch('/api/v1/ping').catch(() => { /* silent */ });
+  }, []);
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
@@ -447,6 +462,18 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 className={inputCls}
               />
             </div>
+
+            {fetchError && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm flex items-center justify-between gap-3">
+                <span>⚠️ {fetchError}</span>
+                <button
+                  onClick={() => fetchItems()}
+                  className="shrink-0 text-xs underline hover:no-underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
 
             {exportError && (
               <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">

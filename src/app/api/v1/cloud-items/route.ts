@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!(await isDbAvailable())) {
-    return NextResponse.json({ items: [] });
+    return NextResponse.json({ error: 'Database temporarily unavailable — please retry in a moment', items: [] }, { status: 503 });
   }
 
   await runMigrations();
@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
+
+  await runMigrations();
 
   const body = await req.json();
   const { cloud_type, title, content = '', tags = [], metadata = {} } = body;
@@ -75,6 +77,8 @@ export async function DELETE(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
+  await runMigrations();
+
   const cloudType = req.nextUrl.searchParams.get('type') as CloudType | null;
   if (!cloudType || !VALID_TYPES.includes(cloudType)) {
     return NextResponse.json({ error: 'Invalid cloud type' }, { status: 400 });

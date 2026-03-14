@@ -493,7 +493,9 @@ export default function VisualCanvas() {
         return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
       });
       showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} imported from Cloud`);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
+      // With many nodes React Flow needs time to measure before fitView works — retry at 800ms and 2s
+      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
     } catch {
       showToast('Failed to import from Cloud');
     } finally {
