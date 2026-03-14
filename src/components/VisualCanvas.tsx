@@ -189,8 +189,8 @@ export default function VisualCanvas() {
   const [cloudLoadGroups, setCloudLoadGroups] = useState<Record<string, CloudModalItem[]>>({});
   const [cloudLoadChecked, setCloudLoadChecked] = useState<Set<string>>(new Set());
   const [cloudLoadCollapsed, setCloudLoadCollapsed] = useState<Set<string>>(new Set());
-  // Scenes tab
-  const [cloudLoadTab, setCloudLoadTab] = useState<'clouds' | 'scenes'>('clouds');
+  // Scenes tab — default to scenes (the primary import path)
+  const [cloudLoadTab, setCloudLoadTab] = useState<'clouds' | 'scenes'>('scenes');
   const [scenesList, setScenesList] = useState<SceneListItem[]>([]);
   const [scenesListLoading, setScenesListLoading] = useState(false);
   const [selectedSceneForLoad, setSelectedSceneForLoad] = useState<string | null>(null);
@@ -623,12 +623,49 @@ export default function VisualCanvas() {
   }, [activeProjectId]);
 
   // ── Open cloud load modal ───────────────────────────────────────────────────
+  // Default tab: scenes (primary import path). Cloud items loaded lazily when tab is opened.
   const openCloudLoadModal = useCallback(async () => {
     setShowCloudLoadModal(true);
-    setCloudLoadLoading(true);
-    setCloudLoadTab('clouds');
+    setCloudLoadTab('scenes');
     setSelectedSceneForLoad(null);
     setSceneLoadItems([]);
+    setCloudLoadGroups({});
+    setCloudLoadChecked(new Set());
+    // Immediately load scenes list
+    setScenesListLoading(true);
+    try {
+      const res = await fetch('/api/v1/arc-scenes');
+      const data = await res.json();
+      setScenesList(data.scenes || []);
+    } catch { /* ignore */ }
+    setScenesListLoading(false);
+  }, []);
+
+  // ── Scenes tab: fetch scenes list ──────────────────────────────────────────
+  const fetchScenesForModal = useCallback(async () => {
+    setScenesListLoading(true);
+    try {
+      // Arc scaffold is global — no project filter (NULL project_id scenes must always appear)
+      const res = await fetch('/api/v1/arc-scenes');
+      const data = await res.json();
+      setScenesList(data.scenes || []);
+    } catch { /* ignore */ }
+    setScenesListLoading(false);
+  }, []);
+
+  const handleSwitchToScenesTab = useCallback(() => {
+    setCloudLoadTab('scenes');
+    setSelectedSceneForLoad(null);
+    setSceneLoadItems([]);
+    setSceneLoadChecked(new Set());
+    fetchScenesForModal();
+  }, [fetchScenesForModal]);
+
+  // Lazy-load cloud items when user switches to "By Cloud Type" tab
+  const handleSwitchToCloudsTab = useCallback(async () => {
+    setCloudLoadTab('clouds');
+    if (Object.keys(cloudLoadGroups).length > 0) return; // already loaded
+    setCloudLoadLoading(true);
     try {
       const res = await fetch(cloudItemsUrl);
       const data = await res.json();
@@ -644,32 +681,10 @@ export default function VisualCanvas() {
       setCloudLoadCollapsed(new Set());
     } catch {
       showToast('Failed to fetch cloud items');
-      setShowCloudLoadModal(false);
     } finally {
       setCloudLoadLoading(false);
     }
-  }, [cloudItemsUrl, showToast]);
-
-  // ── Scenes tab: fetch scenes list ──────────────────────────────────────────
-  const fetchScenesForModal = useCallback(async () => {
-    setScenesListLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (activeProjectId) params.set('project_id', activeProjectId);
-      const res = await fetch(`/api/v1/arc-scenes?${params}`);
-      const data = await res.json();
-      setScenesList(data.scenes || []);
-    } catch { /* ignore */ }
-    setScenesListLoading(false);
-  }, [activeProjectId]);
-
-  const handleSwitchToScenesTab = useCallback(() => {
-    setCloudLoadTab('scenes');
-    setSelectedSceneForLoad(null);
-    setSceneLoadItems([]);
-    setSceneLoadChecked(new Set());
-    fetchScenesForModal();
-  }, [fetchScenesForModal]);
+  }, [cloudItemsUrl, cloudLoadGroups, showToast]);
 
   // ── Scenes tab: select a scene → fetch its items ───────────────────────────
   const handleSelectSceneForLoad = useCallback(async (sId: string) => {
@@ -1402,18 +1417,19 @@ export default function VisualCanvas() {
 
               {/* Tabs */}
               <div className="flex border-b border-gray-100 px-6">
-                <button
-                  onClick={() => setCloudLoadTab('clouds')}
-                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'clouds' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                  ☁️ By Cloud Type
-                </button>
+                {/* By Scene tab is FIRST — primary import path */}
                 <button
                   onClick={handleSwitchToScenesTab}
                   className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'scenes' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
                 >
                   🎬 By Scene
-                  <span className="ml-1.5 text-xs text-gray-400">(auto-connects nodes)</span>
+                  <span className="ml-1.5 text-xs text-gray-400">(auto-connects)</span>
+                </button>
+                <button
+                  onClick={handleSwitchToCloudsTab}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'clouds' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  ☁️ By Cloud Type
                 </button>
               </div>
 

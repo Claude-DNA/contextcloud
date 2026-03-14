@@ -73,9 +73,9 @@ export default function ArcCloudPage() {
   const fetchScenes = useCallback(async () => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (activeProjectId) params.set('project_id', activeProjectId);
-      const res = await fetch(`/api/v1/arc-scenes?${params}`);
+      // Arc scenes are the global scaffold — do NOT filter by project
+      // (scenes created before projects existed have project_id = NULL and must still appear)
+      const res = await fetch('/api/v1/arc-scenes');
       const data = await res.json();
       setScenes(data.scenes || []);
     } catch (err) {
