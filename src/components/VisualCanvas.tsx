@@ -96,6 +96,7 @@ export default function VisualCanvas() {
   const [importingIdeas, setImportingIdeas] = useState(false);
   const [importingArcs, setImportingArcs] = useState(false);
   const [importingCloud, setImportingCloud] = useState(false);
+  const [exportingRunway, setExportingRunway] = useState(false);
 
   // Show toast helper
   const showToast = useCallback((msg: string) => {
@@ -785,6 +786,29 @@ export default function VisualCanvas() {
                 >
                   <span>☁️</span>
                   <span>{importingCloud ? 'Importing...' : 'Import from Cloud'}</span>
+                </button>
+                <button
+                  onClick={async () => {
+                    setExportingRunway(true);
+                    try {
+                      const res = await fetch('/api/v1/export/runway', { method: 'POST' });
+                      if (!res.ok) throw new Error('Export failed');
+                      const manifest = await res.json();
+                      const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${(manifest.project || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')}-runway-manifest.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch { /* ignore */ }
+                    setExportingRunway(false);
+                  }}
+                  disabled={exportingRunway}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
+                >
+                  <span>🎬</span>
+                  <span>{exportingRunway ? 'Generating...' : 'Export for Runway'}</span>
                 </button>
               </div>
             </div>

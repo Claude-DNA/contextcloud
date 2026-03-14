@@ -257,6 +257,8 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   const [transCounts, setTransCounts] = useState<Record<string, number>>({});
   const [transModalItem, setTransModalItem] = useState<CloudItem | null>(null);
   const [fsModalItem, setFsModalItem] = useState<CloudItem | null>(null);
+  const [exportingRunway, setExportingRunway] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const withTransformations = cloudType === 'characters';
 
@@ -350,6 +352,29 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
     input.click();
   }, [cloudType, fetchItems]);
 
+  const handleExportRunway = async () => {
+    setExportingRunway(true);
+    setExportError(null);
+    try {
+      const res = await fetch('/api/v1/export/runway', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.message || data.error || 'Export failed');
+      }
+      const manifest = await res.json();
+      const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${(manifest.project || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')}-runway-manifest.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Export failed');
+    }
+    setExportingRunway(false);
+  };
+
   const filtered = search.trim()
     ? items.filter(it =>
         it.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -372,6 +397,15 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 {config.emoji} {config.label}
               </h1>
               <div className="flex gap-2">
+                {items.length > 0 && (
+                  <button
+                    onClick={handleExportRunway}
+                    disabled={exportingRunway}
+                    className="px-3 py-2 rounded-lg text-xs font-medium border border-border text-muted hover:text-foreground hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    {exportingRunway ? 'Generating…' : '🎬 Export for Runway'}
+                  </button>
+                )}
                 {items.length > 0 && (
                   <button
                     onClick={handleClearAll}
@@ -406,6 +440,12 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 className={inputCls}
               />
             </div>
+
+            {exportError && (
+              <div className="mb-4 px-3 py-2 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm">
+                {exportError}
+              </div>
+            )}
 
             {/* Add form */}
             {adding && (
