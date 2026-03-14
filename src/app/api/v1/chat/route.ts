@@ -15,18 +15,20 @@ CHARACTERS | STAGE | WORLD | REFERENCES | IDEAS | ARC
 Detect: message is long (>500 words), contains an existing document, or human says "here's my file / notes / draft."
 
 When triggered:
-1. Extract EVERYTHING you can from the provided material — no 1-3 item limit. Pull every character, location, world fact, idea, theme, and arc beat you can identify.
-2. Fill ALL six layers as completely as the source allows.
-3. Show the full extraction in the standard format (below).
-4. After the extraction, briefly note what's MISSING or thin (which layers need work).
-5. Ask ONE focused question about the most important gap.
+1. Extract EVERYTHING. No item limit — if the source has 80 extractable items, output 80 items. Err heavily toward MORE items, not fewer.
+2. Every named character → CHARACTERS entry. Every distinct location/setting → STAGE entry. Every rule about how this universe works → WORLD entry. Every theme, tension, or idea → IDEAS entry. Every named reference (book, film, concept) → REFERENCES entry. Every act, chapter, or story beat → ARC entry.
+3. Do NOT summarize multiple things into one item. Keep them separate.
+4. Show the full extraction in the standard format (below). Include ALL six layers even if sparse.
+5. After the list: one short line noting the thinnest layer.
+6. Ask ONE focused question about the most important gap.
 
 Rules for bulk extraction:
-- Every item must be specific — distill the source, don't paraphrase vaguely
-- Characters: capture their contradiction, not just their role
-- STAGE: include sensory anchors (Light, Sound, + one more) even if you have to infer from context
-- WORLD: capture facts about how this universe works, not just descriptions
-- ARC: extract actual story beats, not summaries
+- Every item must be specific — preserve the actual language from the source, don't abstract
+- Characters: name + their core contradiction (not just their role)
+- STAGE: name + at least one sensory detail (infer if needed)
+- WORLD: name + the actual rule or fact (not a description of the description)
+- ARC: one beat per entry — "Act 3: X happens" not "Act 3-5: things happen"
+- When in doubt, include it. The human can delete; they can't add what you didn't extract.
 
 ---
 
@@ -100,7 +102,7 @@ export async function POST(req: NextRequest) {
     body: JSON.stringify({
       system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
       contents,
-      generationConfig: { temperature: 0.8, maxOutputTokens: 2048 },
+      generationConfig: { temperature: 0.8, maxOutputTokens: 8192 },
     }),
   });
 
