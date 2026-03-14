@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { query, isDbAvailable } from '@/lib/db';
+import { runMigrations } from '@/lib/migrations';
 
 // Mutable per-invocation key — set at start of POST handler
 let GOOGLE_AI_API_KEY = '';
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
-const VALID_NODE_TYPES = [
-  'plot', 'character', 'scene', 'dialogue', 'world', 'theme', 'chapterAct',
-  'musicReference', 'bookReference', 'artReference', 'realEventReference',
-];
+const VALID_CLOUD_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
+type CloudType = typeof VALID_CLOUD_TYPES[number];
 
 async function extractTextFromFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
@@ -26,7 +26,7 @@ async function extractTextFromFile(file: File): Promise<string> {
 
     try {
       const unzipped = unzipSync(bytes);
-      
+
       // word/document.xml contains the main text
       const docXmlBytes = unzipped['word/document.xml'];
       if (!docXmlBytes) {
@@ -61,39 +61,39 @@ async function extractTextFromFile(file: File): Promise<string> {
   return await file.text();
 }
 
-async function callGeminiAI(text: string): Promise<{
+interface ExtractedItem {
+  cloud_type: string;
   title: string;
-  nodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }>;
-  edges: Array<{ source: string; target: string }>;
-}> {
-  const prompt = `You are a story analyst. Read the document below and extract its actual content into a structured node graph.
-
-Return ONLY valid JSON (no markdown, no code fences) with this shape:
-{
-  "title": "actual title of the story/document",
-  "nodes": [
-    { "id": "node_1", "type": "character", "title": "Character Name", "content": "Physical description, personality, role in story, motivations...", "position": { "x": 100, "y": 100 } }
-  ],
-  "edges": [
-    { "source": "node_1", "target": "node_2" }
-  ]
+  content: string;
+  tags: string[];
 }
 
-Available node types: ${VALID_NODE_TYPES.join(', ')}
+async function callGeminiExtract(text: string): Promise<ExtractedItem[]> {
+  const prompt = `You are a story analyst. Read the document below and extract its content into the 6-layer Context Cloud format.
+
+Return ONLY valid JSON (no markdown, no code fences) — a JSON array of objects:
+[
+  { "cloud_type": "characters", "title": "Character Name", "content": "Physical description, personality, role, motivations...", "tags": ["protagonist", "complex"] }
+]
+
+CLOUD TYPES (use EXACTLY these values):
+- "characters" — every named character, with their core contradiction
+- "scenes" — every distinct location/setting, with sensory details (light, sound, texture)
+- "world" — every rule about how this universe works
+- "references" — every named reference (book, film, song, artwork, real event)
+- "ideas" — every theme, tension, or abstract idea
+- "arc" — every act, chapter, beat, or plot point (one beat per entry)
 
 CRITICAL RULES:
-- Extract REAL content from the document — names, descriptions, events, quotes, themes
-- The "content" field must contain actual text from the story, not generic placeholders
-- For character nodes: include the character's actual name, description, and role
-- For scene nodes: describe what actually happens in that scene
-- For plot nodes: describe the actual plot point from the story
-- For dialogue nodes: include actual quotes or paraphrased dialogue
-- For theme nodes: state the actual theme with evidence from the text
-- Use incremental IDs: node_1, node_2, etc.
-- Create logical edges connecting related nodes (character appears in scene, plot leads to scene, etc.)
-- Position nodes in a grid: columns ~250px apart, rows ~150px apart, start at x:100 y:100
-- Create 8-20 nodes — more for longer/richer documents
-- DO NOT create nodes with generic titles like "Plot Point" or "Setting" — use the actual names and details
+- Extract EVERYTHING. No item limit — if the source has 80 extractable items, output 80.
+- Every item must be specific — preserve actual language from the source, don't abstract.
+- Do NOT summarize multiple things into one item. Keep them separate.
+- Characters: name + their core contradiction (not just their role).
+- Scenes: name + at least one sensory detail.
+- World: the actual rule or fact, not a description of the description.
+- Arc: one beat per entry — "Act 3: X happens" not "Act 3-5: things happen".
+- When in doubt, include it. The user can delete; they can't add what you didn't extract.
+- Tags should be 1-3 relevant keywords per item.
 
 Document text:
 ${text.slice(0, 30000)}`;
@@ -126,12 +126,14 @@ ${text.slice(0, 30000)}`;
   const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   const parsed = JSON.parse(cleaned);
 
-  // Validate node types
-  if (parsed.nodes) {
-    parsed.nodes = parsed.nodes.filter((n: { type: string }) => VALID_NODE_TYPES.includes(n.type));
+  if (!Array.isArray(parsed)) {
+    throw new Error('Expected JSON array from extraction');
   }
 
-  return parsed;
+  // Validate cloud_types
+  return parsed.filter((item: ExtractedItem) =>
+    VALID_CLOUD_TYPES.includes(item.cloud_type as CloudType) && item.title?.trim()
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -162,12 +164,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File appears to be empty or could not be read' }, { status: 400 });
     }
 
-    const result = await callGeminiAI(text);
+    // Extract items using CloudCompanion 6-layer format
+    const items = await callGeminiExtract(text);
+
+    if (items.length === 0) {
+      return NextResponse.json({ error: 'No items could be extracted from the file' }, { status: 400 });
+    }
+
+    // Save to cloud_items using batch insert
+    if (!(await isDbAvailable())) {
+      return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+    }
+    await runMigrations();
+
+    // Get current max sort_order per type
+    const typeList = [...new Set(items.map(i => i.cloud_type))];
+    const maxRes = await query(
+      `SELECT cloud_type, COALESCE(MAX(sort_order), -1) + 1 AS next_order
+       FROM cloud_items
+       WHERE user_id = $1 AND cloud_type = ANY($2)
+       GROUP BY cloud_type`,
+      [session.user.id, typeList]
+    );
+    const nextOrderMap: Record<string, number> = {};
+    for (const row of maxRes.rows) {
+      nextOrderMap[row.cloud_type] = parseInt(row.next_order, 10);
+    }
+    const typeCounters: Record<string, number> = {};
+
+    // Build bulk insert
+    const values: unknown[] = [];
+    const placeholders: string[] = [];
+    let p = 1;
+
+    for (const item of items) {
+      const base = nextOrderMap[item.cloud_type] ?? 0;
+      const offset = typeCounters[item.cloud_type] ?? 0;
+      typeCounters[item.cloud_type] = offset + 1;
+      const sortOrder = base + offset;
+
+      const metadata = JSON.stringify({ source: 'file' });
+      placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
+      values.push(session.user.id, item.cloud_type, item.title.trim(), item.content || '', item.tags || [], metadata, sortOrder);
+    }
+
+    const insertSQL = `
+      INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order)
+      VALUES ${placeholders.join(', ')}
+      RETURNING id, cloud_type, title
+    `;
+
+    const result = await query(insertSQL, values);
 
     return NextResponse.json({
-      title: result.title,
-      nodes: result.nodes,
-      edges: result.edges,
+      saved: result.rowCount,
+      items: result.rows,
+      errors: [],
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Import failed';

@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   await runMigrations();
 
   const body = await req.json();
-  const { items } = body as { items: BatchItem[] };
+  const { items, source } = body as { items: BatchItem[]; source?: 'chat' | 'file' | 'direct' | 'voice' };
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'items array required' }, { status: 400 });
@@ -49,12 +49,13 @@ export async function POST(req: NextRequest) {
       invalid.push(`item with type ${item.cloud_type} — missing title`);
       continue;
     }
+    const meta = { ...(item.metadata || {}), ...(source ? { source } : {}) };
     validated.push({
       cloud_type: item.cloud_type as CloudType,
       title: item.title.trim(),
       content: item.content || '',
       tags: item.tags || [],
-      metadata: JSON.stringify(item.metadata || {}),
+      metadata: JSON.stringify(meta),
     });
   }
 

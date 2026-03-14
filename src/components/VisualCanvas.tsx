@@ -667,58 +667,9 @@ export default function VisualCanvas() {
         return;
       }
 
-      if (data.nodes && data.edges) {
-        // Convert imported nodes to full nodes with callbacks
-        const importedNodes: Node[] = data.nodes.map((n: { id?: string; type: string; title: string; content: string; position: { x: number; y: number } }, i: number) => {
-          nodeCounter.current += 1;
-          const id = n.id || `imp_${nodeCounter.current}_${Date.now()}`;
-          const config = NODE_TYPE_MAP[n.type];
-          return {
-            id,
-            type: n.type,
-            position: n.position || { x: 100 + (i % 5) * 220, y: 100 + Math.floor(i / 5) * 120 },
-            data: {
-              type: n.type,
-              label: config?.label || n.type,
-              emoji: config?.emoji || '',
-              color: config?.color || '#4A90D9',
-              title: n.title || '',
-              content: n.content || '',
-              isProxy: false,
-              isContainer: false,
-              stateColor: null,
-              parentNodeId: '',
-              parentLabel: '',
-              graphId: draftId,
-              onTitleChange: handleTitleChange,
-              onContentChange: handleContentChange,
-              onZoomToParent,
-              onStateColorChange: handleStateColorChange,
-              onImageGenerated: handleImageGenerated,
-              onDelete: handleDeleteNode,
-            },
-          };
-        });
-
-        // Build edge ID map (imported IDs -> actual IDs)
-        const idMap: Record<string, string> = {};
-        data.nodes.forEach((n: { id?: string }, i: number) => {
-          if (n.id) idMap[n.id] = importedNodes[i].id;
-        });
-
-        const importedEdges: Edge[] = (data.edges || []).map((e: { source: string; target: string }, i: number) => ({
-          id: `imp_edge_${i}_${Date.now()}`,
-          source: idMap[e.source] || e.source,
-          target: idMap[e.target] || e.target,
-          animated: true,
-          style: { stroke: '#c4c8d0', strokeDasharray: '5 5' },
-        }));
-
-        setNodes(importedNodes);
-        setEdges(importedEdges);
-        if (data.title) setTitle(data.title);
-        showToast(`Imported ${importedNodes.length} nodes from document`);
-        setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
+      if (data.saved && data.items) {
+        // File import now saves to cloud_items — user imports to canvas via "Import from Cloud"
+        showToast(`${data.saved} items saved to your clouds — click Import from Cloud to view them`);
       }
     } catch {
       showToast('Import failed');
@@ -726,7 +677,7 @@ export default function VisualCanvas() {
     setImporting(false);
     // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [draftId, showToast, setNodes, setEdges, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+  }, [showToast]);
 
   // Categorized node types for sidebar
   const categorized = useMemo(() => {
