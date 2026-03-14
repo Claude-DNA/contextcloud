@@ -6,6 +6,13 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { useProject } from '@/context/ProjectContext';
 
+interface CloudItem {
+  id: string;
+  cloud_type: string;
+  title: string;
+  content: string;
+}
+
 interface ArcScene {
   id: string;
   title: string;
@@ -45,6 +52,20 @@ export default function ArcCloudPage() {
   const [attachedItems, setAttachedItems] = useState<Record<string, AttachedItem[]>>({});
   const [attachedLoading, setAttachedLoading] = useState<string | null>(null);
 
+  // Attach items modal state
+  const [attachModalSceneId, setAttachModalSceneId] = useState<string | null>(null);
+  const [attachAllItems, setAttachAllItems] = useState<Record<string, CloudItem[]>>({});
+  const [attachChecked, setAttachChecked] = useState<Set<string>>(new Set());
+  const [attachGroupCollapsed, setAttachGroupCollapsed] = useState<Set<string>>(new Set());
+  const [attachLoadingModal, setAttachLoadingModal] = useState(false);
+  const [attachSaving, setAttachSaving] = useState(false);
+  const [toast, setToast] = useState('');
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  }, []);
+
   // Form state
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
@@ -80,6 +101,73 @@ export default function ArcCloudPage() {
     }
     setAttachedLoading(null);
   };
+
+  // Open "Attach items" modal for a scene
+  const openAttachModal = useCallback(async (sceneId: string) => {
+    setAttachModalSceneId(sceneId);
+    setAttachAllItems({});
+    setAttachChecked(new Set());
+    setAttachGroupCollapsed(new Set());
+    setAttachLoadingModal(true);
+    try {
+      const params = new URLSearchParams();
+      if (activeProjectId) params.set('project_id', activeProjectId);
+      // to-nodes returns all types in one call: {nodes: [{id, cloud_type, title, content, ...}]}
+      const res = await fetch(`/api/v1/cloud-items/to-nodes?${params}`);
+      const data = await res.json();
+      const items: CloudItem[] = (data.nodes || []).filter((i: CloudItem) => i.cloud_type !== 'arc');
+      const groups: Record<string, CloudItem[]> = {};
+      for (const item of items) {
+        if (!groups[item.cloud_type]) groups[item.cloud_type] = [];
+        groups[item.cloud_type].push(item);
+      }
+      setAttachAllItems(groups);
+      // Pre-check items already attached to this scene
+      const alreadyAttached = attachedItems[sceneId] || [];
+      setAttachChecked(new Set(alreadyAttached.map(i => i.id)));
+    } catch {
+      showToast('Failed to load items');
+      setAttachModalSceneId(null);
+    }
+    setAttachLoadingModal(false);
+  }, [activeProjectId, attachedItems, showToast]);
+
+  // Confirm attach: compare new selection vs already attached, add/remove as needed
+  const handleAttachConfirm = useCallback(async () => {
+    if (!attachModalSceneId) return;
+    setAttachSaving(true);
+    try {
+      const alreadyAttached = new Set((attachedItems[attachModalSceneId] || []).map(i => i.id));
+      const toAttach = [...attachChecked].filter(id => !alreadyAttached.has(id));
+      const toDetach = [...alreadyAttached].filter(id => !attachChecked.has(id));
+
+      await Promise.all([
+        ...toAttach.map(id =>
+          fetch('/api/v1/arc-scenes/attach', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cloud_item_id: id, arc_item_id: attachModalSceneId }),
+          })
+        ),
+        ...toDetach.map(id =>
+          fetch('/api/v1/arc-scenes/attach', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ cloud_item_id: id, arc_item_id: attachModalSceneId }),
+          })
+        ),
+      ]);
+
+      // Refresh the attached items for this scene
+      await fetchAttached(attachModalSceneId);
+      await fetchScenes();
+      setAttachModalSceneId(null);
+      showToast(`${toAttach.length} attached, ${toDetach.length} detached`);
+    } catch {
+      showToast('Failed to save changes');
+    }
+    setAttachSaving(false);
+  }, [attachModalSceneId, attachChecked, attachedItems, fetchAttached, fetchScenes, showToast]);
 
   const handleExpand = (sceneId: string) => {
     if (expandedId === sceneId) {
@@ -339,11 +427,10 @@ export default function ArcCloudPage() {
                                 <p className="text-xs text-muted mb-2">No items attached to this scene yet.</p>
                                 <div className="flex items-center justify-center gap-2">
                                   <button
-                                    disabled
-                                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
-                                    title="Coming soon"
+                                    onClick={() => openAttachModal(scene.id)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-pink-300 text-pink-600 hover:bg-pink-50 transition-colors"
                                   >
-                                    Attach items
+                                    + Attach items
                                   </button>
                                   <button
                                     onClick={() => router.push(`/workspace/visual?scene=${scene.id}&sceneName=${encodeURIComponent(scene.title)}`)}
@@ -382,11 +469,10 @@ export default function ArcCloudPage() {
                                 })}
                                 <div className="pt-1 flex items-center gap-2">
                                   <button
-                                    disabled
-                                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
-                                    title="Coming soon"
+                                    onClick={() => openAttachModal(scene.id)}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-pink-300 text-pink-600 hover:bg-pink-50 transition-colors"
                                   >
-                                    Attach items
+                                    ✏️ Edit attached
                                   </button>
                                   <button
                                     onClick={() => router.push(`/workspace/visual?scene=${scene.id}&sceneName=${encodeURIComponent(scene.title)}`)}
@@ -410,6 +496,158 @@ export default function ArcCloudPage() {
           </div>
         </div>
       </main>
+
+      {/* ── Attach Items Modal ────────────────────────────────────────────────── */}
+      {attachModalSceneId && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={() => setAttachModalSceneId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[80vh] flex flex-col"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-semibold text-gray-800">Attach Items to Scene</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Select items from your Clouds to connect to this scene.
+                </p>
+              </div>
+              <button
+                onClick={() => setAttachModalSceneId(null)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 min-h-0">
+              {attachLoadingModal ? (
+                <div className="flex items-center justify-center py-10 text-gray-400 gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Loading items...
+                </div>
+              ) : Object.keys(attachAllItems).length === 0 ? (
+                <div className="text-center py-10 text-gray-400 text-sm">
+                  No cloud items found. Add some items to your Clouds first.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {/* Select all / clear */}
+                  <div className="flex items-center justify-between mb-1 pb-2 border-b border-gray-100">
+                    <span className="text-xs text-gray-500">{attachChecked.size} selected</span>
+                    <div className="flex gap-3">
+                      <button
+                        onClick={() => setAttachChecked(new Set(Object.values(attachAllItems).flat().map(i => i.id)))}
+                        className="text-xs text-indigo-600 hover:underline"
+                      >Select all</button>
+                      <button
+                        onClick={() => setAttachChecked(new Set())}
+                        className="text-xs text-gray-400 hover:underline"
+                      >Clear</button>
+                    </div>
+                  </div>
+
+                  {Object.entries(attachAllItems).map(([cloudType, items]) => {
+                    const TYPE_INFO: Record<string, { label: string; emoji: string }> = {
+                      characters: { label: 'Characters', emoji: '👤' },
+                      scenes:     { label: 'Stage',      emoji: '🎬' },
+                      world:      { label: 'World',      emoji: '🌍' },
+                      ideas:      { label: 'Ideas',      emoji: '💡' },
+                      references: { label: 'References', emoji: '📑' },
+                    };
+                    const info = TYPE_INFO[cloudType] || { label: cloudType, emoji: '☁️' };
+                    const isCollapsed = attachGroupCollapsed.has(cloudType);
+                    const groupCheckedCount = items.filter(i => attachChecked.has(i.id)).length;
+                    const allChecked = groupCheckedCount === items.length;
+
+                    return (
+                      <div key={cloudType} className="border border-gray-200 rounded-lg overflow-hidden">
+                        <div
+                          className="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                          onClick={() => setAttachGroupCollapsed(prev => {
+                            const next = new Set(prev);
+                            isCollapsed ? next.delete(cloudType) : next.add(cloudType);
+                            return next;
+                          })}
+                        >
+                          <span className="text-xs text-gray-400">{isCollapsed ? '▶' : '▼'}</span>
+                          <input
+                            type="checkbox"
+                            checked={allChecked}
+                            onChange={e => {
+                              e.stopPropagation();
+                              setAttachChecked(prev => {
+                                const next = new Set(prev);
+                                items.forEach(i => allChecked ? next.delete(i.id) : next.add(i.id));
+                                return next;
+                              });
+                            }}
+                            className="rounded border-gray-300"
+                          />
+                          <span>{info.emoji}</span>
+                          <span className="text-sm font-medium text-gray-700">{info.label}</span>
+                          <span className="text-xs text-gray-400 ml-auto">{groupCheckedCount}/{items.length}</span>
+                        </div>
+                        {!isCollapsed && (
+                          <div className="px-3 py-1 space-y-0.5 max-h-40 overflow-y-auto">
+                            {items.map(item => (
+                              <label key={item.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                                <input
+                                  type="checkbox"
+                                  checked={attachChecked.has(item.id)}
+                                  onChange={() => setAttachChecked(prev => {
+                                    const next = new Set(prev);
+                                    next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                    return next;
+                                  })}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="text-gray-700 truncate">{item.title || '(untitled)'}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between px-5 py-4 border-t border-gray-100">
+              <button
+                onClick={() => setAttachModalSceneId(null)}
+                className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAttachConfirm}
+                disabled={attachSaving}
+                className="px-5 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                style={{ background: '#ec4899' }}
+              >
+                {attachSaving ? 'Saving...' : `Save (${attachChecked.size} items)`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-6 right-6 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-50 transition-opacity">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
