@@ -195,7 +195,6 @@ export default function VisualCanvas() {
   const [scenesListLoading, setScenesListLoading] = useState(false);
   const [selectedSceneForLoad, setSelectedSceneForLoad] = useState<string | null>(null);
   const [sceneLoadLoading, setSceneLoadLoading] = useState(false);
-  const [sceneHasNoItems, setSceneHasNoItems] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // ── History (undo / redo, max 10 steps) ────────────────────────────────────
@@ -658,7 +657,6 @@ export default function VisualCanvas() {
     setShowCloudLoadModal(true);
     setCloudLoadTab('scenes');
     setSelectedSceneForLoad(null);
-    setSceneHasNoItems(false);
     setCloudLoadGroups({});
     setCloudLoadChecked(new Set());
     // Immediately load scenes list
@@ -686,7 +684,6 @@ export default function VisualCanvas() {
   const handleSwitchToScenesTab = useCallback(() => {
     setCloudLoadTab('scenes');
     setSelectedSceneForLoad(null);
-    setSceneHasNoItems(false);
     fetchScenesForModal();
   }, [fetchScenesForModal]);
 
@@ -716,77 +713,45 @@ export default function VisualCanvas() {
   }, [cloudItemsUrl, cloudLoadGroups, showToast]);
 
   // ── Load all cloud items as a fallback (called from the "load all anyway" button) ──
-  const handleLoadAllCloudItems = useCallback(async (sceneTitle: string) => {
+  // ── Scenes tab: select a scene → fetch its items ───────────────────────────
+  // One-click: loads scene-specific items if attached, otherwise auto-falls back to all
+  // cloud items. "Attach Items" in Arc Cloud is optional — for curating a specific scene view.
+  const handleClickScene = useCallback(async (sId: string, sceneTitle: string) => {
+    setSelectedSceneForLoad(sId);
     setSceneLoadLoading(true);
+
     try {
-      const fallbackRes = await fetch(cloudItemsUrl);
-      const fallbackData = await fallbackRes.json();
-      const items = (fallbackData.nodes || [])
-        .filter((n: { cloud_type: string }) => n.cloud_type !== 'arc')
-        .map((n: { id: string; cloud_type: string; title: string; content?: string }) => ({
-          id: n.id,
-          cloud_type: n.cloud_type,
-          title: n.title,
-          content: n.content || '',
-        }));
+      type ItemShape = { id: string; cloud_type: string; title: string; content: string };
+
+      // 1. Try scene-specific attached items
+      const res = await fetch(`/api/v1/arc-scenes/${sId}/items`);
+      const data = await res.json();
+      let items: ItemShape[] = data.items || [];
+      let usingAllItems = false;
+
+      // 2. If none attached, auto-load all cloud items (no manual attachment needed)
+      if (items.length === 0) {
+        usingAllItems = true;
+        const fallbackRes = await fetch(cloudItemsUrl);
+        const fallbackData = await fallbackRes.json();
+        items = (fallbackData.nodes || [])
+          .filter((n: { cloud_type: string }) => n.cloud_type !== 'arc')
+          .map((n: { id: string; cloud_type: string; title: string; content?: string }) => ({
+            id: n.id,
+            cloud_type: n.cloud_type,
+            title: n.title,
+            content: n.content || '',
+          }));
+      }
+
       if (!items.length) {
         showToast('No cloud items found — add items to your Clouds first');
         setSceneLoadLoading(false);
         return;
       }
-      type FallbackItem = { id: string; cloud_type: string; title: string; content: string };
-      const byType = new Map<string, FallbackItem[]>();
-      for (const item of items) {
-        const list = byType.get(item.cloud_type) || [];
-        list.push(item);
-        byType.set(item.cloud_type, list);
-      }
-      const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = [];
-      let colIndex = 0;
-      for (const [, typeItems] of byType) {
-        const x = colIndex * 380 + 80;
-        typeItems.forEach((item: FallbackItem, rowIndex: number) => {
-          cloudNodes.push({
-            id: `cloud_${item.id}`,
-            type: mapCloudType(item.cloud_type, {}),
-            title: item.title,
-            content: item.content,
-            position: { x, y: rowIndex * 220 + 80 },
-          });
-        });
-        colIndex++;
-      }
-      setShowCloudLoadModal(false);
-      loadCloudNodesToCanvas(cloudNodes, sceneTitle);
-    } catch {
-      showToast('Failed to load cloud items');
-    }
-    setSceneLoadLoading(false);
-  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast]);
 
-  // ── Scenes tab: select a scene → fetch its items ───────────────────────────
-  // One-click scene load: click a scene → immediately load its attached items → close modal
-  // If scene has no attached items: keep modal open, show "no items" state (don't dump all items)
-  const handleClickScene = useCallback(async (sId: string, sceneTitle: string) => {
-    setSelectedSceneForLoad(sId);
-    setSceneHasNoItems(false);
-    setSceneLoadLoading(true);
-
-    try {
-      // Fetch scene-specific items only
-      const res = await fetch(`/api/v1/arc-scenes/${sId}/items`);
-      const data = await res.json();
-      const items: Array<{ id: string; cloud_type: string; title: string; content: string }> = data.items || [];
-
-      if (items.length === 0) {
-        // Scene has no attached items — keep modal open, show empty state UI
-        setSceneHasNoItems(true);
-        setSceneLoadLoading(false);
-        return;
-      }
-
-      // Build nodes in column layout by type
-      const byType = new Map<string, typeof items>();
+      // 3. Build column layout by type
+      const byType = new Map<string, ItemShape[]>();
       for (const item of items) {
         const list = byType.get(item.cloud_type) || [];
         list.push(item);
@@ -808,14 +773,17 @@ export default function VisualCanvas() {
         colIndex++;
       }
 
-      // Load into canvas with scene hub + edges, close modal
+      // 4. Load into canvas with scene hub + edges, close modal
       setShowCloudLoadModal(false);
       loadCloudNodesToCanvas(cloudNodes, sceneTitle);
+      if (usingAllItems) {
+        setTimeout(() => showToast(`All ${items.length} items loaded for scene — use "Attach Items" in Arc Cloud to filter`), 1200);
+      }
     } catch {
       showToast('Failed to load scene');
     }
     setSceneLoadLoading(false);
-  }, [loadCloudNodesToCanvas, showToast]);
+  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast]);
 
   // ── Confirm load — only used by "By Cloud Type" tab now ──────────────────────
   const handleCloudLoadConfirm = useCallback(() => {
@@ -1638,47 +1606,7 @@ export default function VisualCanvas() {
                 {/* ── Scenes tab — one click to load ─────────────────────────── */}
                 {cloudLoadTab === 'scenes' && (
                   <div className="space-y-1.5">
-                    {/* "No items attached" state — shown after clicking a scene with 0 attachments */}
-                    {sceneHasNoItems && selectedSceneForLoad ? (() => {
-                      const scene = scenesList.find(s => s.id === selectedSceneForLoad);
-                      const displayTitle = scene
-                        ? (scene.title.includes(' — ') ? scene.title.slice(scene.title.indexOf(' — ') + 3) : scene.title)
-                        : 'this scene';
-                      return (
-                        <div className="space-y-4 py-2">
-                          <button
-                            onClick={() => { setSceneHasNoItems(false); setSelectedSceneForLoad(null); }}
-                            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          >
-                            ← back to scenes
-                          </button>
-                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-2">
-                            <p className="text-sm font-semibold text-amber-800">No items attached to &ldquo;{displayTitle}&rdquo;</p>
-                            <p className="text-xs text-amber-700">
-                              Attach cloud items to this scene in Arc Cloud, then they&apos;ll load here automatically.
-                            </p>
-                            <a
-                              href="/workspace/arc-cloud"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 underline hover:text-amber-900"
-                            >
-                              Go to Arc Cloud →
-                            </a>
-                          </div>
-                          <div className="border-t border-gray-100 pt-3">
-                            <p className="text-xs text-gray-400 mb-2">Or load all your cloud items without a scene connection:</p>
-                            <button
-                              onClick={() => handleLoadAllCloudItems(scene?.title ?? displayTitle)}
-                              disabled={sceneLoadLoading}
-                              className="w-full px-4 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-all disabled:opacity-50"
-                            >
-                              {sceneLoadLoading ? 'Loading…' : '☁️ Load all my cloud items'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })() : scenesListLoading ? (
+                    {scenesListLoading ? (
                       <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
                         <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -1702,7 +1630,7 @@ export default function VisualCanvas() {
                         }
                         return (
                           <div className="space-y-4">
-                            <p className="text-xs text-gray-400">Click a scene to load its items. Scenes with a pink badge have attached items.</p>
+                            <p className="text-xs text-gray-400">Click a scene to load it. Scenes with a pink badge load curated items only — all others load your full cloud.</p>
                             {[...groups.entries()].map(([groupKey, groupScenes]) => (
                               <div key={groupKey}>
                                 {groupKey !== '—' && (
