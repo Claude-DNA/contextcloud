@@ -5,6 +5,18 @@ import { isDbAvailable } from '@/lib/db';
 
 const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
+// Normalize Gemini's sometimes-wrong cloud_type names
+const TYPE_ALIASES: Record<string, string> = {
+  stage: 'scenes', location: 'scenes', setting: 'scenes',
+  themes: 'ideas', theme: 'ideas', concept: 'ideas',
+  arcs: 'arc', beats: 'arc', beat: 'arc', plot: 'arc', chapter: 'arc',
+  reference: 'references', source: 'references',
+  character: 'characters',
+  worlds: 'world', universe: 'world', rule: 'world',
+};
+
+const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'];
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -60,6 +72,7 @@ ${text.slice(0, 30000)}`;
         generationConfig: {
           temperature: 0.7,
           maxOutputTokens: 8192,
+          responseMimeType: 'application/json',
         },
       }),
     });
@@ -79,10 +92,12 @@ ${text.slice(0, 30000)}`;
       return NextResponse.json({ error: 'Extraction returned invalid format' }, { status: 500 });
     }
 
-    const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'];
-    const items = parsed.filter((item: { cloud_type: string; title: string }) =>
-      VALID_TYPES.includes(item.cloud_type) && item.title?.trim()
-    );
+    const items = (parsed as Array<{ cloud_type: string; title: string }>)
+      .map(item => ({
+        ...item,
+        cloud_type: TYPE_ALIASES[item.cloud_type] ?? item.cloud_type,
+      }))
+      .filter(item => VALID_TYPES.includes(item.cloud_type) && item.title?.trim());
 
     return NextResponse.json({ items });
   } catch (err) {

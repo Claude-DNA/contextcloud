@@ -110,6 +110,7 @@ ${text.slice(0, 30000)}`;
       generationConfig: {
         temperature: 0.7,
         maxOutputTokens: 8192,
+        responseMimeType: 'application/json',
       },
     }),
   });
@@ -130,10 +131,25 @@ ${text.slice(0, 30000)}`;
     throw new Error('Expected JSON array from extraction');
   }
 
-  // Validate cloud_types
-  return parsed.filter((item: ExtractedItem) =>
-    VALID_CLOUD_TYPES.includes(item.cloud_type as CloudType) && item.title?.trim()
-  );
+  // Normalize cloud_type aliases (Gemini sometimes uses wrong names)
+  const TYPE_ALIASES: Record<string, string> = {
+    stage: 'scenes', location: 'scenes', setting: 'scenes',
+    themes: 'ideas', theme: 'ideas', concept: 'ideas',
+    arcs: 'arc', beats: 'arc', beat: 'arc', plot: 'arc', chapter: 'arc',
+    reference: 'references', source: 'references',
+    character: 'characters',
+    worlds: 'world', universe: 'world', rule: 'world',
+  };
+
+  // Validate and normalize cloud_types
+  return (parsed as ExtractedItem[])
+    .map(item => ({
+      ...item,
+      cloud_type: TYPE_ALIASES[item.cloud_type] ?? item.cloud_type,
+    }))
+    .filter(item =>
+      VALID_CLOUD_TYPES.includes(item.cloud_type as CloudType) && item.title?.trim()
+    );
 }
 
 export async function POST(req: NextRequest) {
