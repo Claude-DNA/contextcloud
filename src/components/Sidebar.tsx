@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -24,6 +24,10 @@ const CLOUD_ITEMS: NavItem[] = [
 const CAPTURE_ITEMS: NavItem[] = [
   { label: 'Quick Capture', href: '/workspace/add-to-cloud', icon: QuickCaptureIcon },
   { label: 'Chat Creator', href: '/projects/new/chat', icon: ChatIcon },
+];
+
+const TOOL_ITEMS: NavItem[] = [
+  { label: 'Visual Editor', href: '/workspace/visual', icon: CanvasIcon },
 ];
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -69,7 +73,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
-        {/* Arc Cloud — primary entry point */}
+        {/* Arc Cloud â€” primary entry point */}
         <div className="pt-2 pb-1">
           {MAIN_ITEMS.map((item) => (
             <Link
@@ -102,6 +106,17 @@ export default function Sidebar() {
         <SectionLabel>Capture</SectionLabel>
         <div className="space-y-0.5">
           {CAPTURE_ITEMS.map((item) => (
+            <Link key={item.href} href={item.href} className={linkCls(item.href)}>
+              <item.icon className="w-4 h-4 shrink-0" />
+              {item.label}
+            </Link>
+          ))}
+        </div>
+
+        {/* TOOLS section */}
+        <SectionLabel>Tools</SectionLabel>
+        <div className="space-y-0.5">
+          {TOOL_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={linkCls(item.href)}>
               <item.icon className="w-4 h-4 shrink-0" />
               {item.label}
@@ -143,17 +158,6 @@ export default function Sidebar() {
           <ExternalIcon className="w-3 h-3" />
           contextube.ai
         </a>
-        <Link
-          href="/workspace/visual"
-          className={`flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg transition-colors ${
-            pathname.startsWith('/workspace/visual')
-              ? 'bg-white/10 text-white'
-              : 'text-white/40 hover:text-white/70'
-          }`}
-        >
-          <CanvasIcon className="w-3 h-3" />
-          Visual Editor
-        </Link>
       </div>
     </aside>
   );
