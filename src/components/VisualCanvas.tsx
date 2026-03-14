@@ -791,7 +791,13 @@ export default function VisualCanvas() {
                   onClick={async () => {
                     setExportingRunway(true);
                     try {
-                      const res = await fetch('/api/v1/export/runway', { method: 'POST' });
+                      let projectTitle: string | undefined;
+                      try { projectTitle = localStorage.getItem('cc_chat_title') || undefined; } catch { /* ignore */ }
+                      const res = await fetch('/api/v1/export/runway', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ project_title: projectTitle }),
+                      });
                       if (!res.ok) throw new Error('Export failed');
                       const manifest = await res.json();
                       const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });

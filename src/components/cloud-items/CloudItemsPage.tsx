@@ -356,7 +356,14 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
     setExportingRunway(true);
     setExportError(null);
     try {
-      const res = await fetch('/api/v1/export/runway', { method: 'POST' });
+      // Read stored project title from chat session if available
+      let projectTitle: string | undefined;
+      try { projectTitle = localStorage.getItem('cc_chat_title') || undefined; } catch { /* ignore */ }
+      const res = await fetch('/api/v1/export/runway', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ project_title: projectTitle }),
+      });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.message || data.error || 'Export failed');

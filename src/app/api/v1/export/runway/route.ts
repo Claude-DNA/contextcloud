@@ -30,7 +30,7 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
   return data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
 }
 
-export async function buildManifest(userId: string, userEmail?: string | null) {
+export async function buildManifest(userId: string, userEmail?: string | null, projectTitleOverride?: string) {
   if (!(await isDbAvailable())) {
     return { error: 'Database not available', status: 503 };
   }
@@ -57,16 +57,41 @@ export async function buildManifest(userId: string, userEmail?: string | null) {
   const ideas = byType['ideas'] || [];
   const arcItems = byType['arc'] || [];
 
-  // Derive project name
-  const project = arcItems[0]?.title
-    ? arcItems.map(a => a.title).join(' / ').slice(0, 80)
-    : 'Untitled Project';
+  // Derive project name — try world > ideas > characters > fallback
+  const deriveProjectName = () => {
+    // If a world item title looks like a project name (short, no verb), use it
+    const worldCandidate = world.find(w => w.title.length < 40 && !w.title.includes(':'));
+    if (worldCandidate) return worldCandidate.title;
+    const ideaCandidate = ideas.find(i => i.title.length < 40);
+    if (ideaCandidate) return ideaCandidate.title;
+    if (characters.length >= 2) return `${characters[0].title} & ${characters[1].title}`;
+    if (characters.length === 1) return `${characters[0].title}'s Story`;
+    return 'My Context Cloud';
+  };
+  const project = projectTitleOverride?.trim() || deriveProjectName();
 
-  // Visual style from references
-  const visualStyle = references
-    .map(r => `${r.title}: ${r.content}`)
-    .join('; ')
-    .slice(0, 200) || 'No references defined';
+  // Deduplicate stage locations: normalize titles by trimming trailing punctuation + whitespace
+  const normalizeTitle = (t: string) => t.trim().replace(/[:;,.\s]+$/, '');
+  const seenLocations = new Map<string, CloudItem>();
+  for (const s of scenes) {
+    const key = normalizeTitle(s.title).toLowerCase();
+    if (!seenLocations.has(key)) seenLocations.set(key, s);
+  }
+  const dedupedScenes = Array.from(seenLocations.values());
+
+  // Deduplicate characters the same way
+  const seenCharacters = new Map<string, CloudItem>();
+  for (const c of characters) {
+    const key = normalizeTitle(c.title).toLowerCase();
+    if (!seenCharacters.has(key)) seenCharacters.set(key, c);
+  }
+  const dedupedCharacters = Array.from(seenCharacters.values());
+
+  // Visual style from references — no hard truncation, trim at sentence boundary
+  const fullVisualStyle = references.map(r => `${r.title}: ${r.content}`).join('; ');
+  const visualStyle = fullVisualStyle.length > 500
+    ? fullVisualStyle.slice(0, 497) + '...'
+    : fullVisualStyle || 'No references defined';
 
   // Generate motion prompts via Gemini (only if arc items exist)
   let motionPrompts: Record<string, string> = {};
@@ -92,10 +117,6 @@ export async function buildManifest(userId: string, userEmail?: string | null) {
     }
   }
 
-  // Build character names list for matching
-  const characterNames = characters.map(c => c.title.toLowerCase());
-  const sceneNames = scenes.map(s => s.title.toLowerCase());
-
   // World rules and ideas (first 2 of each, applied globally)
   const worldRulesActive = world.slice(0, 2).map(w => w.title);
   const ideasActive = ideas.slice(0, 2).map(i => i.title);
@@ -105,13 +126,15 @@ export async function buildManifest(userId: string, userEmail?: string | null) {
     const sceneId = `scene_${String(idx + 1).padStart(3, '0')}`;
     const arcText = `${arc.title} ${arc.content || ''}`.toLowerCase();
 
-    // Find characters present
-    const charactersPresent = characters
-      .filter(c => arcText.includes(c.title.toLowerCase()))
-      .map(c => c.title);
+    // Find characters present (use deduped list)
+    const charactersPresent = dedupedCharacters
+      .filter(c => arcText.includes(normalizeTitle(c.title).toLowerCase()))
+      .map(c => normalizeTitle(c.title));
 
-    // Find location
-    const location = scenes.find(s => arcText.includes(s.title.toLowerCase()))?.title || null;
+    // Find location (use deduped list)
+    const location = dedupedScenes.find(s =>
+      arcText.includes(normalizeTitle(s.title).toLowerCase())
+    )?.title || null;
 
     const motionPrompt = motionPrompts[arc.title] || `Slow push-in on ${arc.title}`;
 
@@ -155,8 +178,8 @@ export async function buildManifest(userId: string, userEmail?: string | null) {
     },
     assets: {
       characters: Object.fromEntries(
-        characters.map(c => [
-          c.title,
+        dedupedCharacters.map(c => [
+          normalizeTitle(c.title),
           {
             portrait_url: null,
             description: c.content || '',
@@ -165,8 +188,8 @@ export async function buildManifest(userId: string, userEmail?: string | null) {
         ])
       ),
       locations: Object.fromEntries(
-        scenes.map(s => [
-          s.title,
+        dedupedScenes.map(s => [
+          normalizeTitle(s.title),
           {
             concept_art_url: null,
             atmosphere: s.content || '',
@@ -185,13 +208,19 @@ export async function buildManifest(userId: string, userEmail?: string | null) {
   return { manifest };
 }
 
-export async function POST() {
+export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const result = await buildManifest(session.user.id, session.user.email);
+  let projectTitle: string | undefined;
+  try {
+    const body = await req.json();
+    projectTitle = body?.project_title;
+  } catch { /* no body is fine */ }
+
+  const result = await buildManifest(session.user.id, session.user.email, projectTitle);
 
   if ('error' in result) {
     if (result.error === 'BYOT_REQUIRED') return noKeyResponse();
