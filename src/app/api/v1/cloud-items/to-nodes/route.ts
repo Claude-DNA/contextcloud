@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
@@ -27,7 +27,7 @@ function mapCloudTypeToNodeType(cloudType: string, metadata?: Record<string, unk
   return CLOUD_TYPE_TO_NODE[cloudType] || 'theme';
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -39,10 +39,19 @@ export async function GET() {
 
   await runMigrations();
 
-  const res = await query(
-    'SELECT * FROM cloud_items WHERE user_id = $1 ORDER BY cloud_type, sort_order ASC, created_at ASC',
-    [session.user.id]
-  );
+  const projectId = req.nextUrl.searchParams.get('project_id');
+  let sql = 'SELECT * FROM cloud_items WHERE user_id = $1';
+  const params: unknown[] = [session.user.id];
+
+  if (projectId === 'unassigned') {
+    sql += ' AND project_id IS NULL';
+  } else if (projectId) {
+    sql += ' AND project_id = $2';
+    params.push(projectId);
+  }
+
+  sql += ' ORDER BY cloud_type, sort_order ASC, created_at ASC';
+  const res = await query(sql, params);
 
   const items = res.rows;
 

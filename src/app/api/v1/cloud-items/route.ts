@@ -23,10 +23,19 @@ export async function GET(req: NextRequest) {
 
   await runMigrations();
 
-  const res = await query(
-    'SELECT * FROM cloud_items WHERE user_id = $1 AND cloud_type = $2 ORDER BY sort_order ASC, created_at ASC',
-    [session.user.id, cloudType]
-  );
+  const projectId = req.nextUrl.searchParams.get('project_id');
+  let sql = 'SELECT * FROM cloud_items WHERE user_id = $1 AND cloud_type = $2';
+  const params: unknown[] = [session.user.id, cloudType];
+
+  if (projectId === 'unassigned') {
+    sql += ' AND project_id IS NULL';
+  } else if (projectId) {
+    sql += ' AND project_id = $3';
+    params.push(projectId);
+  }
+
+  sql += ' ORDER BY sort_order ASC, created_at ASC';
+  const res = await query(sql, params);
 
   return NextResponse.json({ items: res.rows });
 }
@@ -44,7 +53,7 @@ export async function POST(req: NextRequest) {
   await runMigrations();
 
   const body = await req.json();
-  const { cloud_type, title, content = '', tags = [], metadata = {} } = body;
+  const { cloud_type, title, content = '', tags = [], metadata = {}, project_id } = body;
 
   if (!cloud_type || !VALID_TYPES.includes(cloud_type)) {
     return NextResponse.json({ error: 'Invalid cloud type' }, { status: 400 });
@@ -60,9 +69,9 @@ export async function POST(req: NextRequest) {
   const nextOrder = maxRes.rows[0]?.next_order ?? 0;
 
   const res = await query(
-    `INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order)
-     VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-    [session.user.id, cloud_type, title.trim(), content, tags, JSON.stringify(metadata), nextOrder]
+    `INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order, project_id)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+    [session.user.id, cloud_type, title.trim(), content, tags, JSON.stringify(metadata), nextOrder, project_id || null]
   );
 
   return NextResponse.json({ item: res.rows[0] }, { status: 201 });

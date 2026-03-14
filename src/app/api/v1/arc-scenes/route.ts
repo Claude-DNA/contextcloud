@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // GET /api/v1/arc-scenes — all arc items for the logged-in user, with attached_count
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -16,6 +16,17 @@ export async function GET() {
 
   await runMigrations();
 
+  const projectId = req.nextUrl.searchParams.get('project_id');
+  let where = `ci.user_id = $1 AND ci.cloud_type = 'arc'`;
+  const params: unknown[] = [session.user.id];
+
+  if (projectId === 'unassigned') {
+    where += ' AND ci.project_id IS NULL';
+  } else if (projectId) {
+    where += ' AND ci.project_id = $2';
+    params.push(projectId);
+  }
+
   const res = await query(
     `SELECT ci.id, ci.title, ci.content, ci.sort_order,
             COALESCE(att.attached_count, 0)::int AS attached_count
@@ -25,9 +36,9 @@ export async function GET() {
        FROM cloud_item_scenes
        GROUP BY arc_item_id
      ) att ON att.arc_item_id = ci.id
-     WHERE ci.user_id = $1 AND ci.cloud_type = 'arc'
+     WHERE ${where}
      ORDER BY ci.sort_order ASC, ci.created_at ASC`,
-    [session.user.id]
+    params
   );
 
   return NextResponse.json({ scenes: res.rows });

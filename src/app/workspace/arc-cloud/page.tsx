@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import { useProject } from '@/context/ProjectContext';
 
 interface ArcScene {
   id: string;
@@ -34,6 +35,7 @@ const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm text-
 
 export default function ArcCloudPage() {
   const router = useRouter();
+  const { activeProjectId } = useProject();
   const [scenes, setScenes] = useState<ArcScene[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -50,14 +52,16 @@ export default function ArcCloudPage() {
   const fetchScenes = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/v1/arc-scenes');
+      const params = new URLSearchParams();
+      if (activeProjectId) params.set('project_id', activeProjectId);
+      const res = await fetch(`/api/v1/arc-scenes?${params}`);
       const data = await res.json();
       setScenes(data.scenes || []);
     } catch (err) {
       console.error('Failed to fetch scenes:', err);
     }
     setLoading(false);
-  }, []);
+  }, [activeProjectId]);
 
   useEffect(() => {
     fetch('/api/v1/ping').catch(() => {});
@@ -96,7 +100,7 @@ export default function ArcCloudPage() {
       const res = await fetch('/api/v1/cloud-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cloud_type: 'arc', title: formTitle.trim(), content: formContent, tags: [], metadata: {} }),
+        body: JSON.stringify({ cloud_type: 'arc', title: formTitle.trim(), content: formContent, tags: [], metadata: {}, project_id: activeProjectId || undefined }),
       });
       if (res.ok) {
         setAdding(false);

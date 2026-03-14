@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   await runMigrations();
 
   const body = await req.json();
-  const { items, source } = body as { items: BatchItem[]; source?: 'chat' | 'file' | 'direct' | 'voice' };
+  const { items, source, project_id } = body as { items: BatchItem[]; source?: 'chat' | 'file' | 'direct' | 'voice'; project_id?: string };
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'items array required' }, { status: 400 });
@@ -89,12 +89,12 @@ export async function POST(req: NextRequest) {
     typeCounters[item.cloud_type] = offset + 1;
     const sortOrder = base + offset;
 
-    placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
-    values.push(session.user.id, item.cloud_type, item.title, item.content, item.tags, item.metadata, sortOrder);
+    placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
+    values.push(session.user.id, item.cloud_type, item.title, item.content, item.tags, item.metadata, sortOrder, project_id || null);
   }
 
   const insertSQL = `
-    INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order)
+    INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order, project_id)
     VALUES ${placeholders.join(', ')}
     RETURNING id, cloud_type, title
   `;

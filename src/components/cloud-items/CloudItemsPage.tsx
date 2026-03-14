@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import CloudItemTransformationsModal from './CloudItemTransformationsModal';
 import CloudItemFinalStateModal from './CloudItemFinalStateModal';
+import { useProject } from '@/context/ProjectContext';
 
 export type CloudType = 'characters' | 'references' | 'scenes' | 'world' | 'ideas' | 'arc';
 
@@ -248,6 +249,7 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
 
 export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) {
   const config = CLOUD_CONFIGS[cloudType];
+  const { activeProjectId } = useProject();
   const [items, setItems] = useState<CloudItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -273,7 +275,9 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
     setLoading(true);
     setFetchError(null);
     try {
-      const res = await fetch(`/api/v1/cloud-items?type=${cloudType}`);
+      const params = new URLSearchParams({ type: cloudType });
+      if (activeProjectId) params.set('project_id', activeProjectId);
+      const res = await fetch(`/api/v1/cloud-items?${params}`);
       const data = await res.json();
       if (!res.ok) {
         setFetchError(data.error || `Failed to load items (${res.status})`);
@@ -303,7 +307,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
       setFetchError(err instanceof Error ? err.message : 'Failed to load items — check connection');
     }
     setLoading(false);
-  }, [cloudType]);
+  }, [cloudType, activeProjectId]);
 
   // Warm Neon on mount before fetching — reduces cold-start blank flashes
   useEffect(() => {
@@ -318,7 +322,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
       const res = await fetch('/api/v1/cloud-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cloud_type: cloudType, ...data }),
+        body: JSON.stringify({ cloud_type: cloudType, ...data, project_id: activeProjectId || undefined }),
       });
       const json = await res.json();
       if (res.ok) { setItems(prev => [...prev, json.item]); setAdding(false); }

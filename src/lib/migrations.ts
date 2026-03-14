@@ -220,6 +220,23 @@ export async function runMigrations() {
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_scenes_item ON cloud_item_scenes(cloud_item_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_scenes_arc ON cloud_item_scenes(arc_item_id)`);
 
+    // Projects — first-class container for cloud items
+    await query(`
+      CREATE TABLE IF NOT EXISTS projects (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_projects_user ON projects(user_id)`);
+
+    // Add project_id to cloud_items
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE SET NULL`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_items_project ON cloud_items(project_id)`);
+
     // BYOT — user-stored Google AI key
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_ai_key TEXT`);
 
