@@ -314,10 +314,11 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
           border: '2px solid white', boxShadow: `0 0 0 1.5px ${h.color}55`,
           ...(isHoriz ? { top: h.offset || '50%' } : { left: h.offset || '50%' }),
         };
-        // Label positioned outside the card
-        const labelStyle: React.CSSProperties = {
+        // Label positioned outside the card — hidden by default, visible on hover
+        const labelBase: React.CSSProperties = {
           position: 'absolute', fontSize: 8, color: h.color,
           whiteSpace: 'nowrap', fontWeight: 600, pointerEvents: 'none',
+          opacity: 0, transition: 'opacity 0.15s',
           ...(h.position === 'left'   && { right: 'calc(100% + 12px)', top: h.offset || '50%', transform: 'translateY(-50%)', textAlign: 'right' }),
           ...(h.position === 'right'  && { left:  'calc(100% + 12px)', top: h.offset || '50%', transform: 'translateY(-50%)' }),
           ...(h.position === 'top'    && { bottom: 'calc(100% + 6px)', left: h.offset || '50%', transform: 'translateX(-50%)' }),
@@ -326,7 +327,7 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
         return (
           <Fragment key={h.id}>
             <Handle type={h.type} position={posMap[h.position]} id={h.id} style={handleStyle} />
-            <span style={labelStyle}>{h.label}</span>
+            <span className="hub-handle-label" style={labelBase}>{h.label}</span>
           </Fragment>
         );
       })}
