@@ -19,11 +19,23 @@ export interface ParsedCloudItem {
 /** Map from layer heading (uppercased) → cloud_type stored in DB */
 const LAYER_MAP: Record<string, CloudType> = {
   CHARACTERS: 'characters',
+  CHARACTER: 'characters',
   STAGE: 'scenes',
+  SCENES: 'scenes',
+  SCENE: 'scenes',
+  LOCATIONS: 'scenes',
   WORLD: 'world',
+  UNIVERSE: 'world',       // AI sometimes uses UNIVERSE instead of WORLD
+  SETTING: 'world',
   REFERENCES: 'references',
+  REFERENCE: 'references',
   IDEAS: 'ideas',
+  IDEA: 'ideas',
+  THEMES: 'ideas',
+  THEME: 'ideas',
   ARC: 'arc',
+  ARCS: 'arc',
+  PLOT: 'arc',
 };
 
 const LAYER_KEYS = Object.keys(LAYER_MAP);
@@ -64,8 +76,14 @@ export function parseCloudItems(text: string): ParsedCloudItem[] {
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // Check if this line is a layer heading (e.g. "CHARACTERS" or "**CHARACTERS**" or "CHARACTERS (3 items)")
-    const headingCandidate = trimmed.replace(/\*+/g, '').trim().toUpperCase();
+    // Check if this line is a layer heading (e.g. "CHARACTERS" or "**CHARACTERS**" or "🌍 WORLD" or "CHARACTERS (3 items)")
+    const headingCandidate = trimmed
+      .replace(/\*+/g, '')           // strip markdown bold
+      // eslint-disable-next-line no-misleading-character-class
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]/gu, '') // strip emoji & symbols
+      .replace(/^[\s#\-:]+/, '')     // strip leading hashes, dashes, colons (markdown headers)
+      .trim()
+      .toUpperCase();
     // Exact match first, then startsWith to handle "CHARACTERS (3 items):" suffixes
     const matchedKey = LAYER_KEYS.find(k =>
       headingCandidate === k ||
