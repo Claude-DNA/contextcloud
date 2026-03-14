@@ -28,6 +28,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
   const [savedItems, setSavedItems] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
   const [lastSaveCount, setLastSaveCount] = useState(0);
+  const [saveErrors, setSaveErrors] = useState<string[]>([]);
 
   const itemKey = (item: ParsedCloudItem) => `${item.cloud_type}::${item.title}`;
 
@@ -64,19 +65,44 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
 
       const newSaved = new Set(savedItems);
       let successCount = 0;
-      selected.forEach((item, i) => {
-        if (results[i].status === 'fulfilled') {
-          newSaved.add(itemKey(item));
-          successCount++;
-        }
-      });
+      const failedItems: string[] = [];
+
+      await Promise.all(
+        selected.map(async (item, i) => {
+          const result = results[i];
+          if (result.status === 'fulfilled' && result.value.ok) {
+            newSaved.add(itemKey(item));
+            successCount++;
+          } else {
+            // Get error detail if possible
+            let detail = '';
+            try {
+              if (result.status === 'fulfilled') {
+                const errBody = await result.value.json();
+                detail = errBody?.error || `HTTP ${result.value.status}`;
+              } else {
+                detail = String(result.reason);
+              }
+            } catch { detail = 'unknown error'; }
+            failedItems.push(`${item.title} (${item.cloud_type}): ${detail}`);
+            console.error('Save failed for item:', item.title, detail);
+          }
+        })
+      );
+
       setSavedItems(newSaved);
       if (successCount > 0) {
         setLastSaveCount(successCount);
         onSaved?.(successCount);
       }
+      if (failedItems.length > 0) {
+        console.error('Failed to save items:', failedItems);
+        // Surface errors to user via a state variable
+        setSaveErrors(failedItems);
+      }
     } catch (err) {
       console.error('Save error:', err);
+      setSaveErrors([String(err)]);
     } finally {
       setSaving(false);
     }
@@ -197,6 +223,26 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
             <p className="text-xs text-green-600 mb-3">
               {totalItems} items across {grouped.size} layers. Select and save items above.
             </p>
+          </div>
+        )}
+
+        {/* Save errors */}
+        {saveErrors.length > 0 && (
+          <div className="rounded-xl border border-red-200 bg-red-50 p-3">
+            <p className="text-xs font-semibold text-red-700 mb-1">
+              ⚠️ {saveErrors.length} item{saveErrors.length !== 1 ? 's' : ''} failed to save:
+            </p>
+            <ul className="space-y-0.5">
+              {saveErrors.map((e, i) => (
+                <li key={i} className="text-xs text-red-600 truncate">{e}</li>
+              ))}
+            </ul>
+            <button
+              onClick={() => setSaveErrors([])}
+              className="mt-2 text-xs text-red-500 underline"
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
