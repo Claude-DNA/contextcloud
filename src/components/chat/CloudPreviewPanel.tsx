@@ -46,59 +46,44 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
     const selected = items.filter(isChecked);
     if (selected.length === 0 || saving) return;
     setSaving(true);
+    setSaveErrors([]);
 
     try {
-      const results = await Promise.allSettled(
-        selected.map((item) =>
-          fetch('/api/v1/cloud-items', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              cloud_type: item.cloud_type,
-              title: item.title,
-              content: item.content,
-              tags: item.tags,
-            }),
-          })
-        )
-      );
+      // Use batch endpoint — single request instead of N parallel ones (avoids DB connection exhaustion)
+      const res = await fetch('/api/v1/cloud-items/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: selected.map(item => ({
+            cloud_type: item.cloud_type,
+            title: item.title,
+            content: item.content,
+            tags: item.tags,
+          })),
+        }),
+      });
 
-      const newSaved = new Set(savedItems);
-      let successCount = 0;
-      const failedItems: string[] = [];
+      const data = await res.json();
 
-      await Promise.all(
-        selected.map(async (item, i) => {
-          const result = results[i];
-          if (result.status === 'fulfilled' && result.value.ok) {
-            newSaved.add(itemKey(item));
-            successCount++;
-          } else {
-            // Get error detail if possible
-            let detail = '';
-            try {
-              if (result.status === 'fulfilled') {
-                const errBody = await result.value.json();
-                detail = errBody?.error || `HTTP ${result.value.status}`;
-              } else {
-                detail = String(result.reason);
-              }
-            } catch { detail = 'unknown error'; }
-            failedItems.push(`${item.title} (${item.cloud_type}): ${detail}`);
-            console.error('Save failed for item:', item.title, detail);
-          }
-        })
-      );
+      if (res.ok) {
+        const successCount: number = data.count ?? 0;
+        const newSaved = new Set(savedItems);
+        for (const item of selected) newSaved.add(itemKey(item));
+        setSavedItems(newSaved);
 
-      setSavedItems(newSaved);
-      if (successCount > 0) {
-        setLastSaveCount(successCount);
-        onSaved?.(successCount);
-      }
-      if (failedItems.length > 0) {
-        console.error('Failed to save items:', failedItems);
-        // Surface errors to user via a state variable
-        setSaveErrors(failedItems);
+        if (successCount > 0) {
+          setLastSaveCount(successCount);
+          onSaved?.(successCount);
+        }
+
+        // Report any items that were rejected during validation
+        if (data.invalid?.length > 0) {
+          setSaveErrors(data.invalid);
+        }
+      } else {
+        const errMsg = data?.error || `HTTP ${res.status}`;
+        setSaveErrors([errMsg]);
+        console.error('Batch save failed:', errMsg);
       }
     } catch (err) {
       console.error('Save error:', err);
