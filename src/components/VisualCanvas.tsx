@@ -196,6 +196,7 @@ export default function VisualCanvas() {
   const [selectedSceneForLoad, setSelectedSceneForLoad] = useState<string | null>(null);
   const [sceneLoadLoading, setSceneLoadLoading] = useState(false);
   const [sceneHasNoItems, setSceneHasNoItems] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // ── History (undo / redo, max 10 steps) ────────────────────────────────────
   const MAX_HISTORY = 10;
@@ -378,6 +379,16 @@ export default function VisualCanvas() {
     setSelectedNodeId(prev => (prev && ids.has(prev) ? null : prev));
     setSelectedCount(0);
   }, [reactFlowInstance, setNodes, setEdges, captureBeforeAction]);
+
+  const handleClearCanvas = useCallback(() => {
+    captureBeforeAction();
+    setNodes([]);
+    setEdges([]);
+    setSelectedNodeId(null);
+    setSelectedCount(0);
+    setShowClearConfirm(false);
+    showToast('Canvas cleared — Ctrl+Z to undo');
+  }, [captureBeforeAction, setNodes, setEdges, showToast]);
 
   // Sync ref — filled later, called by title/content change handlers
   const scheduleSyncRef = useRef<(nodeId: string, field: 'title' | 'content', value: string) => void>(() => {});
@@ -1427,8 +1438,50 @@ export default function VisualCanvas() {
                     onChange={handleFileImport}
                     className="hidden"
                   />
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* Clear canvas */}
+                  <button
+                    onClick={() => setShowClearConfirm(true)}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+                    title="Clear all nodes and edges from canvas"
+                  >
+                    🗑 Clear
+                  </button>
                 </div>
               </Panel>
+
+              {/* Clear canvas confirmation modal */}
+              {showClearConfirm && (
+                <Panel position="top-center" className="!mt-16 !z-50">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-80">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-xl shrink-0">🗑</div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-800">Clear canvas?</p>
+                        <p className="text-xs text-gray-500 mt-0.5">All nodes and edges will be removed.</p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-400 mb-4 border-t border-gray-100 pt-3">
+                      You can undo this with <kbd className="px-1 py-0.5 rounded bg-gray-100 font-mono text-[10px]">Ctrl+Z</kbd>
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setShowClearConfirm(false)}
+                        className="flex-1 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleClearCanvas}
+                        className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
+                      >
+                        Yes, clear
+                      </button>
+                    </div>
+                  </div>
+                </Panel>
+              )}
             </ReactFlow>
           </GraphContext.Provider>
         </div>
