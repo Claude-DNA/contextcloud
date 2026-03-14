@@ -169,9 +169,12 @@ export default function ArcCloudPage() {
 
             {/* Title bar */}
             <div className="flex items-center justify-between mb-6">
-              <h1 className="text-xl font-semibold text-foreground">
-                Arc Cloud — Scenes
-              </h1>
+              <div>
+                <h1 className="text-xl font-semibold text-foreground">
+                  Story Structure
+                </h1>
+                <p className="text-sm text-muted mt-0.5">Build your arc. Each scene is a turning point.</p>
+              </div>
               <button
                 onClick={() => { setAdding(true); setEditingId(null); setFormTitle(''); setFormContent(''); }}
                 disabled={adding}

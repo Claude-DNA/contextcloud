@@ -839,7 +839,15 @@ export default function VisualCanvas() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+      {/* Standalone mode banner — shown when not opened from a scene */}
+      {!sceneId && (
+        <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 shrink-0">
+          <span>Visual Editor — standalone mode</span>
+          <a href="/workspace/arc-cloud" className="text-accent hover:underline">Go to Arc Cloud &rarr;</a>
+        </div>
+      )}
+      <div className="flex flex-1 min-h-0">
       {/* Node type sidebar */}
       {sidebarOpen && (
         <div className="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0" onMouseDown={e => e.stopPropagation()}>
@@ -1196,6 +1204,7 @@ export default function VisualCanvas() {
           {toast}
         </div>
       )}
+      </div>
     </div>
   );
 }
