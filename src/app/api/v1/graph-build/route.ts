@@ -103,21 +103,24 @@ STRUCTURAL RULES — follow exactly
    - If unclear, skip the connection
 
 ════════════════════════════════
-NODE TYPE REFERENCE
+NODE TYPE REFERENCE — USE ONLY THESE EXACT STRINGS
 ════════════════════════════════
 
-| type              | use for                        |
-|-------------------|--------------------------------|
-| scene             | arc scene (spine)              |
-| character         | full character record          |
-| charactersProxy   | character stand-in per scene   |
-| state             | character state in a scene     |
-| world             | world rule or stage location   |
-| theme             | idea or theme                  |
-| bookReference     | book reference                 |
-| filmReference     | film reference                 |
-| musicReference    | music reference                |
-| artReference      | art reference                  |
+"scene"          — for arc scenes (the spine)
+"character"      — for character full records
+"charactersProxy"— for character stand-ins per scene
+"state"          — for character state in a scene
+"world"          — for world rules AND stage locations
+"theme"          — for ideas and themes
+"bookReference"  — for book references
+"filmReference"  — for film references
+"musicReference" — for music references
+"artReference"   — for art references
+"realEventReference" — for real event references
+
+CRITICAL: Do NOT use "chapterAct", "arc", "plot", "chapterPlot", "characterProxy", or any other type.
+Only the 11 types listed above are valid. Any other type string will be rejected.
+Arc scenes MUST use type "scene" — not "chapterAct", not "arc".
 
 ════════════════════════════════
 HANDLE REFERENCE
@@ -154,6 +157,40 @@ EDGE STYLE
 
 All edges: { "animated": true, "style": { "strokeDasharray": "5,5", "stroke": "#ec4899" } }
 Exception — character→proxy and proxy→state edges: { "animated": false, "style": { "stroke": "#8b5cf6", "strokeWidth": 1.5 } }
+
+════════════════════════════════
+EXAMPLE — 1 arc scene, 2 characters, 1 world rule
+════════════════════════════════
+
+Given:
+- ARC SCENES: [0] id:"arc1" title:"Act 1: The Meeting"
+- CHARACTERS: [0] id:"char_jane" title:"Jane"  [1] id:"char_dan" title:"Daniel"
+- WORLD RULES: [0] id:"world1" title:"Zero-G Biology"
+
+Correct output:
+{
+  "nodes": [
+    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"","type":"scene"}},
+    {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"...","type":"character"}},
+    {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"...","type":"character"}},
+    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","type":"charactersProxy"}},
+    {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"Hopeful but afraid.","type":"state"}},
+    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","type":"charactersProxy"}},
+    {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"Resolute, closed off.","type":"state"}},
+    {"id":"node_world1","type":"world","position":{"x":0,"y":300},"data":{"title":"Zero-G Biology","content":"...","type":"world"}}
+  ],
+  "edges": [
+    {"id":"e_jane_proxy","source":"node_char_jane","target":"proxy_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
+    {"id":"e_proxy_state_jane","source":"proxy_char_jane_arc1","target":"state_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
+    {"id":"e_state_jane_scene","source":"state_char_jane_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
+    {"id":"e_dan_proxy","source":"node_char_dan","target":"proxy_char_dan_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
+    {"id":"e_proxy_state_dan","source":"proxy_char_dan_arc1","target":"state_char_dan_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
+    {"id":"e_state_dan_scene","source":"state_char_dan_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
+    {"id":"e_world_scene","source":"node_world1","target":"node_arc1","targetHandle":"world","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}}
+  ]
+}
+
+Note: No "hub_source" handles. Edges connect to named targetHandles: "characters", "world", "plot", "references".
 
 ════════════════════════════════
 OUTPUT FORMAT
@@ -220,8 +257,27 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
 const VALID_NODE_TYPES = new Set([
   'scene', 'character', 'charactersProxy', 'state',
   'world', 'theme', 'bookReference', 'filmReference',
-  'musicReference', 'artReference',
+  'musicReference', 'artReference', 'realEventReference',
 ]);
+
+// Map Gemini's common wrong types to valid ones
+const TYPE_ALIASES: Record<string, string> = {
+  chapterAct: 'scene',
+  chapterPlot: 'scene',
+  arc: 'scene',
+  plot: 'theme',
+  dialogue: 'theme',
+  motivation: 'state',
+  characterProxy: 'charactersProxy',
+  sceneProxy: 'scene',
+  ideasProxy: 'theme',
+  worldProxy: 'world',
+  referencesProxy: 'bookReference',
+};
+
+function normalizeType(t: string): string {
+  return TYPE_ALIASES[t] || t;
+}
 
 function sanitizeGraph(raw: unknown): { nodes: BuildNode[]; edges: BuildEdge[] } {
   if (typeof raw !== 'object' || !raw) return { nodes: [], edges: [] };
@@ -231,7 +287,8 @@ function sanitizeGraph(raw: unknown): { nodes: BuildNode[]; edges: BuildEdge[] }
     .filter((n: unknown) => {
       if (typeof n !== 'object' || !n) return false;
       const node = n as Record<string, unknown>;
-      return typeof node.id === 'string' && VALID_NODE_TYPES.has(node.type as string);
+      const resolvedType = normalizeType(node.type as string || '');
+      return typeof node.id === 'string' && VALID_NODE_TYPES.has(resolvedType);
     })
     .map((n: unknown) => {
       const node = n as Record<string, unknown>;
@@ -239,7 +296,7 @@ function sanitizeGraph(raw: unknown): { nodes: BuildNode[]; edges: BuildEdge[] }
       const data = (node.data as Record<string, unknown>) || {};
       return {
         id: node.id as string,
-        type: node.type as string,
+        type: normalizeType(node.type as string),
         position: {
           x: typeof pos.x === 'number' ? pos.x : 0,
           y: typeof pos.y === 'number' ? pos.y : 0,
