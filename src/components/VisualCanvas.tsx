@@ -231,6 +231,12 @@ export default function VisualCanvas() {
   const [sceneChecklistChecked, setSceneChecklistChecked] = useState<Set<string>>(new Set());
   const [sceneChecklistForScene, setSceneChecklistForScene] = useState<{id: string, title: string} | null>(null);
 
+  // ── Build Graph modal (pre-build scene selector) ───────────────────────────
+  const [showBuildModal, setShowBuildModal] = useState(false);
+  const [buildScenesList, setBuildScenesList] = useState<SceneListItem[]>([]);
+  const [buildScenesChecked, setBuildScenesChecked] = useState<Set<string>>(new Set());
+  const [loadingBuildScenes, setLoadingBuildScenes] = useState(false);
+
   // ── History (undo / redo, max 10 steps) ────────────────────────────────────
   const MAX_HISTORY = 10;
   const undoStack = useRef<HistorySnap[]>([]);
@@ -1129,14 +1135,32 @@ export default function VisualCanvas() {
     navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
   }, [title, nodes, edges, showToast]);
 
+  // ── Open Build Graph modal ───────────────────────────────────────────────────
+  const openBuildModal = useCallback(async () => {
+    setShowBuildModal(true);
+    setLoadingBuildScenes(true);
+    try {
+      const res = await fetch('/api/v1/arc-scenes');
+      const data = await res.json() as { scenes?: SceneListItem[] };
+      const scenes = data.scenes || [];
+      setBuildScenesList(scenes);
+      setBuildScenesChecked(new Set(scenes.map(s => s.id)));
+    } catch {
+      setBuildScenesList([]);
+    }
+    setLoadingBuildScenes(false);
+  }, []);
+
   // ── Auto-Build Graph ─────────────────────────────────────────────────────────
   // Calls /api/v1/graph-build, receives nodes+edges built by AI from cloud items,
   // then replaces the canvas with the generated graph.
-  const handleAutoBuild = useCallback(async () => {
+  const handleAutoBuild = useCallback(async (sceneIds?: string[]) => {
+    setShowBuildModal(false);
     setAutoBuilding(true);
     try {
-      const params: Record<string, string> = {};
+      const params: Record<string, unknown> = {};
       if (activeProjectId) params.project_id = activeProjectId;
+      if (sceneIds?.length) params.scene_ids = sceneIds;
 
       const res = await fetch('/api/v1/graph-build', {
         method: 'POST',
@@ -1481,12 +1505,12 @@ export default function VisualCanvas() {
                     📋 Copy for AI
                   </button>
 
-                  {/* Load from Cloud — AI builds connected graph from cloud items */}
+                  {/* Load from Cloud — opens scene selector, then AI builds graph */}
                   <button
-                    onClick={sceneId ? loadSceneItems : handleAutoBuild}
+                    onClick={sceneId ? loadSceneItems : openBuildModal}
                     disabled={autoBuilding || importingCloud}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={sceneId ? 'Reload scene items' : 'AI builds a connected graph from your cloud items'}
+                    title={sceneId ? 'Reload scene items' : 'Select scenes and build a connected graph with AI'}
                   >
                     {autoBuilding ? '⏳ Building...' : importingCloud ? '☁️ Loading...' : sceneId ? '☁️ Reload Scene' : '✨ Load from Cloud'}
                   </button>
@@ -1522,6 +1546,81 @@ export default function VisualCanvas() {
               </Panel>
 
               {/* Clear canvas confirmation modal */}
+              {/* ── Build Graph modal — scene selector ───────────────────── */}
+              {showBuildModal && (
+                <Panel position="top-center" className="!mt-16 !z-50">
+                  <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-96">
+                    <div className="mb-4">
+                      <p className="text-sm font-semibold text-gray-800">Build Graph from Cloud</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        AI reads your cloud items and builds a connected graph — scenes, characters with state nodes, world rules, references.
+                      </p>
+                    </div>
+
+                    {loadingBuildScenes ? (
+                      <div className="text-xs text-gray-400 py-4 text-center">Loading scenes...</div>
+                    ) : buildScenesList.length === 0 ? (
+                      <div className="text-xs text-gray-500 py-2 mb-4">
+                        No arc scenes found — all cloud items will be used to build the graph.
+                      </div>
+                    ) : (
+                      <div className="mb-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-gray-600">Arc scenes to include ({buildScenesChecked.size}/{buildScenesList.length})</p>
+                          <button
+                            onClick={() => setBuildScenesChecked(
+                              buildScenesChecked.size === buildScenesList.length
+                                ? new Set()
+                                : new Set(buildScenesList.map(s => s.id))
+                            )}
+                            className="text-xs text-indigo-500 hover:text-indigo-700"
+                          >
+                            {buildScenesChecked.size === buildScenesList.length ? 'Deselect all' : 'Select all'}
+                          </button>
+                        </div>
+                        <div className="space-y-1 max-h-52 overflow-y-auto border border-gray-100 rounded-lg p-2">
+                          {buildScenesList.map(scene => (
+                            <label key={scene.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-50 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={buildScenesChecked.has(scene.id)}
+                                onChange={() => setBuildScenesChecked(prev => {
+                                  const next = new Set(prev);
+                                  next.has(scene.id) ? next.delete(scene.id) : next.add(scene.id);
+                                  return next;
+                                })}
+                                className="rounded border-gray-300"
+                              />
+                              <span className="text-xs text-gray-700 truncate">{scene.title}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setShowBuildModal(false)}
+                        className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleAutoBuild(
+                          buildScenesList.length > 0
+                            ? [...buildScenesChecked]
+                            : undefined
+                        )}
+                        disabled={buildScenesList.length > 0 && buildScenesChecked.size === 0}
+                        className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-40"
+                      >
+                        ✨ Build Graph
+                      </button>
+                    </div>
+                  </div>
+                </Panel>
+              )}
+
               {showClearConfirm && (
                 <Panel position="top-center" className="!mt-16 !z-50">
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-80">
