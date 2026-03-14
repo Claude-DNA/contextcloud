@@ -1481,25 +1481,14 @@ export default function VisualCanvas() {
                     📋 Copy for AI
                   </button>
 
-                  {/* Load from Cloud (opens modal with Clouds + Scenes tabs) */}
+                  {/* Load from Cloud — AI builds connected graph from cloud items */}
                   <button
-                    onClick={sceneId ? loadSceneItems : openCloudLoadModal}
-                    disabled={importingCloud}
-                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-                    title={sceneId ? 'Reload scene items' : 'Load items from your Clouds or a Scene'}
-                  >
-                    {importingCloud ? 'Loading...' : sceneId ? '☁️ Reload Scene' : '☁️ Load from Cloud'}
-                  </button>
-                  <div className="w-px h-6 bg-gray-200 mx-1" />
-
-                  {/* Auto-Build Graph */}
-                  <button
-                    onClick={handleAutoBuild}
-                    disabled={autoBuilding}
+                    onClick={sceneId ? loadSceneItems : handleAutoBuild}
+                    disabled={autoBuilding || importingCloud}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="AI builds a connected graph from your cloud items — scenes, characters, states, world"
+                    title={sceneId ? 'Reload scene items' : 'AI builds a connected graph from your cloud items'}
                   >
-                    {autoBuilding ? '⏳ Building...' : '✨ Auto-Build'}
+                    {autoBuilding ? '⏳ Building...' : importingCloud ? '☁️ Loading...' : sceneId ? '☁️ Reload Scene' : '✨ Load from Cloud'}
                   </button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
