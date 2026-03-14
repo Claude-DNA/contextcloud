@@ -34,49 +34,133 @@ for (const nt of NODE_TYPES) {
   nodeTypes[nt.type] = GraphNodeComponent;
 }
 
-function serializeGraphForAI(title: string, nodes: Node[], edges: Edge[]): string {
-  const sections: Record<string, string[]> = {
-    content: [],
-    reference: [],
-    meta: [],
-  };
+// ─── Cloud type → visual node type mapping ───────────────────────────────────
+const CLOUD_TYPE_TO_NODE: Record<string, string> = {
+  characters: 'character',
+  scenes: 'scene',
+  world: 'world',
+  ideas: 'theme',
+  arc: 'chapterAct',
+};
+const REF_TYPE_MAP: Record<string, string> = {
+  music: 'musicReference',
+  film: 'filmReference',
+  book: 'bookReference',
+  art: 'artReference',
+  'real event': 'realEventReference',
+};
+function mapCloudType(cloudType: string, metadata?: Record<string, unknown>): string {
+  if (cloudType === 'references') {
+    const refType = ((metadata?.refType as string) || '').toLowerCase();
+    return REF_TYPE_MAP[refType] || 'bookReference';
+  }
+  return CLOUD_TYPE_TO_NODE[cloudType] || 'theme';
+}
 
+// ─── AI serialiser ────────────────────────────────────────────────────────────
+function serializeGraphForAI(title: string, nodes: Node[], edges: Edge[]): string {
+  const sections: Record<string, string[]> = { content: [], reference: [], meta: [] };
   for (const node of nodes) {
     const config = NODE_TYPE_MAP[node.type || ''];
     if (!config) continue;
-    const nodeTitle = (node.data?.title as string) || '';
-    const nodeContent = (node.data?.content as string) || '';
-    const line = config.category === 'reference'
-      ? `${config.emoji} ${config.label.toUpperCase()}: ${nodeTitle}${nodeContent ? ' \u2014 ' + nodeContent : ''}`
-      : config.category === 'meta'
-        ? `${config.emoji} ${config.label.toUpperCase()}: ${nodeContent || nodeTitle}`
-        : `${config.emoji} ${config.label.toUpperCase()}: ${nodeTitle}\n${nodeContent}`;
+    const t = (node.data?.title as string) || '';
+    const c = (node.data?.content as string) || '';
+    const line =
+      config.category === 'reference'
+        ? `${config.emoji} ${config.label.toUpperCase()}: ${t}${c ? ' — ' + c : ''}`
+        : config.category === 'meta'
+          ? `${config.emoji} ${config.label.toUpperCase()}: ${c || t}`
+          : `${config.emoji} ${config.label.toUpperCase()}: ${t}\n${c}`;
     sections[config.category].push(line);
   }
-
   const edgeLines = edges.map(e => {
     const src = nodes.find(n => n.id === e.source);
     const tgt = nodes.find(n => n.id === e.target);
     return `  ${(src?.data?.title as string) || src?.type || '?'} -> ${(tgt?.data?.title as string) || tgt?.type || '?'}`;
   });
-
   let out = `=== CONTEXT GRAPH: ${title} ===\n\n`;
-  if (sections.content.length > 0) {
-    out += `[CONTENT NODES]\n${sections.content.join('\n\n')}\n\n`;
-  }
-  if (sections.reference.length > 0) {
-    out += `[REFERENCE NODES]\n${sections.reference.join('\n')}\n\n`;
-  }
-  if (sections.meta.length > 0) {
-    out += `[META]\n${sections.meta.join('\n')}\n\n`;
-  }
-  if (edgeLines.length > 0) {
-    out += `[CONNECTIONS]\n${edgeLines.join('\n')}\n\n`;
-  }
+  if (sections.content.length) out += `[CONTENT NODES]\n${sections.content.join('\n\n')}\n\n`;
+  if (sections.reference.length) out += `[REFERENCE NODES]\n${sections.reference.join('\n')}\n\n`;
+  if (sections.meta.length) out += `[META]\n${sections.meta.join('\n')}\n\n`;
+  if (edgeLines.length) out += `[CONNECTIONS]\n${edgeLines.join('\n')}\n\n`;
   out += `=== END GRAPH ===`;
   return out;
 }
 
+// ─── History types ─────────────────────────────────────────────────────────────
+type HistoryNode = {
+  id: string;
+  type?: string;
+  position: { x: number; y: number };
+  width?: number;
+  height?: number;
+  data: Record<string, unknown>;
+};
+type HistorySnap = { nodes: HistoryNode[]; edges: Edge[] };
+
+function snapshotNode(n: Node): HistoryNode {
+  return {
+    id: n.id,
+    type: n.type,
+    position: { ...n.position },
+    width: n.width,
+    height: n.height,
+    data: {
+      type: n.data.type,
+      label: n.data.label,
+      emoji: n.data.emoji,
+      color: n.data.color,
+      title: n.data.title,
+      content: n.data.content,
+      isProxy: n.data.isProxy,
+      isContainer: n.data.isContainer,
+      stateColor: n.data.stateColor,
+      parentNodeId: n.data.parentNodeId,
+      parentLabel: n.data.parentLabel,
+      generatedImage: n.data.generatedImage,
+      graphId: n.data.graphId,
+      externalTitle: n.data.externalTitle,
+      thumbnail: n.data.thumbnail,
+      externalUrl: n.data.externalUrl,
+      source: n.data.source,
+      events: n.data.events,
+      description: n.data.description,
+      trigger: n.data.trigger,
+      rootCause: n.data.rootCause,
+      duration: n.data.duration,
+      resolution: n.data.resolution,
+      model: n.data.model,
+      systemPrompt: n.data.systemPrompt,
+      temperature: n.data.temperature,
+      instructions: n.data.instructions,
+    },
+  };
+}
+
+// ─── Cloud load modal types ───────────────────────────────────────────────────
+interface CloudModalItem {
+  id: string;
+  type: string;
+  cloud_type: string;
+  title: string;
+  content: string;
+  position: { x: number; y: number };
+}
+interface SceneListItem {
+  id: string;
+  title: string;
+  content: string;
+  attached_count: number;
+}
+interface SceneItem {
+  id: string;
+  cloud_type: string;
+  title: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 export default function VisualCanvas() {
   const { data: session } = useSession();
   const reactFlowInstance = useReactFlow();
@@ -98,14 +182,140 @@ export default function VisualCanvas() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importingCloud, setImportingCloud] = useState(false);
   const [exportingRunway, setExportingRunway] = useState(false);
-  // Cloud load modal state
+
+  // ── Cloud load modal ────────────────────────────────────────────────────────
   const [showCloudLoadModal, setShowCloudLoadModal] = useState(false);
   const [cloudLoadLoading, setCloudLoadLoading] = useState(false);
-  const [cloudLoadGroups, setCloudLoadGroups] = useState<Record<string, Array<{ id: string; type: string; cloud_type: string; title: string; content: string; position: { x: number; y: number } }>>>({});
+  const [cloudLoadGroups, setCloudLoadGroups] = useState<Record<string, CloudModalItem[]>>({});
   const [cloudLoadChecked, setCloudLoadChecked] = useState<Set<string>>(new Set());
   const [cloudLoadCollapsed, setCloudLoadCollapsed] = useState<Set<string>>(new Set());
+  // Scenes tab
+  const [cloudLoadTab, setCloudLoadTab] = useState<'clouds' | 'scenes'>('clouds');
+  const [scenesList, setScenesList] = useState<SceneListItem[]>([]);
+  const [scenesListLoading, setScenesListLoading] = useState(false);
+  const [selectedSceneForLoad, setSelectedSceneForLoad] = useState<string | null>(null);
+  const [sceneLoadItems, setSceneLoadItems] = useState<SceneItem[]>([]);
+  const [sceneLoadChecked, setSceneLoadChecked] = useState<Set<string>>(new Set());
+  const [sceneLoadLoading, setSceneLoadLoading] = useState(false);
 
-  // Scene mode
+  // ── History (undo / redo, max 10 steps) ────────────────────────────────────
+  const MAX_HISTORY = 10;
+  const undoStack = useRef<HistorySnap[]>([]);
+  const redoStack = useRef<HistorySnap[]>([]);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+
+  // Stable refs so history restore can attach current handlers without stale closure
+  const nodesRef = useRef<Node[]>(nodes);
+  const edgesRef = useRef<Edge[]>(edges);
+  useEffect(() => { nodesRef.current = nodes; }, [nodes]);
+  useEffect(() => { edgesRef.current = edges; }, [edges]);
+
+  // Forward refs for node handlers (needed by hydrateNode without circular deps)
+  const onTitleChangeRef = useRef<(id: string, v: string) => void>(() => {});
+  const onContentChangeRef = useRef<(id: string, v: string) => void>(() => {});
+  const onZoomToParentRef = useRef<(id: string) => void>(() => {});
+  const onStateColorChangeRef = useRef<(id: string, c: string) => void>(() => {});
+  const onImageGeneratedRef = useRef<(id: string, url: string) => void>(() => {});
+  const onDeleteNodeRef = useRef<(id: string) => void>(() => {});
+  const draftIdRef = useRef<string | null>(null);
+  useEffect(() => { draftIdRef.current = draftId; }, [draftId]);
+
+  // Hydrate a stored node back into a live node with current handlers
+  const hydrateNode = useCallback((sn: HistoryNode): Node => {
+    const config = NODE_TYPE_MAP[sn.type || ''];
+    return {
+      id: sn.id,
+      type: sn.type,
+      position: { ...sn.position },
+      width: sn.width,
+      height: sn.height,
+      dragging: false,
+      selected: false,
+      data: {
+        ...sn.data,
+        label: config?.label || sn.data.label,
+        emoji: config?.emoji || sn.data.emoji,
+        color: config?.color || sn.data.color,
+        graphId: draftIdRef.current,
+        onTitleChange: onTitleChangeRef.current,
+        onContentChange: onContentChangeRef.current,
+        onZoomToParent: onZoomToParentRef.current,
+        onStateColorChange: onStateColorChangeRef.current,
+        onImageGenerated: onImageGeneratedRef.current,
+        onDelete: onDeleteNodeRef.current,
+      },
+    };
+  }, []);
+
+  // Capture current state into undo stack before an action
+  const captureBeforeAction = useCallback(() => {
+    const snap: HistorySnap = {
+      nodes: nodesRef.current.map(snapshotNode),
+      edges: edgesRef.current.map(e => ({ ...e })),
+    };
+    undoStack.current.push(snap);
+    if (undoStack.current.length > MAX_HISTORY) undoStack.current.shift();
+    redoStack.current = [];
+    setCanUndo(true);
+    setCanRedo(false);
+  }, []);
+
+  const undo = useCallback(() => {
+    if (!undoStack.current.length) return;
+    const current: HistorySnap = {
+      nodes: nodesRef.current.map(snapshotNode),
+      edges: edgesRef.current.map(e => ({ ...e })),
+    };
+    redoStack.current.push(current);
+    const snap = undoStack.current.pop()!;
+    setNodes(snap.nodes.map(hydrateNode));
+    setEdges(snap.edges.map(e => ({ ...e })));
+    setCanUndo(undoStack.current.length > 0);
+    setCanRedo(true);
+  }, [setNodes, setEdges, hydrateNode]);
+
+  const redo = useCallback(() => {
+    if (!redoStack.current.length) return;
+    const current: HistorySnap = {
+      nodes: nodesRef.current.map(snapshotNode),
+      edges: edgesRef.current.map(e => ({ ...e })),
+    };
+    undoStack.current.push(current);
+    const snap = redoStack.current.pop()!;
+    setNodes(snap.nodes.map(hydrateNode));
+    setEdges(snap.edges.map(e => ({ ...e })));
+    setCanUndo(true);
+    setCanRedo(redoStack.current.length > 0);
+  }, [setNodes, setEdges, hydrateNode]);
+
+  // Keyboard shortcuts: Ctrl+Z = undo, Ctrl+Y / Ctrl+Shift+Z = redo
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const active = document.activeElement;
+      const inInput =
+        active &&
+        (active.tagName === 'INPUT' ||
+          active.tagName === 'TEXTAREA' ||
+          (active as HTMLElement).isContentEditable);
+      if (inInput) return;
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      }
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        (e.key === 'y' || (e.key === 'z' && e.shiftKey))
+      ) {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [undo, redo]);
+
+  // ── Scene mode ──────────────────────────────────────────────────────────────
   const searchParams = useSearchParams();
   const sceneId = searchParams.get('scene') || null;
   const sceneNameParam = searchParams.get('sceneName') || null;
@@ -114,110 +324,148 @@ export default function VisualCanvas() {
   const pendingSyncRef = useRef<Record<string, { title?: string; content?: string }>>({});
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Show toast helper
+  // ── Toast ───────────────────────────────────────────────────────────────────
   const showToast = useCallback((msg: string) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2500);
   }, []);
 
-  // Image generated handler
-  const handleImageGenerated = useCallback((nodeId: string, url: string) => {
-    setNodes(nds =>
-      nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, generatedImage: url } } : n)
-    );
-  }, [setNodes]);
+  // ── Node handlers ───────────────────────────────────────────────────────────
+  const handleImageGenerated = useCallback(
+    (nodeId: string, url: string) => {
+      setNodes(nds =>
+        nds.map(n =>
+          n.id === nodeId ? { ...n, data: { ...n.data, generatedImage: url } } : n
+        )
+      );
+    },
+    [setNodes]
+  );
 
-  const handleDeleteNode = useCallback((nodeId: string) => {
-    setNodes(nds => nds.filter(n => n.id !== nodeId));
-    setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
-    if (selectedNodeId === nodeId) setSelectedNodeId(null);
-  }, [setNodes, setEdges, selectedNodeId]);
+  const handleDeleteNode = useCallback(
+    (nodeId: string) => {
+      captureBeforeAction();
+      setNodes(nds => nds.filter(n => n.id !== nodeId));
+      setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+      if (selectedNodeId === nodeId) setSelectedNodeId(null);
+    },
+    [setNodes, setEdges, selectedNodeId, captureBeforeAction]
+  );
 
-  // Bulk delete — triggered by keyboard Delete/Backspace on selected nodes
-  const onNodesDelete = useCallback((deleted: Node[]) => {
-    const ids = new Set(deleted.map(n => n.id));
-    setEdges(eds => eds.filter(e => !ids.has(e.source) && !ids.has(e.target)));
-    setSelectedNodeId(prev => (prev && ids.has(prev) ? null : prev));
-  }, [setEdges]);
+  const onNodesDelete = useCallback(
+    (deleted: Node[]) => {
+      const ids = new Set(deleted.map(n => n.id));
+      setEdges(eds => eds.filter(e => !ids.has(e.source) && !ids.has(e.target)));
+      setSelectedNodeId(prev => (prev && ids.has(prev) ? null : prev));
+    },
+    [setEdges]
+  );
 
-  // Track how many nodes are currently selected for the toolbar button
   const [selectedCount, setSelectedCount] = useState(0);
-  const onSelectionChange = useCallback(({ nodes: sel }: { nodes: Node[]; edges: Edge[] }) => {
-    setSelectedCount(sel.length);
-  }, []);
+  const onSelectionChange = useCallback(
+    ({ nodes: sel }: { nodes: Node[]; edges: Edge[] }) => {
+      setSelectedCount(sel.length);
+    },
+    []
+  );
 
   const handleDeleteSelected = useCallback(() => {
     const selected = reactFlowInstance.getNodes().filter(n => n.selected);
     if (selected.length === 0) return;
+    captureBeforeAction();
     const ids = new Set(selected.map(n => n.id));
     setNodes(nds => nds.filter(n => !ids.has(n.id)));
     setEdges(eds => eds.filter(e => !ids.has(e.source) && !ids.has(e.target)));
     setSelectedNodeId(prev => (prev && ids.has(prev) ? null : prev));
     setSelectedCount(0);
-  }, [reactFlowInstance, setNodes, setEdges]);
+  }, [reactFlowInstance, setNodes, setEdges, captureBeforeAction]);
 
-  // Sync ref — filled in later, used by handlers
+  // Sync ref — filled later, called by title/content change handlers
   const scheduleSyncRef = useRef<(nodeId: string, field: 'title' | 'content', value: string) => void>(() => {});
 
-  // Node data change handlers
-  const handleTitleChange = useCallback((nodeId: string, newTitle: string) => {
-    setNodes(nds =>
-      nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, title: newTitle } } : n)
-    );
-    scheduleSyncRef.current(nodeId, 'title', newTitle);
-  }, [setNodes]);
-
-  const handleContentChange = useCallback((nodeId: string, newContent: string) => {
-    setNodes(nds =>
-      nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, content: newContent } } : n)
-    );
-    scheduleSyncRef.current(nodeId, 'content', newContent);
-  }, [setNodes]);
-
-  // Zoom to parent node (for proxy nodes)
-  const onZoomToParent = useCallback((parentNodeId: string) => {
-    const node = reactFlowInstance.getNodes().find((n: Node) => n.id === parentNodeId);
-    if (!node) return;
-    reactFlowInstance.fitView({ nodes: [node], duration: 500, padding: 0.3 });
-  }, [reactFlowInstance]);
-
-  // State color change handler
-  const handleStateColorChange = useCallback((nodeId: string, color: string) => {
-    setNodes(nds => {
-      const updated = nds.map(n =>
-        n.id === nodeId ? { ...n, data: { ...n.data, stateColor: color } } : n
+  const handleTitleChange = useCallback(
+    (nodeId: string, newTitle: string) => {
+      setNodes(nds =>
+        nds.map(n => (n.id === nodeId ? { ...n, data: { ...n.data, title: newTitle } } : n))
       );
-      return updated;
-    });
-    setEdges(currentEdges => {
-      const connectedProxyIds = currentEdges
-        .filter(e => e.source === nodeId)
-        .map(e => e.target);
-      if (connectedProxyIds.length > 0) {
-        setNodes(nds =>
-          nds.map(n => {
-            if (connectedProxyIds.includes(n.id) && n.data.isProxy) {
-              return { ...n, data: { ...n.data, stateColor: color } };
-            }
-            return n;
-          })
+      scheduleSyncRef.current(nodeId, 'title', newTitle);
+    },
+    [setNodes]
+  );
+
+  const handleContentChange = useCallback(
+    (nodeId: string, newContent: string) => {
+      setNodes(nds =>
+        nds.map(n => (n.id === nodeId ? { ...n, data: { ...n.data, content: newContent } } : n))
+      );
+      scheduleSyncRef.current(nodeId, 'content', newContent);
+    },
+    [setNodes]
+  );
+
+  // Wire up forward refs for stable handler references in hydrateNode
+  useEffect(() => {
+    onTitleChangeRef.current = handleTitleChange;
+    onContentChangeRef.current = handleContentChange;
+    onDeleteNodeRef.current = handleDeleteNode;
+    onImageGeneratedRef.current = handleImageGenerated;
+  }, [handleTitleChange, handleContentChange, handleDeleteNode, handleImageGenerated]);
+
+  const onZoomToParent = useCallback(
+    (parentNodeId: string) => {
+      const node = reactFlowInstance.getNodes().find((n: Node) => n.id === parentNodeId);
+      if (!node) return;
+      reactFlowInstance.fitView({ nodes: [node], duration: 500, padding: 0.3 });
+    },
+    [reactFlowInstance]
+  );
+  useEffect(() => { onZoomToParentRef.current = onZoomToParent; }, [onZoomToParent]);
+
+  const handleStateColorChange = useCallback(
+    (nodeId: string, color: string) => {
+      setNodes(nds => {
+        const updated = nds.map(n =>
+          n.id === nodeId ? { ...n, data: { ...n.data, stateColor: color } } : n
         );
-      }
-      return currentEdges;
-    });
-  }, [setNodes, setEdges]);
+        return updated;
+      });
+      setEdges(currentEdges => {
+        const connectedProxyIds = currentEdges
+          .filter(e => e.source === nodeId)
+          .map(e => e.target);
+        if (connectedProxyIds.length > 0) {
+          setNodes(nds =>
+            nds.map(n => {
+              if (connectedProxyIds.includes(n.id) && n.data.isProxy) {
+                return { ...n, data: { ...n.data, stateColor: color } };
+              }
+              return n;
+            })
+          );
+        }
+        return currentEdges;
+      });
+    },
+    [setNodes, setEdges]
+  );
+  useEffect(() => { onStateColorChangeRef.current = handleStateColorChange; }, [handleStateColorChange]);
 
-  // Panel update handler
-  const handlePanelUpdate = useCallback((nodeId: string, field: string, value: unknown) => {
-    setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, [field]: value } } : n));
-  }, [setNodes]);
+  const handlePanelUpdate = useCallback(
+    (nodeId: string, field: string, value: unknown) => {
+      setNodes(nds =>
+        nds.map(n => (n.id === nodeId ? { ...n, data: { ...n.data, [field]: value } } : n))
+      );
+    },
+    [setNodes]
+  );
 
-  // Node click handlers
   // Prevent refocus-click from closing the node panel when Alt+Tabbing back
   useEffect(() => {
     const handleFocus = () => {
       windowJustFocused.current = true;
-      setTimeout(() => { windowJustFocused.current = false; }, 300);
+      setTimeout(() => {
+        windowJustFocused.current = false;
+      }, 300);
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
@@ -229,133 +477,169 @@ export default function VisualCanvas() {
     setSelectedNodeId(null);
   }, []);
 
-  // Parent change handler for proxy nodes
-  const handleParentChange = useCallback((nodeId: string, parentNodeId: string, parentLabel: string) => {
-    setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, parentNodeId, parentLabel } } : n));
-  }, [setNodes]);
+  const handleParentChange = useCallback(
+    (nodeId: string, parentNodeId: string, parentLabel: string) => {
+      setNodes(nds =>
+        nds.map(n =>
+          n.id === nodeId ? { ...n, data: { ...n.data, parentNodeId, parentLabel } } : n
+        )
+      );
+    },
+    [setNodes]
+  );
 
-  // Big nodes list for proxy dropdown
-  const bigNodes = useMemo(() =>
-    nodes.filter(n => n.type === 'character' || n.type === 'scene')
-      .map(n => ({ id: n.id, label: (n.data.title as string) || n.type || 'unnamed' })),
+  const bigNodes = useMemo(
+    () =>
+      nodes
+        .filter(n => n.type === 'character' || n.type === 'scene')
+        .map(n => ({ id: n.id, label: (n.data.title as string) || n.type || 'unnamed' })),
     [nodes]
   );
 
-  // Add node — place at viewport center so it's always visible
-  const addNode = useCallback((config: NodeTypeConfig) => {
-    nodeCounter.current += 1;
-    const id = `node_${nodeCounter.current}_${Date.now()}`;
-    // Convert the center of the visible canvas to flow coordinates
-    const centerPos = (() => {
-      try {
-        const vp = reactFlowInstance.getViewport();
-        // getViewport returns { x, y, zoom } — x/y are the pan offset
-        // The center of the screen in flow coords:
-        const el = document.querySelector('.react-flow') as HTMLElement | null;
-        const w = el?.clientWidth ?? 800;
-        const h = el?.clientHeight ?? 600;
-        return reactFlowInstance.screenToFlowPosition({ x: w / 2, y: h / 2 });
-      } catch {
-        return { x: 250 + Math.random() * 200, y: 150 + Math.random() * 200 };
-      }
-    })();
-    const newNode: Node = {
-      id,
-      type: config.type,
-      position: { x: centerPos.x + (Math.random() - 0.5) * 120, y: centerPos.y + (Math.random() - 0.5) * 80 },
-      dragging: false,
-      selected: false,
-      data: {
-        type: config.type,
-        label: config.label,
-        emoji: config.emoji,
-        color: config.color,
-        title: '',
-        content: '',
-        isProxy: config.isProxy || false,
-        isContainer: config.isContainer || false,
-        stateColor: null,
-        parentNodeId: '',
-        parentLabel: '',
-        graphId: draftId,
-        onTitleChange: handleTitleChange,
-        onContentChange: handleContentChange,
-        onZoomToParent,
-        onStateColorChange: handleStateColorChange,
-        onImageGenerated: handleImageGenerated,
-        onDelete: handleDeleteNode,
-      },
-    };
-    setNodes(nds => [...nds, newNode]);
-  }, [setNodes, draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
-
-  // Import cloud nodes into the canvas (used by both direct load and modal)
-  const loadCloudNodesToCanvas = useCallback((cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }>) => {
-    if (!cloudNodes.length) { showToast('No items to load'); return; }
-
-    const newNodes: Node[] = cloudNodes.map((cn) => {
-      const config = NODE_TYPE_MAP[cn.type];
+  // ── makeNode: create a fully-hydrated node ─────────────────────────────────
+  const makeNode = useCallback(
+    (
+      id: string,
+      type: string,
+      position: { x: number; y: number },
+      data: Record<string, unknown> = {}
+    ): Node => {
+      const config = NODE_TYPE_MAP[type];
       return {
-        id: cn.id,
-        type: cn.type,
-        position: cn.position,
+        id,
+        type,
+        position,
         dragging: false,
         selected: false,
         data: {
-          type: cn.type,
-          label: config?.label || cn.type,
+          type,
+          label: config?.label || type,
           emoji: config?.emoji || '',
           color: config?.color || '#4A90D9',
-          title: cn.title,
-          content: cn.content,
-          isProxy: false,
-          isContainer: false,
-          stateColor: null,
-          parentNodeId: '',
-          parentLabel: '',
-          graphId: draftId,
-          onTitleChange: handleTitleChange,
-          onContentChange: handleContentChange,
-          onZoomToParent,
-          onStateColorChange: handleStateColorChange,
-          onImageGenerated: handleImageGenerated,
-          onDelete: handleDeleteNode,
+          title: data.title || '',
+          content: data.content || '',
+          isProxy: data.isProxy || config?.isProxy || false,
+          isContainer: data.isContainer || config?.isContainer || false,
+          stateColor: data.stateColor || null,
+          parentNodeId: data.parentNodeId || '',
+          parentLabel: data.parentLabel || '',
+          graphId: draftIdRef.current,
+          onTitleChange: onTitleChangeRef.current,
+          onContentChange: onContentChangeRef.current,
+          onZoomToParent: onZoomToParentRef.current,
+          onStateColorChange: onStateColorChangeRef.current,
+          onImageGenerated: onImageGeneratedRef.current,
+          onDelete: onDeleteNodeRef.current,
+          // pass through any extra fields (generatedImage, etc.)
+          ...Object.fromEntries(
+            Object.entries(data).filter(
+              ([k]) =>
+                !['title','content','isProxy','isContainer','stateColor','parentNodeId','parentLabel'].includes(k)
+            )
+          ),
         },
       };
-    });
+    },
+    []
+  );
 
-    setNodes(nds => {
-      const existingIds = new Set(nds.map(n => n.id));
-      return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
-    });
-    showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded from Cloud`);
-    setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
-    setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
-  }, [draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+  // ── addNode ─────────────────────────────────────────────────────────────────
+  const addNode = useCallback(
+    (config: NodeTypeConfig) => {
+      nodeCounter.current += 1;
+      const id = `node_${nodeCounter.current}_${Date.now()}`;
+      const centerPos = (() => {
+        try {
+          const el = document.querySelector('.react-flow') as HTMLElement | null;
+          const w = el?.clientWidth ?? 800;
+          const h = el?.clientHeight ?? 600;
+          return reactFlowInstance.screenToFlowPosition({ x: w / 2, y: h / 2 });
+        } catch {
+          return { x: 250 + Math.random() * 200, y: 150 + Math.random() * 200 };
+        }
+      })();
+      captureBeforeAction();
+      const newNode = makeNode(id, config.type, {
+        x: centerPos.x + (Math.random() - 0.5) * 120,
+        y: centerPos.y + (Math.random() - 0.5) * 80,
+      }, { isProxy: config.isProxy || false, isContainer: config.isContainer || false });
+      setNodes(nds => [...nds, newNode]);
+    },
+    [makeNode, setNodes, reactFlowInstance, captureBeforeAction]
+  );
 
-  // Build API URL with project_id
+  // ── loadCloudNodesToCanvas ──────────────────────────────────────────────────
+  // connectToScene: if trueName is provided, create a hub chapterAct node and
+  // draw edges from it to every loaded item.
+  const loadCloudNodesToCanvas = useCallback(
+    (
+      cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }>,
+      hubTitle?: string
+    ) => {
+      if (!cloudNodes.length) { showToast('No items to load'); return; }
+      captureBeforeAction();
+
+      const newNodes: Node[] = cloudNodes.map(cn =>
+        makeNode(cn.id, cn.type, cn.position, { title: cn.title, content: cn.content })
+      );
+
+      let hubNode: Node | null = null;
+      let newEdges: Edge[] = [];
+
+      if (hubTitle) {
+        const hubId = `hub_${Date.now()}`;
+        const avgX = newNodes.reduce((s, n) => s + n.position.x, 0) / newNodes.length;
+        const minY = Math.min(...newNodes.map(n => n.position.y));
+        hubNode = makeNode(hubId, 'chapterAct', { x: avgX - 100, y: minY - 220 }, { title: hubTitle });
+        newEdges = newNodes.map(n => ({
+          id: `e_hub_${n.id}_${Date.now()}`,
+          source: hubId,
+          target: n.id,
+          animated: true,
+          style: { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '6 3' },
+        }));
+      }
+
+      const allToAdd = [...newNodes, ...(hubNode ? [hubNode] : [])];
+
+      setNodes(nds => {
+        const existingIds = new Set(nds.map(n => n.id));
+        return [...nds, ...allToAdd.filter(n => !existingIds.has(n.id))];
+      });
+      if (newEdges.length) {
+        setEdges(eds => [...eds, ...newEdges]);
+      }
+      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded${hubTitle ? ' for scene' : ' from Cloud'}`);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
+    },
+    [makeNode, setNodes, setEdges, showToast, reactFlowInstance, captureBeforeAction]
+  );
+
+  // ── Cloud API URL ───────────────────────────────────────────────────────────
   const cloudItemsUrl = useMemo(() => {
     const base = '/api/v1/cloud-items/to-nodes';
     return activeProjectId ? `${base}?project_id=${activeProjectId}` : base;
   }, [activeProjectId]);
 
-  // Open the cloud load modal — fetch items and group by cloud_type
+  // ── Open cloud load modal ───────────────────────────────────────────────────
   const openCloudLoadModal = useCallback(async () => {
     setShowCloudLoadModal(true);
     setCloudLoadLoading(true);
+    setCloudLoadTab('clouds');
+    setSelectedSceneForLoad(null);
+    setSceneLoadItems([]);
     try {
       const res = await fetch(cloudItemsUrl);
       const data = await res.json();
-      const allNodes: Array<{ id: string; type: string; cloud_type: string; title: string; content: string; position: { x: number; y: number } }> = data.nodes || [];
-      // Group by cloud_type
-      const groups: Record<string, typeof allNodes> = {};
+      const allNodes: CloudModalItem[] = data.nodes || [];
+      const groups: Record<string, CloudModalItem[]> = {};
       for (const n of allNodes) {
         const ct = n.cloud_type || 'other';
         if (!groups[ct]) groups[ct] = [];
         groups[ct].push(n);
       }
       setCloudLoadGroups(groups);
-      // Check all by default
       setCloudLoadChecked(new Set(allNodes.map(n => n.id)));
       setCloudLoadCollapsed(new Set());
     } catch {
@@ -366,56 +650,105 @@ export default function VisualCanvas() {
     }
   }, [cloudItemsUrl, showToast]);
 
-  // Load checked items from modal
-  const handleCloudLoadConfirm = useCallback(() => {
-    const allItems = Object.values(cloudLoadGroups).flat();
-    const selected = allItems.filter(item => cloudLoadChecked.has(item.id));
-    loadCloudNodesToCanvas(selected);
-    setShowCloudLoadModal(false);
-  }, [cloudLoadGroups, cloudLoadChecked, loadCloudNodesToCanvas]);
-
-  // Direct import (used by scene mode)
-  const importFromCloud = useCallback(async () => {
-    setImportingCloud(true);
+  // ── Scenes tab: fetch scenes list ──────────────────────────────────────────
+  const fetchScenesForModal = useCallback(async () => {
+    setScenesListLoading(true);
     try {
-      const res = await fetch(cloudItemsUrl);
+      const params = new URLSearchParams();
+      if (activeProjectId) params.set('project_id', activeProjectId);
+      const res = await fetch(`/api/v1/arc-scenes?${params}`);
       const data = await res.json();
-      loadCloudNodesToCanvas(data.nodes || []);
-    } catch {
-      showToast('Failed to import from Cloud');
-    } finally {
-      setImportingCloud(false);
-    }
-  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast]);
+      setScenesList(data.scenes || []);
+    } catch { /* ignore */ }
+    setScenesListLoading(false);
+  }, [activeProjectId]);
 
-  // Load scene items (scene mode)
+  const handleSwitchToScenesTab = useCallback(() => {
+    setCloudLoadTab('scenes');
+    setSelectedSceneForLoad(null);
+    setSceneLoadItems([]);
+    setSceneLoadChecked(new Set());
+    fetchScenesForModal();
+  }, [fetchScenesForModal]);
+
+  // ── Scenes tab: select a scene → fetch its items ───────────────────────────
+  const handleSelectSceneForLoad = useCallback(async (sId: string) => {
+    setSelectedSceneForLoad(sId);
+    setSceneLoadItems([]);
+    setSceneLoadChecked(new Set());
+    setSceneLoadLoading(true);
+    try {
+      const res = await fetch(`/api/v1/arc-scenes/${sId}/items`);
+      const data = await res.json();
+      const items: SceneItem[] = data.items || [];
+      setSceneLoadItems(items);
+      setSceneLoadChecked(new Set(items.map(i => i.id)));
+    } catch { /* ignore */ }
+    setSceneLoadLoading(false);
+  }, []);
+
+  // ── Confirm load (both tabs) ────────────────────────────────────────────────
+  const handleCloudLoadConfirm = useCallback(() => {
+    if (cloudLoadTab === 'clouds') {
+      const allItems = Object.values(cloudLoadGroups).flat();
+      const selected = allItems.filter(item => cloudLoadChecked.has(item.id));
+      loadCloudNodesToCanvas(selected);
+    } else {
+      // Scene tab: layout items in columns by type, add hub + edges
+      const selected = sceneLoadItems.filter(i => sceneLoadChecked.has(i.id));
+      if (!selected.length) { showToast('Select at least one item'); return; }
+      const scene = scenesList.find(s => s.id === selectedSceneForLoad);
+
+      const byType = new Map<string, SceneItem[]>();
+      for (const item of selected) {
+        const list = byType.get(item.cloud_type) || [];
+        list.push(item);
+        byType.set(item.cloud_type, list);
+      }
+      const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = [];
+      let colIndex = 0;
+      for (const [, typeItems] of byType) {
+        const x = colIndex * 380 + 80;
+        typeItems.forEach((item, rowIndex) => {
+          const meta = typeof item.metadata === 'string'
+            ? JSON.parse(item.metadata || '{}')
+            : (item.metadata || {});
+          cloudNodes.push({
+            id: `cloud_${item.id}`,
+            type: mapCloudType(item.cloud_type, meta),
+            title: item.title,
+            content: item.content || '',
+            position: { x, y: rowIndex * 220 + 80 },
+          });
+        });
+        colIndex++;
+      }
+      loadCloudNodesToCanvas(cloudNodes, scene?.title || 'Scene');
+    }
+    setShowCloudLoadModal(false);
+  }, [
+    cloudLoadTab, cloudLoadGroups, cloudLoadChecked,
+    sceneLoadItems, sceneLoadChecked, scenesList, selectedSceneForLoad,
+    loadCloudNodesToCanvas, showToast,
+  ]);
+
+  // ── Load scene items (scene mode — auto on entry) ──────────────────────────
   const loadSceneItems = useCallback(async () => {
     if (!sceneId) return;
     setImportingCloud(true);
     try {
       const res = await fetch(`/api/v1/arc-scenes/${sceneId}/items`);
       const data = await res.json();
-      const items: Array<{ id: string; cloud_type: string; title: string; content: string; metadata?: Record<string, unknown> }> = data.items || [];
+      const items: SceneItem[] = data.items || [];
 
-      if (!items.length) { showToast('No items attached to this scene'); return; }
-
-      // Same type mapping as to-nodes
-      const CLOUD_TYPE_TO_NODE: Record<string, string> = {
-        characters: 'character', scenes: 'scene', world: 'world', ideas: 'theme', arc: 'chapterAct',
-      };
-      const REF_TYPE_MAP: Record<string, string> = {
-        music: 'musicReference', film: 'filmReference', book: 'bookReference', art: 'artReference', 'real event': 'realEventReference',
-      };
-      function mapType(cloudType: string, metadata?: Record<string, unknown>): string {
-        if (cloudType === 'references') {
-          const refType = (metadata?.refType as string || '').toLowerCase();
-          return REF_TYPE_MAP[refType] || 'bookReference';
-        }
-        return CLOUD_TYPE_TO_NODE[cloudType] || 'theme';
+      if (!items.length) {
+        showToast('No items attached to this scene — attach items in Arc Cloud first');
+        setImportingCloud(false);
+        return;
       }
 
-      // Group by type for column layout
-      const byType = new Map<string, typeof items>();
+      // Layout: group by cloud_type, arrange in columns
+      const byType = new Map<string, SceneItem[]>();
       for (const item of items) {
         const list = byType.get(item.cloud_type) || [];
         list.push(item);
@@ -427,35 +760,42 @@ export default function VisualCanvas() {
       for (const [, typeItems] of byType) {
         const x = 80 + colIndex * 380;
         typeItems.forEach((item, rowIndex) => {
-          const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata || '{}') : (item.metadata || {});
-          const nodeType = mapType(item.cloud_type, metadata);
-          const config = NODE_TYPE_MAP[nodeType];
-          newNodes.push({
-            id: `cloud_${item.id}`,
-            type: nodeType,
-            position: { x, y: 80 + rowIndex * 220 },
-            dragging: false,
-            selected: false,
-            data: {
-              type: nodeType,
-              label: config?.label || nodeType,
-              emoji: config?.emoji || '',
-              color: config?.color || '#4A90D9',
-              title: item.title,
-              content: item.content || '',
-              isProxy: false, isContainer: false, stateColor: null,
-              parentNodeId: '', parentLabel: '', graphId: draftId,
-              onTitleChange: handleTitleChange, onContentChange: handleContentChange,
-              onZoomToParent, onStateColorChange: handleStateColorChange,
-              onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
-            },
-          });
+          const meta = typeof item.metadata === 'string'
+            ? JSON.parse(item.metadata || '{}')
+            : (item.metadata || {});
+          newNodes.push(
+            makeNode(`cloud_${item.id}`, mapCloudType(item.cloud_type, meta),
+              { x, y: 80 + rowIndex * 220 },
+              { title: item.title, content: item.content || '' })
+          );
         });
         colIndex++;
       }
 
-      setNodes(newNodes);
-      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded from scene`);
+      // Hub node at top center, edges from hub to every item
+      const avgX = newNodes.reduce((s, n) => s + n.position.x, 0) / newNodes.length;
+      const hubId = `scene_hub_${sceneId}`;
+      const hub = makeNode(hubId, 'chapterAct', { x: avgX - 100, y: -180 },
+        { title: sceneName || 'Scene' });
+
+      const hubEdges: Edge[] = newNodes.map(n => ({
+        id: `e_hub_${n.id}`,
+        source: hubId,
+        target: n.id,
+        animated: true,
+        style: { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '6 3' },
+      }));
+
+      const allNodes = [hub, ...newNodes];
+      setNodes(allNodes);
+      setEdges(hubEdges);
+      // Initialise history with this state so first undo goes back to empty
+      undoStack.current = [];
+      redoStack.current = [];
+      setCanUndo(false);
+      setCanRedo(false);
+
+      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded for scene`);
       setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
       setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
     } catch {
@@ -463,9 +803,9 @@ export default function VisualCanvas() {
     } finally {
       setImportingCloud(false);
     }
-  }, [sceneId, draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+  }, [sceneId, sceneName, makeNode, setNodes, setEdges, showToast, reactFlowInstance]);
 
-  // Auto-load scene items on mount in scene mode
+  // Auto-load scene items on mount
   useEffect(() => {
     if (sceneId && !sceneLoaded.current && nodes.length === 0) {
       sceneLoaded.current = true;
@@ -473,7 +813,7 @@ export default function VisualCanvas() {
     }
   }, [sceneId, nodes.length, loadSceneItems]);
 
-  // Fetch scene name if not provided via query param
+  // Fetch scene name if not in query params
   useEffect(() => {
     if (sceneId && !sceneName) {
       fetch(`/api/v1/arc-scenes/${sceneId}/scene-info`)
@@ -483,81 +823,80 @@ export default function VisualCanvas() {
     }
   }, [sceneId, sceneName]);
 
-  // Debounced sync back to cloud_items
-  const flushSync = useCallback(() => {
+  // ── Cloud sync: debounced PATCH back to cloud_items ─────────────────────────
+  // Works for ANY cloud_ prefixed node in ANY mode (scene or standalone).
+  const flushSync = useCallback((): number => {
     const pending = { ...pendingSyncRef.current };
     pendingSyncRef.current = {};
-    for (const [itemId, changes] of Object.entries(pending)) {
-      fetch(`/api/v1/cloud-items/${itemId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(changes),
-      }).catch(() => {
-        showToast('Failed to sync changes to cloud');
-      });
-    }
+    const entries = Object.entries(pending);
+    if (!entries.length) return 0;
+    Promise.all(
+      entries.map(([itemId, changes]) =>
+        fetch(`/api/v1/cloud-items/${itemId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(changes),
+        })
+      )
+    ).catch(() => showToast('Some cloud syncs failed'));
+    return entries.length;
   }, [showToast]);
 
-  const scheduleSyncForNode = useCallback((nodeId: string, field: 'title' | 'content', value: string) => {
-    if (!nodeId.startsWith('cloud_')) return;
-    const itemId = nodeId.replace('cloud_', '');
-    pendingSyncRef.current[itemId] = {
-      ...pendingSyncRef.current[itemId],
-      [field]: value,
-    };
-    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(flushSync, 1000);
-  }, [flushSync]);
+  const scheduleSyncForNode = useCallback(
+    (nodeId: string, field: 'title' | 'content', value: string) => {
+      if (!nodeId.startsWith('cloud_')) return;
+      const itemId = nodeId.replace('cloud_', '');
+      pendingSyncRef.current[itemId] = {
+        ...pendingSyncRef.current[itemId],
+        [field]: value,
+      };
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = setTimeout(flushSync, 1000);
+    },
+    [flushSync]
+  );
 
-  // Wire up the sync ref so handlers can call it
-  scheduleSyncRef.current = sceneId ? scheduleSyncForNode : () => {};
+  // Always wire up cloud sync (not just in scene mode)
+  scheduleSyncRef.current = scheduleSyncForNode;
 
-  // Connect edges
+  // ── Connect edges ───────────────────────────────────────────────────────────
   const onConnect = useCallback(
     (connection: Connection) => {
-      setEdges(eds => addEdge({ ...connection, animated: true, style: { stroke: '#c4c8d0', strokeDasharray: '5 5' } }, eds));
-
-      // State -> Proxy recolor mechanic
+      captureBeforeAction();
+      setEdges(eds =>
+        addEdge(
+          { ...connection, animated: true, style: { stroke: '#c4c8d0', strokeDasharray: '5 5' } },
+          eds
+        )
+      );
+      // State → Proxy recolor
       setNodes(nds => {
-        const sourceNode = nds.find(n => n.id === connection.source);
-        const targetNode = nds.find(n => n.id === connection.target);
-        if (
-          sourceNode && targetNode &&
-          sourceNode.data.type === 'state' &&
-          targetNode.data.isProxy &&
-          sourceNode.data.stateColor
-        ) {
+        const src = nds.find(n => n.id === connection.source);
+        const tgt = nds.find(n => n.id === connection.target);
+        if (src && tgt && src.data.type === 'state' && tgt.data.isProxy && src.data.stateColor) {
           return nds.map(n =>
             n.id === connection.target
-              ? { ...n, data: { ...n.data, stateColor: sourceNode.data.stateColor } }
+              ? { ...n, data: { ...n.data, stateColor: src.data.stateColor } }
               : n
           );
         }
         return nds;
       });
     },
-    [setEdges, setNodes]
+    [setEdges, setNodes, captureBeforeAction]
   );
 
-  // Validate connections
   const isValidConnection = useCallback(
-    (connection: Edge | Connection) => {
-      if (connection.source === connection.target) return false;
-      return true;
-    },
+    (connection: Edge | Connection) => connection.source !== connection.target,
     []
   );
 
-  // --- Save: serialize node data for persistence ---
+  // ── Serialise nodes for draft save (strips function refs) ───────────────────
   const cleanNodesForSave = useCallback((nodesToClean: Node[]) => {
     return nodesToClean.map(n => {
       const clean: Record<string, unknown> = {
-        type: n.data.type,
-        label: n.data.label,
-        emoji: n.data.emoji,
-        color: n.data.color,
-        title: n.data.title,
-        content: n.data.content,
+        type: n.data.type, label: n.data.label, emoji: n.data.emoji, color: n.data.color,
+        title: n.data.title, content: n.data.content,
       };
       if (n.data.isProxy) clean.isProxy = true;
       if (n.data.isContainer) clean.isContainer = true;
@@ -569,15 +908,12 @@ export default function VisualCanvas() {
       if (n.data.thumbnail) clean.thumbnail = n.data.thumbnail;
       if (n.data.externalUrl) clean.externalUrl = n.data.externalUrl;
       if (n.data.source) clean.source = n.data.source;
-      // Arc node fields
       if (n.data.events) clean.events = n.data.events;
       if (n.data.description) clean.description = n.data.description;
-      // Motivation node fields
       if (n.data.trigger) clean.trigger = n.data.trigger;
       if (n.data.rootCause) clean.rootCause = n.data.rootCause;
       if (n.data.duration) clean.duration = n.data.duration;
       if (n.data.resolution) clean.resolution = n.data.resolution;
-      // AI node fields
       if (n.data.model) clean.model = n.data.model;
       if (n.data.apiKey) clean.apiKey = n.data.apiKey;
       if (n.data.systemPrompt) clean.systemPrompt = n.data.systemPrompt;
@@ -587,12 +923,13 @@ export default function VisualCanvas() {
     });
   }, []);
 
+  // ── Save: flush cloud sync first, then persist draft ───────────────────────
   const save = useCallback(async () => {
     if (!session) return;
     setSaving(true);
+    const synced = flushSync();
     try {
       const cleanNodes = cleanNodesForSave(nodes);
-
       const method = draftId ? 'PUT' : 'POST';
       const body = {
         ...(draftId ? { id: draftId } : {}),
@@ -601,30 +938,26 @@ export default function VisualCanvas() {
         type: 'graph',
         canvas: { nodes: cleanNodes, edges },
       };
-
       const res = await fetch('/api/v1/drafts', {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
       const data = await res.json();
-
-      if (!res.ok) {
-        showToast(data.error || 'Save failed');
-        return;
-      }
-
-      if (!draftId && data.draft?.id) {
-        setDraftId(data.draft.id);
-      }
-      showToast('Saved!');
+      if (!res.ok) { showToast(data.error || 'Save failed'); return; }
+      if (!draftId && data.draft?.id) setDraftId(data.draft.id);
+      showToast(
+        synced > 0
+          ? `Saved! (${synced} cloud item${synced > 1 ? 's' : ''} synced)`
+          : 'Saved!'
+      );
     } catch {
       showToast('Save failed');
     }
     setSaving(false);
-  }, [session, draftId, title, nodes, edges, showToast, cleanNodesForSave]);
+  }, [session, draftId, title, nodes, edges, showToast, cleanNodesForSave, flushSync]);
 
-  // Publish
+  // ── Publish ─────────────────────────────────────────────────────────────────
   const publish = useCallback(async () => {
     if (!session) return;
     setPublishing(true);
@@ -636,69 +969,46 @@ export default function VisualCanvas() {
         body: JSON.stringify({ draftId, title, type: 'graph' }),
       });
       const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'Publish failed');
-      } else {
-        showToast(`Published! ${data.published?.url || ''}`);
-      }
-    } catch {
-      showToast('Publish failed');
-    }
+      if (!res.ok) showToast(data.error || 'Publish failed');
+      else showToast(`Published! ${data.published?.url || ''}`);
+    } catch { showToast('Publish failed'); }
     setPublishing(false);
   }, [session, draftId, title, save, showToast]);
 
-  // Copy for AI
+  // ── Copy for AI ─────────────────────────────────────────────────────────────
   const copyForAI = useCallback(() => {
     const text = serializeGraphForAI(title, nodes, edges);
-    navigator.clipboard.writeText(text).then(() => {
-      showToast('Copied to clipboard!');
-    });
+    navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
   }, [title, nodes, edges, showToast]);
 
-  // --- File import handler ---
+  // ── File import ─────────────────────────────────────────────────────────────
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     setImporting(true);
     try {
       const formData = new FormData();
       formData.append('file', file);
-
-      const res = await fetch('/api/v1/import', {
-        method: 'POST',
-        body: formData,
-      });
+      const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
       const data = await res.json();
-
-      if (!res.ok) {
-        showToast(data.error || 'Import failed');
-        return;
-      }
-
+      if (!res.ok) { showToast(data.error || 'Import failed'); return; }
       if (data.saved && data.items) {
-        // File import now saves to cloud_items — user imports to canvas via "Import from Cloud"
-        showToast(`${data.saved} items saved to your clouds — click Import from Cloud to view them`);
+        showToast(`${data.saved} items saved to your clouds — click Load from Cloud to view them`);
       }
-    } catch {
-      showToast('Import failed');
-    }
+    } catch { showToast('Import failed'); }
     setImporting(false);
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [showToast]);
 
-  // Categorized node types for sidebar
-  const categorized = useMemo(() => {
-    return {
-      content: NODE_TYPES.filter(n => n.category === 'content' && !n.isProxy),
-      narrative: NODE_TYPES.filter(n => n.category === 'narrative' as NodeTypeConfig['category']),
-      proxy: NODE_TYPES.filter(n => n.isProxy === true),
-      reference: NODE_TYPES.filter(n => n.category === 'reference'),
-      meta: NODE_TYPES.filter(n => n.category === 'meta'),
-      container: NODE_TYPES.filter(n => n.category === 'container'),
-    };
-  }, []);
+  // ── Categorised node types for sidebar ─────────────────────────────────────
+  const categorized = useMemo(() => ({
+    content: NODE_TYPES.filter(n => n.category === 'content' && !n.isProxy),
+    narrative: NODE_TYPES.filter(n => n.category === 'narrative' as NodeTypeConfig['category']),
+    proxy: NODE_TYPES.filter(n => n.isProxy === true),
+    reference: NODE_TYPES.filter(n => n.category === 'reference'),
+    meta: NODE_TYPES.filter(n => n.category === 'meta'),
+    container: NODE_TYPES.filter(n => n.category === 'container'),
+  }), []);
 
   if (!session) {
     return (
@@ -708,439 +1018,595 @@ export default function VisualCanvas() {
     );
   }
 
+  // ─────────────────────────────────────────────────────────────────────────────
+  // JSX
+  // ─────────────────────────────────────────────────────────────────────────────
+  const CLOUD_TYPE_LABELS: Record<string, string> = {
+    characters: 'Characters', scenes: 'Stage', world: 'World',
+    ideas: 'Ideas', references: 'References', arc: 'Arc',
+  };
+  const CLOUD_TYPE_EMOJI: Record<string, string> = {
+    characters: '👤', scenes: '🎬', world: '🌍', ideas: '💡', references: '📑', arc: '📈',
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
-      {/* Standalone mode banner — shown when not opened from a scene */}
+      {/* Standalone mode banner */}
       {!sceneId && (
         <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 shrink-0">
           <span>Visual Editor — standalone mode</span>
-          <a href="/workspace/arc-cloud" className="text-accent hover:underline">Go to Arc Cloud &rarr;</a>
+          <a href="/workspace/arc-cloud" className="text-accent hover:underline">
+            Go to Arc Cloud →
+          </a>
         </div>
       )}
+
       <div className="flex flex-1 min-h-0">
-      {/* Node type sidebar */}
-      {sidebarOpen && (
-        <div className="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0" onMouseDown={e => e.stopPropagation()}>
-          <div className="p-3">
-            {/* Title input */}
-            <div className="mb-3">
-              <input
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                className="w-full bg-gray-50 text-gray-800 text-sm font-medium rounded px-2 py-1.5 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-200"
-                placeholder="Graph title..."
-              />
-            </div>
-
-            <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
-
-            {/* Container Nodes */}
-            {categorized.container.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs text-indigo-600 font-medium mb-2">Subclouds</div>
-                <div className="space-y-0.5">
-                  {categorized.container.map(nt => (
-                    <button
-                      key={nt.type}
-                      onClick={() => addNode(nt)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700"
-                    >
-                      <span>{nt.emoji}</span>
-                      <span>{nt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Content Nodes */}
-            {categorized.content.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs text-blue-600 font-medium mb-2">Content</div>
-                <div className="space-y-0.5">
-                  {categorized.content.map(nt => (
-                    <button
-                      key={nt.type}
-                      onClick={() => addNode(nt)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700"
-                    >
-                      <span>{nt.emoji}</span>
-                      <span>{nt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Narrative Nodes */}
-            {categorized.narrative.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs text-cyan-600 font-medium mb-2">Narrative</div>
-                <div className="space-y-0.5">
-                  {categorized.narrative.map(nt => (
-                    <button
-                      key={nt.type}
-                      onClick={() => addNode(nt)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700"
-                    >
-                      <span>{nt.emoji}</span>
-                      <span>{nt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Proxy Nodes */}
-            {categorized.proxy.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs text-purple-600 font-medium mb-2">Proxy</div>
-                <div className="space-y-0.5">
-                  {categorized.proxy.map(nt => (
-                    <button
-                      key={nt.type}
-                      onClick={() => addNode(nt)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-600"
-                    >
-                      <span>{nt.emoji}</span>
-                      <span>{nt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Reference Nodes */}
-            {categorized.reference.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs text-amber-600 font-medium mb-2">Reference</div>
-                <div className="space-y-0.5">
-                  {categorized.reference.map(nt => (
-                    <button
-                      key={nt.type}
-                      onClick={() => addNode(nt)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700"
-                    >
-                      <span>{nt.emoji}</span>
-                      <span>{nt.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Meta Nodes */}
-            {categorized.meta.length > 0 && (
-              <div className="mb-4">
-                <div className="text-xs text-purple-600 font-medium mb-2">Meta</div>
-                <div className="space-y-0.5">
-                  {categorized.meta.map(nt => (
-                    <button
-                      key={nt.type}
-                      onClick={() => addNode(nt)}
-                      className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700"
-                    >
-                      <span>{nt.emoji}</span>
-                      <span>{nt.label}</span>
-                      {nt.type === 'state' && (
-                        <span className="flex gap-0.5 ml-auto">
-                          {Object.values(STATE_COLORS).map(({ hex }, i) => (
-                            <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: hex, display: 'inline-block' }} />
-                          ))}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Canvas */}
-      <div className="flex-1 relative">
-        <GraphContext.Provider value={{ bigNodes, onParentChange: handleParentChange }}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            isValidConnection={isValidConnection}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            onNodesDelete={onNodesDelete}
-            onSelectionChange={onSelectionChange}
-            nodeTypes={nodeTypes}
-            connectionMode={ConnectionMode.Loose}
-            deleteKeyCode={['Backspace', 'Delete']}
-            selectionOnDrag={true}
-            panOnDrag={[1, 2]}
-            panOnScroll={true}
-            panActivationKeyCode="Space"
-            multiSelectionKeyCode="Shift"
-            fitView
-            className="bg-[#f5f5fa]"
+        {/* Node type sidebar */}
+        {sidebarOpen && (
+          <div
+            className="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0"
+            onMouseDown={e => e.stopPropagation()}
           >
-            <Controls position="bottom-left" className="!bg-white !border-gray-200 !shadow-sm [&>button]:!bg-white [&>button]:!border-gray-200 [&>button]:!text-gray-600 [&>button:hover]:!bg-gray-50" />
-            <MiniMap
-              position="bottom-right"
-              nodeColor={(n) => NODE_TYPE_MAP[n.type || '']?.color || '#6b7280'}
-              maskColor="rgba(255,255,255,0.7)"
-              className="!bg-white !border-gray-200"
-            />
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
-
-            {/* Scene banner */}
-            {sceneId && (
-              <Panel position="top-center" className="!m-0">
-                <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 text-sm shadow-sm rounded-b-lg">
-                  <span className="text-gray-500">Scene:</span>
-                  <span className="font-medium text-gray-800">{sceneName || 'Loading...'}</span>
-                  <a
-                    href="/workspace/arc-cloud"
-                    className="ml-3 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
-                  >
-                    Back to Arc Cloud
-                  </a>
-                </div>
-              </Panel>
-            )}
-
-            {/* Top toolbar */}
-            <Panel position="top-left" className="!m-3">
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex items-center gap-1">
-                <button
-                  onClick={() => setSidebarOpen(s => !s)}
-                  className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-                  title="Toggle node palette"
-                >
-                  {sidebarOpen ? '\u25C0' : '\u25B6'} Nodes
-                </button>
-                <div className="w-px h-6 bg-gray-200 mx-1" />
-                <button
-                  onClick={() => setShowDraftBrowser(true)}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-                  title="Open existing draft"
-                >
-                  Open
-                </button>
-                <div className="w-px h-6 bg-gray-200 mx-1" />
-<button
-                  onClick={save}
-                  disabled={saving}
-                  className="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-white transition-colors"
-                >
-                  {saving ? 'Saving...' : 'Save'}
-                </button>
-                <button
-                  onClick={publish}
-                  disabled={publishing}
-                  className="px-3 py-1.5 text-xs font-medium bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 rounded-lg text-white transition-colors"
-                >
-                  {publishing ? 'Publishing...' : 'Publish'}
-                </button>
-                <button
-                  onClick={async () => {
-                    setExportingRunway(true);
-                    try {
-                      let projectTitle: string | undefined;
-                      try { projectTitle = localStorage.getItem('cc_chat_title') || undefined; } catch { /* ignore */ }
-                      const res = await fetch('/api/v1/export/runway', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ project_title: projectTitle }),
-                      });
-                      if (!res.ok) throw new Error('Export failed');
-                      const manifest = await res.json();
-                      const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${(manifest.project || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')}-runway-manifest.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    } catch { /* ignore */ }
-                    setExportingRunway(false);
-                  }}
-                  disabled={exportingRunway}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                  title="Export manifest for Runway"
-                >
-                  {exportingRunway ? 'Exporting...' : '\u{1F3AC} Runway'}
-                </button>
-                {selectedCount > 0 && (
-                  <>
-                    <div className="w-px h-6 bg-gray-200 mx-1" />
-                    <button
-                      onClick={handleDeleteSelected}
-                      className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
-                      title={`Delete ${selectedCount} selected node${selectedCount > 1 ? 's' : ''}`}
-                    >
-                      {'\u{1F5D1}'} Delete {selectedCount}
-                    </button>
-                  </>
-                )}
-                <div className="w-px h-6 bg-gray-200 mx-1" />
-                <button
-                  onClick={copyForAI}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-indigo-600 hover:bg-gray-100 transition-colors"
-                  title="Copy graph as text for AI"
-                >
-                  {'\u{1F4CB}'} Copy for AI
-                </button>
-                <button
-                  onClick={sceneId ? loadSceneItems : openCloudLoadModal}
-                  disabled={importingCloud}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
-                  title="Load items from your clouds"
-                >
-                  {importingCloud ? 'Loading...' : sceneId ? '\u{2601}\u{FE0F} Reload Scene' : '\u{2601}\u{FE0F} Load from Cloud'}
-                </button>
-                <div className="w-px h-6 bg-gray-200 mx-1" />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={importing}
-                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                  title="Upload file (TXT, MD, DOCX)"
-                >
-                  {importing ? 'Uploading...' : '\u{1F4E4} Upload File'}
-                </button>
+            <div className="p-3">
+              <div className="mb-3">
                 <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".txt,.md,.docx,.pdf"
-                  onChange={handleFileImport}
-                  className="hidden"
+                  value={title}
+                  onChange={e => setTitle(e.target.value)}
+                  className="w-full bg-gray-50 text-gray-800 text-sm font-medium rounded px-2 py-1.5 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-200"
+                  placeholder="Graph title..."
                 />
               </div>
-            </Panel>
-          </ReactFlow>
-        </GraphContext.Provider>
-      </div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
 
-      {showDraftBrowser && (
-        <DraftBrowser
-          onLoad={(loadedNodes, loadedEdges, loadedTitle, loadedDraftId) => {
-            setNodes(loadedNodes);
-            setEdges(loadedEdges);
-            setTitle(loadedTitle);
-            setDraftId(loadedDraftId);
-            setShowDraftBrowser(false);
-          }}
-          onClose={() => setShowDraftBrowser(false)}
-        />
-      )}
-
-      {/* Node Editor Panel (n8n-style) */}
-      <NodePanel
-        node={nodes.find(n => n.id === selectedNodeId) || null}
-        nodes={nodes}
-        edges={edges}
-        onClose={() => setSelectedNodeId(null)}
-        onUpdate={handlePanelUpdate}
-        onDelete={handleDeleteNode}
-      />
-
-      {/* Cloud Load Modal */}
-      {showCloudLoadModal && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCloudLoadModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">Load Cloud Items</h2>
-                {activeProjectId && (
-                  <span className="text-xs text-gray-500">
-                    Project: {projects.find(p => p.id === activeProjectId)?.title || 'Selected project'}
-                  </span>
-                )}
-              </div>
-              <button onClick={() => setShowCloudLoadModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
-            </div>
-
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
-              {cloudLoadLoading ? (
-                <div className="flex items-center justify-center py-12 text-gray-400">
-                  <svg className="animate-spin h-6 w-6 mr-2" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                  Loading items...
+              {categorized.container.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-indigo-600 font-medium mb-2">Subclouds</div>
+                  <div className="space-y-0.5">
+                    {categorized.container.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              ) : Object.keys(cloudLoadGroups).length === 0 ? (
-                <div className="text-center py-12 text-gray-400">No cloud items found{activeProjectId ? ' for this project' : ''}.</div>
-              ) : (
-                Object.entries(cloudLoadGroups).map(([cloudType, items]) => {
-                  const CLOUD_TYPE_LABELS: Record<string, string> = {
-                    characters: 'Characters', scenes: 'Stage', world: 'World',
-                    ideas: 'Ideas', references: 'References', arc: 'Arc',
-                  };
-                  const CLOUD_TYPE_EMOJI: Record<string, string> = {
-                    characters: '\u{1F464}', scenes: '\u{1F3AC}', world: '\u{1F30D}',
-                    ideas: '\u{1F4A1}', references: '\u{1F4D1}', arc: '\u{1F4C8}',
-                  };
-                  const label = CLOUD_TYPE_LABELS[cloudType] || cloudType;
-                  const emoji = CLOUD_TYPE_EMOJI[cloudType] || '\u{2601}\u{FE0F}';
-                  const isCollapsed = cloudLoadCollapsed.has(cloudType);
-                  const groupCheckedCount = items.filter(i => cloudLoadChecked.has(i.id)).length;
-                  const allChecked = groupCheckedCount === items.length;
-
-                  return (
-                    <div key={cloudType} className="border border-gray-200 rounded-lg overflow-hidden">
-                      <div
-                        className="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer select-none hover:bg-gray-100 transition-colors"
-                        onClick={() => setCloudLoadCollapsed(prev => {
-                          const next = new Set(prev);
-                          isCollapsed ? next.delete(cloudType) : next.add(cloudType);
-                          return next;
-                        })}
-                      >
-                        <span className="text-xs text-gray-400">{isCollapsed ? '\u{25B6}' : '\u{25BC}'}</span>
-                        <input
-                          type="checkbox"
-                          checked={allChecked}
-                          onChange={e => {
-                            e.stopPropagation();
-                            setCloudLoadChecked(prev => {
-                              const next = new Set(prev);
-                              items.forEach(i => allChecked ? next.delete(i.id) : next.add(i.id));
-                              return next;
-                            });
-                          }}
-                          className="rounded border-gray-300"
-                        />
-                        <span>{emoji}</span>
-                        <span className="text-sm font-medium text-gray-700">{label}</span>
-                        <span className="text-xs text-gray-400 ml-auto">{groupCheckedCount}/{items.length}</span>
-                      </div>
-                      {!isCollapsed && (
-                        <div className="px-3 py-1 space-y-0.5 max-h-48 overflow-y-auto">
-                          {items.map(item => (
-                            <label key={item.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
-                              <input
-                                type="checkbox"
-                                checked={cloudLoadChecked.has(item.id)}
-                                onChange={() => setCloudLoadChecked(prev => {
-                                  const next = new Set(prev);
-                                  next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                                  return next;
-                                })}
-                                className="rounded border-gray-300"
-                              />
-                              <span className="text-gray-700 truncate">{item.title || '(untitled)'}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
+              )}
+              {categorized.content.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-blue-600 font-medium mb-2">Content</div>
+                  <div className="space-y-0.5">
+                    {categorized.content.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {categorized.narrative.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-cyan-600 font-medium mb-2">Narrative</div>
+                  <div className="space-y-0.5">
+                    {categorized.narrative.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {categorized.proxy.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-purple-600 font-medium mb-2">Proxy</div>
+                  <div className="space-y-0.5">
+                    {categorized.proxy.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-600">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {categorized.reference.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-amber-600 font-medium mb-2">Reference</div>
+                  <div className="space-y-0.5">
+                    {categorized.reference.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {categorized.meta.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-purple-600 font-medium mb-2">Meta</div>
+                  <div className="space-y-0.5">
+                    {categorized.meta.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                        {nt.type === 'state' && (
+                          <span className="flex gap-0.5 ml-auto">
+                            {Object.values(STATE_COLORS).map(({ hex }, i) => (
+                              <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: hex, display: 'inline-block' }} />
+                            ))}
+                          </span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
+          </div>
+        )}
 
-            {/* Footer */}
-            {!cloudLoadLoading && Object.keys(cloudLoadGroups).length > 0 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+        {/* Canvas */}
+        <div className="flex-1 relative">
+          <GraphContext.Provider value={{ bigNodes, onParentChange: handleParentChange }}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              isValidConnection={isValidConnection}
+              onNodeClick={onNodeClick}
+              onPaneClick={onPaneClick}
+              onNodesDelete={onNodesDelete}
+              onSelectionChange={onSelectionChange}
+              nodeTypes={nodeTypes}
+              connectionMode={ConnectionMode.Loose}
+              deleteKeyCode={['Backspace', 'Delete']}
+              selectionOnDrag={true}
+              panOnDrag={[1, 2]}
+              panOnScroll={true}
+              panActivationKeyCode="Space"
+              multiSelectionKeyCode="Shift"
+              fitView
+              className="bg-[#f5f5fa]"
+            >
+              <Controls
+                position="bottom-left"
+                className="!bg-white !border-gray-200 !shadow-sm [&>button]:!bg-white [&>button]:!border-gray-200 [&>button]:!text-gray-600 [&>button:hover]:!bg-gray-50"
+              />
+              <MiniMap
+                position="bottom-right"
+                nodeColor={n => NODE_TYPE_MAP[n.type || '']?.color || '#6b7280'}
+                maskColor="rgba(255,255,255,0.7)"
+                className="!bg-white !border-gray-200"
+              />
+              <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
+
+              {/* Scene banner */}
+              {sceneId && (
+                <Panel position="top-center" className="!m-0">
+                  <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 text-sm shadow-sm rounded-b-lg">
+                    <span className="text-gray-500">Scene:</span>
+                    <span className="font-medium text-gray-800">{sceneName || 'Loading...'}</span>
+                    <a
+                      href="/workspace/arc-cloud"
+                      className="ml-3 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
+                    >
+                      ← Back to Arc Cloud
+                    </a>
+                  </div>
+                </Panel>
+              )}
+
+              {/* Top toolbar */}
+              <Panel position="top-left" className="!m-3">
+                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex items-center gap-1 flex-wrap">
+                  {/* Sidebar toggle */}
+                  <button
+                    onClick={() => setSidebarOpen(s => !s)}
+                    className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+                    title="Toggle node palette"
+                  >
+                    {sidebarOpen ? '◀' : '▶'} Nodes
+                  </button>
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* History: Undo / Redo */}
+                  <button
+                    onClick={undo}
+                    disabled={!canUndo}
+                    className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Undo (Ctrl+Z)"
+                  >
+                    ↩ Undo
+                  </button>
+                  <button
+                    onClick={redo}
+                    disabled={!canRedo}
+                    className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Redo (Ctrl+Y)"
+                  >
+                    ↪ Redo
+                  </button>
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* Open draft */}
+                  <button
+                    onClick={() => setShowDraftBrowser(true)}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+                    title="Open existing draft"
+                  >
+                    Open
+                  </button>
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* Save (flushes cloud sync too) */}
+                  <button
+                    onClick={save}
+                    disabled={saving}
+                    className="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-white transition-colors"
+                    title="Save draft + sync changes to Clouds"
+                  >
+                    {saving ? 'Saving...' : '💾 Save'}
+                  </button>
+                  <button
+                    onClick={publish}
+                    disabled={publishing}
+                    className="px-3 py-1.5 text-xs font-medium bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 rounded-lg text-white transition-colors"
+                  >
+                    {publishing ? 'Publishing...' : 'Publish'}
+                  </button>
+
+                  {/* Runway export */}
+                  <button
+                    onClick={async () => {
+                      setExportingRunway(true);
+                      try {
+                        let projectTitle: string | undefined;
+                        try { projectTitle = localStorage.getItem('cc_chat_title') || undefined; } catch { /* ignore */ }
+                        const res = await fetch('/api/v1/export/runway', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ project_title: projectTitle }),
+                        });
+                        if (!res.ok) throw new Error('Export failed');
+                        const manifest = await res.json();
+                        const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${(manifest.project || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')}-runway-manifest.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      } catch { /* ignore */ }
+                      setExportingRunway(false);
+                    }}
+                    disabled={exportingRunway}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                    title="Export manifest for Runway"
+                  >
+                    {exportingRunway ? 'Exporting...' : '🎬 Runway'}
+                  </button>
+
+                  {/* Delete selected */}
+                  {selectedCount > 0 && (
+                    <>
+                      <div className="w-px h-6 bg-gray-200 mx-1" />
+                      <button
+                        onClick={handleDeleteSelected}
+                        className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
+                        title={`Delete ${selectedCount} selected node${selectedCount > 1 ? 's' : ''}`}
+                      >
+                        🗑 Delete {selectedCount}
+                      </button>
+                    </>
+                  )}
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* Copy for AI */}
+                  <button
+                    onClick={copyForAI}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-indigo-600 hover:bg-gray-100 transition-colors"
+                    title="Copy graph as text for AI"
+                  >
+                    📋 Copy for AI
+                  </button>
+
+                  {/* Load from Cloud (opens modal with Clouds + Scenes tabs) */}
+                  <button
+                    onClick={sceneId ? loadSceneItems : openCloudLoadModal}
+                    disabled={importingCloud}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                    title={sceneId ? 'Reload scene items' : 'Load items from your Clouds or a Scene'}
+                  >
+                    {importingCloud ? 'Loading...' : sceneId ? '☁️ Reload Scene' : '☁️ Load from Cloud'}
+                  </button>
+                  <div className="w-px h-6 bg-gray-200 mx-1" />
+
+                  {/* Upload file */}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={importing}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                    title="Upload file (TXT, MD, DOCX)"
+                  >
+                    {importing ? 'Uploading...' : '📤 Upload File'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".txt,.md,.docx,.pdf"
+                    onChange={handleFileImport}
+                    className="hidden"
+                  />
+                </div>
+              </Panel>
+            </ReactFlow>
+          </GraphContext.Provider>
+        </div>
+
+        {/* Draft browser */}
+        {showDraftBrowser && (
+          <DraftBrowser
+            onLoad={(loadedNodes, loadedEdges, loadedTitle, loadedDraftId) => {
+              setNodes(loadedNodes);
+              setEdges(loadedEdges);
+              setTitle(loadedTitle);
+              setDraftId(loadedDraftId);
+              setShowDraftBrowser(false);
+            }}
+            onClose={() => setShowDraftBrowser(false)}
+          />
+        )}
+
+        {/* Node editor panel */}
+        <NodePanel
+          node={nodes.find(n => n.id === selectedNodeId) || null}
+          nodes={nodes}
+          edges={edges}
+          onClose={() => setSelectedNodeId(null)}
+          onUpdate={handlePanelUpdate}
+          onDelete={handleDeleteNode}
+        />
+
+        {/* ── Cloud Load Modal ────────────────────────────────────────────────── */}
+        {showCloudLoadModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+            onClick={() => setShowCloudLoadModal(false)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-800">Load into Editor</h2>
+                  {activeProjectId && (
+                    <span className="text-xs text-gray-400">
+                      Project: {projects.find(p => p.id === activeProjectId)?.title || 'Selected'}
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowCloudLoadModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-gray-100 px-6">
+                <button
+                  onClick={() => setCloudLoadTab('clouds')}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'clouds' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  ☁️ By Cloud Type
+                </button>
+                <button
+                  onClick={handleSwitchToScenesTab}
+                  className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'scenes' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                >
+                  🎬 By Scene
+                  <span className="ml-1.5 text-xs text-gray-400">(auto-connects nodes)</span>
+                </button>
+              </div>
+
+              {/* Modal body */}
+              <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+
+                {/* ── Clouds tab ──────────────────────────────────────────────── */}
+                {cloudLoadTab === 'clouds' && (
+                  cloudLoadLoading ? (
+                    <div className="flex items-center justify-center py-12 text-gray-400">
+                      <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                      Loading items...
+                    </div>
+                  ) : Object.keys(cloudLoadGroups).length === 0 ? (
+                    <div className="text-center py-12 text-gray-400">
+                      No cloud items found{activeProjectId ? ' for this project' : ''}.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {Object.entries(cloudLoadGroups).map(([cloudType, items]) => {
+                        const label = CLOUD_TYPE_LABELS[cloudType] || cloudType;
+                        const emoji = CLOUD_TYPE_EMOJI[cloudType] || '☁️';
+                        const isCollapsed = cloudLoadCollapsed.has(cloudType);
+                        const groupCheckedCount = items.filter(i => cloudLoadChecked.has(i.id)).length;
+                        const allChecked = groupCheckedCount === items.length;
+                        return (
+                          <div key={cloudType} className="border border-gray-200 rounded-lg overflow-hidden">
+                            <div
+                              className="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                              onClick={() => setCloudLoadCollapsed(prev => {
+                                const next = new Set(prev);
+                                isCollapsed ? next.delete(cloudType) : next.add(cloudType);
+                                return next;
+                              })}
+                            >
+                              <span className="text-xs text-gray-400">{isCollapsed ? '▶' : '▼'}</span>
+                              <input
+                                type="checkbox"
+                                checked={allChecked}
+                                onChange={e => {
+                                  e.stopPropagation();
+                                  setCloudLoadChecked(prev => {
+                                    const next = new Set(prev);
+                                    items.forEach(i => allChecked ? next.delete(i.id) : next.add(i.id));
+                                    return next;
+                                  });
+                                }}
+                                className="rounded border-gray-300"
+                              />
+                              <span>{emoji}</span>
+                              <span className="text-sm font-medium text-gray-700">{label}</span>
+                              <span className="text-xs text-gray-400 ml-auto">{groupCheckedCount}/{items.length}</span>
+                            </div>
+                            {!isCollapsed && (
+                              <div className="px-3 py-1 space-y-0.5 max-h-48 overflow-y-auto">
+                                {items.map(item => (
+                                  <label key={item.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={cloudLoadChecked.has(item.id)}
+                                      onChange={() => setCloudLoadChecked(prev => {
+                                        const next = new Set(prev);
+                                        next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                        return next;
+                                      })}
+                                      className="rounded border-gray-300"
+                                    />
+                                    <span className="text-gray-700 truncate">{item.title || '(untitled)'}</span>
+                                  </label>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )
+                )}
+
+                {/* ── Scenes tab ──────────────────────────────────────────────── */}
+                {cloudLoadTab === 'scenes' && (
+                  <div className="space-y-3">
+                    {/* Info banner */}
+                    <div className="bg-pink-50 border border-pink-100 rounded-lg px-3 py-2 text-xs text-pink-700">
+                      Select a scene → choose items → Load. A scene hub node will be created and all items connected to it automatically.
+                    </div>
+
+                    {/* Scene list */}
+                    {scenesListLoading ? (
+                      <div className="flex items-center justify-center py-8 text-gray-400">
+                        <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                        Loading scenes...
+                      </div>
+                    ) : scenesList.length === 0 ? (
+                      <div className="text-center py-8 text-gray-400 text-sm">
+                        No scenes found. Add scenes in Arc Cloud first.
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5">
+                        {scenesList.map(scene => (
+                          <button
+                            key={scene.id}
+                            onClick={() => handleSelectSceneForLoad(scene.id)}
+                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                              selectedSceneForLoad === scene.id
+                                ? 'border-pink-400 bg-pink-50 ring-1 ring-pink-300'
+                                : 'border-gray-200 hover:border-pink-200 hover:bg-pink-50/30'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-gray-800 text-sm">{scene.title}</span>
+                              {scene.attached_count > 0 && (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 font-medium">
+                                  {scene.attached_count} items
+                                </span>
+                              )}
+                            </div>
+                            {scene.content && (
+                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{scene.content}</p>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Items for selected scene */}
+                    {selectedSceneForLoad && (
+                      <div className="mt-3 pt-3 border-t border-gray-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+                            Items in scene
+                          </p>
+                          {sceneLoadItems.length > 0 && (
+                            <button
+                              onClick={() => {
+                                const allIds = new Set(sceneLoadItems.map(i => i.id));
+                                const allChecked = sceneLoadItems.every(i => sceneLoadChecked.has(i.id));
+                                setSceneLoadChecked(allChecked ? new Set() : allIds);
+                              }}
+                              className="text-xs text-indigo-600 hover:underline"
+                            >
+                              {sceneLoadItems.every(i => sceneLoadChecked.has(i.id)) ? 'Deselect all' : 'Select all'}
+                            </button>
+                          )}
+                        </div>
+                        {sceneLoadLoading ? (
+                          <div className="flex items-center py-4 text-gray-400 text-sm gap-2">
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Loading items...
+                          </div>
+                        ) : sceneLoadItems.length === 0 ? (
+                          <p className="text-sm text-gray-400 py-3">
+                            No items attached to this scene yet. Attach items in Arc Cloud.
+                          </p>
+                        ) : (
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {sceneLoadItems.map(item => (
+                              <label key={item.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={sceneLoadChecked.has(item.id)}
+                                  onChange={() => setSceneLoadChecked(prev => {
+                                    const next = new Set(prev);
+                                    next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                    return next;
+                                  })}
+                                  className="rounded border-gray-300"
+                                />
+                                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-mono">
+                                  {item.cloud_type}
+                                </span>
+                                <span className="text-sm text-gray-700 truncate">{item.title || '(untitled)'}</span>
+                              </label>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Modal footer */}
+              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
                 <button
                   onClick={() => setShowCloudLoadModal(false)}
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
@@ -1149,23 +1615,27 @@ export default function VisualCanvas() {
                 </button>
                 <button
                   onClick={handleCloudLoadConfirm}
-                  disabled={cloudLoadChecked.size === 0}
-                  className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                  disabled={
+                    (cloudLoadTab === 'clouds' && cloudLoadChecked.size === 0) ||
+                    (cloudLoadTab === 'scenes' && sceneLoadChecked.size === 0)
+                  }
+                  className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Load Selected ({cloudLoadChecked.size})
+                  {cloudLoadTab === 'clouds'
+                    ? `Load ${cloudLoadChecked.size} item${cloudLoadChecked.size !== 1 ? 's' : ''}`
+                    : `Load ${sceneLoadChecked.size} item${sceneLoadChecked.size !== 1 ? 's' : ''} + connect`}
                 </button>
               </div>
-            )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed top-20 right-4 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-md text-sm z-50 text-gray-800">
-          {toast}
-        </div>
-      )}
+        {/* Toast */}
+        {toast && (
+          <div className="fixed top-20 right-4 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-md text-sm z-50 text-gray-800">
+            {toast}
+          </div>
+        )}
       </div>
     </div>
   );
