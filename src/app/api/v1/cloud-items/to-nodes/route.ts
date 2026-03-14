@@ -46,7 +46,8 @@ export async function GET(req: NextRequest) {
   if (projectId === 'unassigned') {
     sql += ' AND project_id IS NULL';
   } else if (projectId) {
-    sql += ' AND project_id = $2';
+    // Include items belonging to this project AND items with no project (global/pre-project items)
+    sql += ' AND (project_id = $2 OR project_id IS NULL)';
     params.push(projectId);
   }
 
