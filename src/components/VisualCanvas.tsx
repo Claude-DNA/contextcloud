@@ -57,6 +57,20 @@ function mapCloudType(cloudType: string, metadata?: Record<string, unknown>): st
   return CLOUD_TYPE_TO_NODE[cloudType] || 'theme';
 }
 
+// ─── Smart pre-selection for scene checklist ─────────────────────────────────
+function smartPreselect(items: CloudModalItem[], sceneTitle: string, sceneContent: string): Set<string> {
+  const nonArc = items.filter(i => i.cloud_type !== 'arc');
+  if (nonArc.length <= 15) return new Set(nonArc.map(i => i.id));
+  const keywords = (sceneTitle + ' ' + sceneContent).toLowerCase().split(/\W+/).filter(w => w.length > 3);
+  const hit = new Set<string>();
+  for (const item of nonArc) {
+    const text = (item.title + ' ' + (item.content || '')).toLowerCase();
+    if (keywords.some(k => text.includes(k))) hit.add(item.id);
+  }
+  if (hit.size < 5) nonArc.slice(0, 30).forEach(i => hit.add(i.id));
+  return hit;
+}
+
 // ─── AI serialiser ────────────────────────────────────────────────────────────
 function serializeGraphForAI(title: string, nodes: Node[], edges: Edge[]): string {
   const sections: Record<string, string[]> = { content: [], reference: [], meta: [] };
@@ -196,6 +210,10 @@ export default function VisualCanvas() {
   const [selectedSceneForLoad, setSelectedSceneForLoad] = useState<string | null>(null);
   const [sceneLoadLoading, setSceneLoadLoading] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  // Scene checklist state (two-step import: pick scene → review checklist → load)
+  const [sceneChecklistItems, setSceneChecklistItems] = useState<CloudModalItem[]>([]);
+  const [sceneChecklistChecked, setSceneChecklistChecked] = useState<Set<string>>(new Set());
+  const [sceneChecklistForScene, setSceneChecklistForScene] = useState<{id: string, title: string} | null>(null);
 
   // ── History (undo / redo, max 10 steps) ────────────────────────────────────
   const MAX_HISTORY = 10;
@@ -659,6 +677,9 @@ export default function VisualCanvas() {
     setSelectedSceneForLoad(null);
     setCloudLoadGroups({});
     setCloudLoadChecked(new Set());
+    setSceneChecklistForScene(null);
+    setSceneChecklistItems([]);
+    setSceneChecklistChecked(new Set());
     // Immediately load scenes list
     setScenesListLoading(true);
     try {
@@ -684,6 +705,9 @@ export default function VisualCanvas() {
   const handleSwitchToScenesTab = useCallback(() => {
     setCloudLoadTab('scenes');
     setSelectedSceneForLoad(null);
+    setSceneChecklistForScene(null);
+    setSceneChecklistItems([]);
+    setSceneChecklistChecked(new Set());
     fetchScenesForModal();
   }, [fetchScenesForModal]);
 
@@ -723,67 +747,71 @@ export default function VisualCanvas() {
     try {
       type ItemShape = { id: string; cloud_type: string; title: string; content: string };
 
-      // 1. Try scene-specific attached items
+      // 1. Try scene-specific attached items (curated fast-path)
       const res = await fetch(`/api/v1/arc-scenes/${sId}/items`);
       const data = await res.json();
-      let items: ItemShape[] = data.items || [];
-      let usingAllItems = false;
+      const attachedItems: ItemShape[] = data.items || [];
 
-      // 2. If none attached, auto-load all cloud items (no manual attachment needed)
-      if (items.length === 0) {
-        usingAllItems = true;
-        const fallbackRes = await fetch(cloudItemsUrl);
-        const fallbackData = await fallbackRes.json();
-        items = (fallbackData.nodes || [])
-          .filter((n: { cloud_type: string }) => n.cloud_type !== 'arc')
-          .map((n: { id: string; cloud_type: string; title: string; content?: string }) => ({
-            id: n.id,
-            cloud_type: n.cloud_type,
-            title: n.title,
-            content: n.content || '',
-          }));
+      if (attachedItems.length > 0) {
+        // Fast-path: scene HAS explicit attachments — load immediately
+        const byType = new Map<string, ItemShape[]>();
+        for (const item of attachedItems) {
+          const list = byType.get(item.cloud_type) || [];
+          list.push(item);
+          byType.set(item.cloud_type, list);
+        }
+        const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = [];
+        let colIndex = 0;
+        for (const [, typeItems] of byType) {
+          const x = colIndex * 380 + 80;
+          typeItems.forEach((item, rowIndex) => {
+            cloudNodes.push({
+              id: `cloud_${item.id}`,
+              type: mapCloudType(item.cloud_type, {}),
+              title: item.title,
+              content: item.content,
+              position: { x, y: rowIndex * 220 + 80 },
+            });
+          });
+          colIndex++;
+        }
+        setShowCloudLoadModal(false);
+        loadCloudNodesToCanvas(cloudNodes, sceneTitle);
+        setSceneLoadLoading(false);
+        return;
       }
 
-      if (!items.length) {
+      // 2. No attachments → fetch all cloud items and show checklist for review
+      const fallbackRes = await fetch(cloudItemsUrl);
+      const fallbackData = await fallbackRes.json();
+      const allNodes: CloudModalItem[] = (fallbackData.nodes || []).map((n: CloudModalItem) => ({
+        id: n.id,
+        type: n.type,
+        cloud_type: n.cloud_type,
+        title: n.title,
+        content: n.content || '',
+        position: n.position,
+      }));
+
+      if (!allNodes.length) {
         showToast('No cloud items found — add items to your Clouds first');
         setSceneLoadLoading(false);
         return;
       }
 
-      // 3. Build column layout by type
-      const byType = new Map<string, ItemShape[]>();
-      for (const item of items) {
-        const list = byType.get(item.cloud_type) || [];
-        list.push(item);
-        byType.set(item.cloud_type, list);
-      }
-      const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = [];
-      let colIndex = 0;
-      for (const [, typeItems] of byType) {
-        const x = colIndex * 380 + 80;
-        typeItems.forEach((item, rowIndex) => {
-          cloudNodes.push({
-            id: `cloud_${item.id}`,
-            type: mapCloudType(item.cloud_type, {}),
-            title: item.title,
-            content: item.content,
-            position: { x, y: rowIndex * 220 + 80 },
-          });
-        });
-        colIndex++;
-      }
+      // Find scene content for keyword matching
+      const sceneInfo = scenesList.find(s => s.id === sId);
+      const sceneContent = sceneInfo?.content || '';
 
-      // 4. Load into canvas with scene hub + edges, close modal
-      setShowCloudLoadModal(false);
-      loadCloudNodesToCanvas(cloudNodes, sceneTitle);
-      if (usingAllItems) {
-        setTimeout(() => showToast(`All ${items.length} items loaded for scene — use "Attach Items" in Arc Cloud to filter`), 1200);
-      }
+      // Show checklist with smart pre-selection
+      setSceneChecklistItems(allNodes);
+      setSceneChecklistChecked(smartPreselect(allNodes, sceneTitle, sceneContent));
+      setSceneChecklistForScene({ id: sId, title: sceneTitle });
     } catch {
       showToast('Failed to load scene');
     }
     setSceneLoadLoading(false);
-  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast]);
+  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast, scenesList]);
 
   // ── Confirm load — only used by "By Cloud Type" tab now ──────────────────────
   const handleCloudLoadConfirm = useCallback(() => {
@@ -792,6 +820,41 @@ export default function VisualCanvas() {
     loadCloudNodesToCanvas(selected);
     setShowCloudLoadModal(false);
   }, [cloudLoadGroups, cloudLoadChecked, loadCloudNodesToCanvas]);
+
+  // ── Scene checklist confirm — build layout from checked items, load + close ──
+  const handleSceneChecklistConfirm = useCallback(() => {
+    if (!sceneChecklistForScene || sceneChecklistChecked.size === 0) return;
+    const selected = sceneChecklistItems.filter(i => sceneChecklistChecked.has(i.id));
+
+    // Build column layout by cloud_type
+    const byType = new Map<string, CloudModalItem[]>();
+    for (const item of selected) {
+      const list = byType.get(item.cloud_type) || [];
+      list.push(item);
+      byType.set(item.cloud_type, list);
+    }
+    const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = [];
+    let colIndex = 0;
+    for (const [, typeItems] of byType) {
+      const x = colIndex * 380 + 80;
+      typeItems.forEach((item, rowIndex) => {
+        cloudNodes.push({
+          id: item.id.startsWith('cloud_') ? item.id : `cloud_${item.id}`,
+          type: item.type,
+          title: item.title,
+          content: item.content,
+          position: { x, y: rowIndex * 220 + 80 },
+        });
+      });
+      colIndex++;
+    }
+
+    loadCloudNodesToCanvas(cloudNodes, sceneChecklistForScene.title);
+    setShowCloudLoadModal(false);
+    setSceneChecklistForScene(null);
+    setSceneChecklistItems([]);
+    setSceneChecklistChecked(new Set());
+  }, [sceneChecklistForScene, sceneChecklistChecked, sceneChecklistItems, loadCloudNodesToCanvas]);
 
   // ── Load scene items (scene mode — auto on entry) ──────────────────────────
   const loadSceneItems = useCallback(async () => {
@@ -1606,7 +1669,83 @@ export default function VisualCanvas() {
                 {/* ── Scenes tab — one click to load ─────────────────────────── */}
                 {cloudLoadTab === 'scenes' && (
                   <div className="space-y-1.5">
-                    {scenesListLoading ? (
+
+                    {/* Checklist view — shown after clicking a scene with no attachments */}
+                    {sceneChecklistForScene ? (
+                      <div className="space-y-2">
+                        {/* Header */}
+                        <div className="flex items-center gap-2 pb-1">
+                          <button
+                            onClick={() => { setSceneChecklistForScene(null); setSceneChecklistItems([]); setSceneChecklistChecked(new Set()); }}
+                            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                          >
+                            ← back
+                          </button>
+                          <span className="text-xs text-gray-500 font-medium truncate">
+                            {sceneChecklistForScene.title.includes(' — ')
+                              ? sceneChecklistForScene.title.slice(sceneChecklistForScene.title.indexOf(' — ') + 3)
+                              : sceneChecklistForScene.title}
+                          </span>
+                          <span className="text-xs text-gray-400 ml-auto">
+                            {sceneChecklistChecked.size} selected
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 pb-1">
+                          ✨ Smart pre-selection based on scene content. Uncheck what you don&apos;t need.
+                        </p>
+                        {/* Items grouped by cloud type */}
+                        {(() => {
+                          const groups = new Map<string, CloudModalItem[]>();
+                          for (const item of sceneChecklistItems) {
+                            const list = groups.get(item.cloud_type) || [];
+                            list.push(item);
+                            groups.set(item.cloud_type, list);
+                          }
+                          return [...groups.entries()].map(([cloudType, items]) => {
+                            const label = CLOUD_TYPE_LABELS[cloudType] || cloudType;
+                            const emoji = CLOUD_TYPE_EMOJI[cloudType] || '☁️';
+                            const groupChecked = items.filter(i => sceneChecklistChecked.has(i.id)).length;
+                            const allChecked = groupChecked === items.length;
+                            return (
+                              <div key={cloudType} className="border border-gray-200 rounded-lg overflow-hidden">
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
+                                  <input
+                                    type="checkbox"
+                                    checked={allChecked}
+                                    onChange={() => setSceneChecklistChecked(prev => {
+                                      const next = new Set(prev);
+                                      items.forEach(i => allChecked ? next.delete(i.id) : next.add(i.id));
+                                      return next;
+                                    })}
+                                    className="rounded border-gray-300"
+                                  />
+                                  <span>{emoji}</span>
+                                  <span className="text-sm font-medium text-gray-700">{label}</span>
+                                  <span className="text-xs text-gray-400 ml-auto">{groupChecked}/{items.length}</span>
+                                </div>
+                                <div className="px-3 py-1 space-y-0.5 max-h-40 overflow-y-auto">
+                                  {items.map(item => (
+                                    <label key={item.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                                      <input
+                                        type="checkbox"
+                                        checked={sceneChecklistChecked.has(item.id)}
+                                        onChange={() => setSceneChecklistChecked(prev => {
+                                          const next = new Set(prev);
+                                          next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                          return next;
+                                        })}
+                                        className="rounded border-gray-300"
+                                      />
+                                      <span className="text-gray-700 truncate">{item.title || '(untitled)'}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
+                    ) : scenesListLoading ? (
                       <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
                         <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -1692,7 +1831,7 @@ export default function VisualCanvas() {
                 >
                   Cancel
                 </button>
-                {/* Scenes tab: clicking a scene loads immediately — no button needed */}
+                {/* By Cloud Type tab */}
                 {cloudLoadTab === 'clouds' && (
                   <button
                     onClick={handleCloudLoadConfirm}
@@ -1700,6 +1839,16 @@ export default function VisualCanvas() {
                     className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     Load {cloudLoadChecked.size} item{cloudLoadChecked.size !== 1 ? 's' : ''}
+                  </button>
+                )}
+                {/* Scene checklist confirm */}
+                {cloudLoadTab === 'scenes' && sceneChecklistForScene && (
+                  <button
+                    onClick={handleSceneChecklistConfirm}
+                    disabled={sceneChecklistChecked.size === 0}
+                    className="px-5 py-2 rounded-lg text-sm font-medium bg-pink-600 text-white hover:bg-pink-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    🎬 Load {sceneChecklistChecked.size} item{sceneChecklistChecked.size !== 1 ? 's' : ''} + connect
                   </button>
                 )}
               </div>
