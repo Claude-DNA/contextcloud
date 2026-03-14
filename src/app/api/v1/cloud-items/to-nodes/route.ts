@@ -66,6 +66,7 @@ export async function GET(req: NextRequest) {
   const nodes: Array<{
     id: string;
     type: string;
+    cloud_type: string;
     title: string;
     content: string;
     position: { x: number; y: number };
@@ -81,6 +82,7 @@ export async function GET(req: NextRequest) {
       nodes.push({
         id: `cloud_${item.id}`,
         type: mapCloudTypeToNodeType(cloudType, metadata),
+        cloud_type: cloudType,
         title: item.title,
         content: item.content || '',
         position: { x, y: 80 + rowIndex * 220 },

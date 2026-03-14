@@ -26,6 +26,7 @@ import { NODE_TYPES, NODE_TYPE_MAP, STATE_COLORS, type NodeTypeConfig } from '@/
 import { GraphContext } from '@/components/graph/GraphContext';
 import NodePanel from '@/components/graph/NodePanel';
 import DraftBrowser from '@/components/graph/DraftBrowser';
+import { useProject } from '@/context/ProjectContext';
 
 // Register all node types to the same GraphNode component
 const nodeTypes: Record<string, typeof GraphNodeComponent> = {};
@@ -79,6 +80,7 @@ function serializeGraphForAI(title: string, nodes: Node[], edges: Edge[]): strin
 export default function VisualCanvas() {
   const { data: session } = useSession();
   const reactFlowInstance = useReactFlow();
+  const { activeProjectId, projects } = useProject();
 
   const [title, setTitle] = useState('Untitled Graph');
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -94,10 +96,14 @@ export default function VisualCanvas() {
   const nodeCounter = useRef(0);
   const windowJustFocused = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [importingIdeas, setImportingIdeas] = useState(false);
-  const [importingArcs, setImportingArcs] = useState(false);
   const [importingCloud, setImportingCloud] = useState(false);
   const [exportingRunway, setExportingRunway] = useState(false);
+  // Cloud load modal state
+  const [showCloudLoadModal, setShowCloudLoadModal] = useState(false);
+  const [cloudLoadLoading, setCloudLoadLoading] = useState(false);
+  const [cloudLoadGroups, setCloudLoadGroups] = useState<Record<string, Array<{ id: string; type: string; cloud_type: string; title: string; content: string; position: { x: number; y: number } }>>>({});
+  const [cloudLoadChecked, setCloudLoadChecked] = useState<Set<string>>(new Set());
+  const [cloudLoadCollapsed, setCloudLoadCollapsed] = useState<Set<string>>(new Set());
 
   // Scene mode
   const searchParams = useSearchParams();
@@ -235,14 +241,28 @@ export default function VisualCanvas() {
     [nodes]
   );
 
-  // Add node
+  // Add node — place at viewport center so it's always visible
   const addNode = useCallback((config: NodeTypeConfig) => {
     nodeCounter.current += 1;
     const id = `node_${nodeCounter.current}_${Date.now()}`;
+    // Convert the center of the visible canvas to flow coordinates
+    const centerPos = (() => {
+      try {
+        const vp = reactFlowInstance.getViewport();
+        // getViewport returns { x, y, zoom } — x/y are the pan offset
+        // The center of the screen in flow coords:
+        const el = document.querySelector('.react-flow') as HTMLElement | null;
+        const w = el?.clientWidth ?? 800;
+        const h = el?.clientHeight ?? 600;
+        return reactFlowInstance.screenToFlowPosition({ x: w / 2, y: h / 2 });
+      } catch {
+        return { x: 250 + Math.random() * 200, y: 150 + Math.random() * 200 };
+      }
+    })();
     const newNode: Node = {
       id,
       type: config.type,
-      position: { x: 250 + Math.random() * 200, y: 150 + Math.random() * 200 },
+      position: { x: centerPos.x + (Math.random() - 0.5) * 120, y: centerPos.y + (Math.random() - 0.5) * 80 },
       dragging: false,
       selected: false,
       data: {
@@ -267,30 +287,27 @@ export default function VisualCanvas() {
       },
     };
     setNodes(nds => [...nds, newNode]);
-  }, [setNodes, draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode]);
+  }, [setNodes, draftId, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
 
-  // Import Ideas from Ideas Cloud
-  const importIdeas = useCallback(async () => {
-    setImportingIdeas(true);
-    try {
-      const res = await fetch('/api/v1/ideas');
-      const data = await res.json();
-      const ideas: Array<{ id: string; text: string; weight: number }> = data.ideas || [];
-      if (!ideas.length) { showToast('No ideas in Ideas Cloud'); return; }
+  // Import cloud nodes into the canvas (used by both direct load and modal)
+  const loadCloudNodesToCanvas = useCallback((cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }>) => {
+    if (!cloudNodes.length) { showToast('No items to load'); return; }
 
-      const newNodes: Node[] = ideas.map((idea, i) => ({
-        id: `idea_import_${idea.id}`,
-        type: 'theme',
-        position: { x: -320, y: 60 + i * 160 },
+    const newNodes: Node[] = cloudNodes.map((cn) => {
+      const config = NODE_TYPE_MAP[cn.type];
+      return {
+        id: cn.id,
+        type: cn.type,
+        position: cn.position,
         dragging: false,
         selected: false,
         data: {
-          type: 'theme',
-          label: 'Idea',
-          emoji: '💡',
-          color: '#f59e0b',
-          title: idea.text.slice(0, 80),
-          content: `Weight: ${Math.round((idea.weight ?? 0) * 100)}%`,
+          type: cn.type,
+          label: config?.label || cn.type,
+          emoji: config?.emoji || '',
+          color: config?.color || '#4A90D9',
+          title: cn.title,
+          content: cn.content,
           isProxy: false,
           isContainer: false,
           stateColor: null,
@@ -304,219 +321,72 @@ export default function VisualCanvas() {
           onImageGenerated: handleImageGenerated,
           onDelete: handleDeleteNode,
         },
-      }));
+      };
+    });
 
-      setNodes(nds => {
-        const existingIds = new Set(nds.map(n => n.id));
-        return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
-      });
-      showToast(`Imported ${newNodes.length} idea${newNodes.length !== 1 ? 's' : ''}`);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
-    } catch {
-      showToast('Failed to import ideas');
-    } finally {
-      setImportingIdeas(false);
-    }
+    setNodes(nds => {
+      const existingIds = new Set(nds.map(n => n.id));
+      return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
+    });
+    showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded from Cloud`);
+    setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
+    setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
   }, [draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
 
-  // Import Arcs from Arc Cloud
-  const importArcs = useCallback(async () => {
-    setImportingArcs(true);
+  // Build API URL with project_id
+  const cloudItemsUrl = useMemo(() => {
+    const base = '/api/v1/cloud-items/to-nodes';
+    return activeProjectId ? `${base}?project_id=${activeProjectId}` : base;
+  }, [activeProjectId]);
+
+  // Open the cloud load modal — fetch items and group by cloud_type
+  const openCloudLoadModal = useCallback(async () => {
+    setShowCloudLoadModal(true);
+    setCloudLoadLoading(true);
     try {
-      const arcsRes = await fetch('/api/v1/arcs');
-      const arcsData = await arcsRes.json();
-      const arcs: Array<{ id: string; name: string; description?: string }> = arcsData.arcs || [];
-      if (!arcs.length) { showToast('No arcs in Arc Cloud'); return; }
-
-      const newNodes: Node[] = [];
-      const newEdges: Edge[] = [];
-      let xOffset = 400;
-
-      for (const arc of arcs) {
-        const arcNodeId = `arc_import_${arc.id}`;
-        newNodes.push({
-          id: arcNodeId,
-          type: 'arc',
-          position: { x: xOffset, y: 60 },
-          dragging: false, selected: false,
-          data: {
-            type: 'arc', label: 'Arc', emoji: '📈', color: '#0891b2',
-            title: arc.name, content: arc.description || '',
-            isProxy: false, isContainer: false, stateColor: null,
-            parentNodeId: '', parentLabel: '', graphId: draftId,
-            onTitleChange: handleTitleChange, onContentChange: handleContentChange,
-            onZoomToParent, onStateColorChange: handleStateColorChange,
-            onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
-          },
-        });
-
-        // Fetch chapters + plots for this arc
-        let chapters: Array<{ id: string; name: string; description?: string; plots: Array<{ id: string; name?: string; title?: string; content?: string }> }> = [];
-        try {
-          const chapRes = await fetch(`/api/v1/arcs/${arc.id}/chapters`);
-          const chapData = await chapRes.json();
-          chapters = chapData.chapters || [];
-        } catch { /* no chapters */ }
-
-        let yOffset = 240;
-        for (let ci = 0; ci < chapters.length; ci++) {
-          const chapter = chapters[ci];
-          const chapNodeId = `chap_import_${chapter.id}`;
-          // Chapters laid out horizontally in a chain to the right of the arc
-          const chapX = xOffset + 260 + ci * 280;
-          const chapY = 60;
-          newNodes.push({
-            id: chapNodeId,
-            type: 'chapterAct',
-            position: { x: chapX, y: chapY },
-            dragging: false, selected: false,
-            data: {
-              type: 'chapterAct', label: 'Chapter / Act', emoji: '📑', color: '#4A90D9',
-              title: chapter.name,
-            content: (chapter.plots || [])
-              .map((p: { name?: string; content?: string }) =>
-                [p.name, p.content].filter(Boolean).join(': ')
-              )
-              .join('\n') || '',
-              chapterId: chapter.id,
-              isProxy: false, isContainer: false, stateColor: null,
-              parentNodeId: '', parentLabel: '', graphId: draftId,
-              onTitleChange: handleTitleChange, onContentChange: handleContentChange,
-              onZoomToParent, onStateColorChange: handleStateColorChange,
-              onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
-            },
-          });
-
-          // Proxy nodes below each chapter — Characters, World, References, Ideas
-          const proxyDefs = [
-            { type: 'charactersProxy', color: '#6366f1', label: 'Characters', emoji: '👤', dx: 0,   dy: 200 },
-            { type: 'world',           color: '#06B6D4', label: 'World',      emoji: '🌍', dx: 170,  dy: 200 },
-            { type: 'reference',       color: '#F97316', label: 'References', emoji: '📑', dx: -170, dy: 200 },
-            { type: 'ideasProxy',      color: '#eab308', label: 'Ideas',      emoji: '💡', dx: 0,   dy: 340 },
-          ];
-          for (const pd of proxyDefs) {
-            const proxyId = `proxy_${pd.type}_ch${ci}_${arc.id}`;
-            newNodes.push({
-              id: proxyId,
-              type: pd.type,
-              position: { x: chapX + pd.dx, y: chapY + pd.dy },
-              dragging: false, selected: false,
-              data: {
-                type: pd.type, label: pd.label, emoji: pd.emoji, color: pd.color,
-                title: `${pd.label}`, content: '[]',
-                isProxy: true, isContainer: false, stateColor: null,
-                parentNodeId: chapNodeId, parentLabel: chapter.name, graphId: draftId,
-                onTitleChange: handleTitleChange, onContentChange: handleContentChange,
-                onZoomToParent, onStateColorChange: handleStateColorChange,
-                onImageGenerated: handleImageGenerated, onDelete: handleDeleteNode,
-              },
-            });
-            newEdges.push({
-              id: `e_proxy_${proxyId}`,
-              source: chapNodeId,
-              target: proxyId,
-              animated: false,
-              style: { stroke: pd.color, strokeWidth: 1.5, opacity: 0.5 },
-            });
-          }
-
-          if (ci === 0) {
-            // Arc → first chapter only
-            newEdges.push({
-              id: `e_arc_ch0_${arcNodeId}`,
-              source: arcNodeId,
-              sourceHandle: 'chapters_out',
-              target: chapNodeId,
-              targetHandle: 'arc',
-              animated: true,
-              style: { stroke: '#0891b2', strokeDasharray: '5 5' },
-            });
-          } else {
-            // Chapter chain: prev chapter Out → this chapter In
-            const prevChapId = `chap_import_${chapters[ci - 1].id}`;
-            newEdges.push({
-              id: `e_chap_chain_${ci}`,
-              source: prevChapId,
-              sourceHandle: 'next_chapter',
-              target: chapNodeId,
-              targetHandle: 'prev_chapter',
-              animated: true,
-              style: { stroke: '#4A90D9', strokeDasharray: '5 5' },
-            });
-          }
-          // Plots are inside the chapter sub-canvas — not shown in main canvas
-        }
-        xOffset += 260 + chapters.length * 280 + 60;
+      const res = await fetch(cloudItemsUrl);
+      const data = await res.json();
+      const allNodes: Array<{ id: string; type: string; cloud_type: string; title: string; content: string; position: { x: number; y: number } }> = data.nodes || [];
+      // Group by cloud_type
+      const groups: Record<string, typeof allNodes> = {};
+      for (const n of allNodes) {
+        const ct = n.cloud_type || 'other';
+        if (!groups[ct]) groups[ct] = [];
+        groups[ct].push(n);
       }
-
-      setNodes(nds => {
-        const existingIds = new Set(nds.map(n => n.id));
-        return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
-      });
-      setEdges(eds => [...eds, ...newEdges]);
-      showToast(`Imported ${arcs.length} arc${arcs.length !== 1 ? 's' : ''} from Arc Cloud`);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 500 }), 200);
+      setCloudLoadGroups(groups);
+      // Check all by default
+      setCloudLoadChecked(new Set(allNodes.map(n => n.id)));
+      setCloudLoadCollapsed(new Set());
     } catch {
-      showToast('Failed to import arcs');
+      showToast('Failed to fetch cloud items');
+      setShowCloudLoadModal(false);
     } finally {
-      setImportingArcs(false);
+      setCloudLoadLoading(false);
     }
-  }, [draftId, setNodes, setEdges, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+  }, [cloudItemsUrl, showToast]);
 
-  // Import from Cloud (all cloud_items → visual nodes)
+  // Load checked items from modal
+  const handleCloudLoadConfirm = useCallback(() => {
+    const allItems = Object.values(cloudLoadGroups).flat();
+    const selected = allItems.filter(item => cloudLoadChecked.has(item.id));
+    loadCloudNodesToCanvas(selected);
+    setShowCloudLoadModal(false);
+  }, [cloudLoadGroups, cloudLoadChecked, loadCloudNodesToCanvas]);
+
+  // Direct import (used by scene mode)
   const importFromCloud = useCallback(async () => {
     setImportingCloud(true);
     try {
-      const res = await fetch('/api/v1/cloud-items/to-nodes');
+      const res = await fetch(cloudItemsUrl);
       const data = await res.json();
-      const cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }> = data.nodes || [];
-      if (!cloudNodes.length) { showToast('No cloud items to import'); return; }
-
-      const newNodes: Node[] = cloudNodes.map((cn) => {
-        const config = NODE_TYPE_MAP[cn.type];
-        return {
-          id: cn.id,
-          type: cn.type,
-          position: cn.position,
-          dragging: false,
-          selected: false,
-          data: {
-            type: cn.type,
-            label: config?.label || cn.type,
-            emoji: config?.emoji || '',
-            color: config?.color || '#4A90D9',
-            title: cn.title,
-            content: cn.content,
-            isProxy: false,
-            isContainer: false,
-            stateColor: null,
-            parentNodeId: '',
-            parentLabel: '',
-            graphId: draftId,
-            onTitleChange: handleTitleChange,
-            onContentChange: handleContentChange,
-            onZoomToParent,
-            onStateColorChange: handleStateColorChange,
-            onImageGenerated: handleImageGenerated,
-            onDelete: handleDeleteNode,
-          },
-        };
-      });
-
-      setNodes(nds => {
-        const existingIds = new Set(nds.map(n => n.id));
-        return [...nds, ...newNodes.filter(n => !existingIds.has(n.id))];
-      });
-      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} imported from Cloud`);
-      // With many nodes React Flow needs time to measure before fitView works — retry at 800ms and 2s
-      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
+      loadCloudNodesToCanvas(data.nodes || []);
     } catch {
       showToast('Failed to import from Cloud');
     } finally {
       setImportingCloud(false);
     }
-  }, [draftId, setNodes, showToast, handleTitleChange, handleContentChange, onZoomToParent, handleStateColorChange, handleImageGenerated, handleDeleteNode, reactFlowInstance]);
+  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast]);
 
   // Load scene items (scene mode)
   const loadSceneItems = useCallback(async () => {
@@ -862,68 +732,6 @@ export default function VisualCanvas() {
               />
             </div>
 
-            {/* Import from Clouds — prominent, above node palette */}
-            <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 overflow-hidden">
-              <div className="px-2.5 py-1.5 border-b border-emerald-100 bg-emerald-100">
-                <span className="text-[10px] font-semibold text-emerald-700 uppercase tracking-wider">Import from Clouds</span>
-              </div>
-              <div className="p-1.5 space-y-0.5">
-                <button
-                  onClick={importIdeas}
-                  disabled={importingIdeas}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
-                >
-                  <span>💡</span>
-                  <span>{importingIdeas ? 'Importing...' : 'Ideas Cloud'}</span>
-                </button>
-                <button
-                  onClick={importArcs}
-                  disabled={importingArcs}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
-                >
-                  <span>📖</span>
-                  <span>{importingArcs ? 'Importing...' : 'Arc Cloud'}</span>
-                </button>
-                <button
-                  onClick={sceneId ? loadSceneItems : importFromCloud}
-                  disabled={importingCloud}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
-                >
-                  <span>☁️</span>
-                  <span>{importingCloud ? 'Loading...' : sceneId ? 'Reload Scene Items' : 'Import from Cloud'}</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    setExportingRunway(true);
-                    try {
-                      let projectTitle: string | undefined;
-                      try { projectTitle = localStorage.getItem('cc_chat_title') || undefined; } catch { /* ignore */ }
-                      const res = await fetch('/api/v1/export/runway', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ project_title: projectTitle }),
-                      });
-                      if (!res.ok) throw new Error('Export failed');
-                      const manifest = await res.json();
-                      const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `${(manifest.project || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')}-runway-manifest.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    } catch { /* ignore */ }
-                    setExportingRunway(false);
-                  }}
-                  disabled={exportingRunway}
-                  className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-emerald-100 transition-colors flex items-center gap-2 text-gray-700 disabled:opacity-50"
-                >
-                  <span>🎬</span>
-                  <span>{exportingRunway ? 'Generating...' : 'Export for Runway'}</span>
-                </button>
-              </div>
-            </div>
-
             <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
 
             {/* Container Nodes */}
@@ -1133,6 +941,35 @@ export default function VisualCanvas() {
                 >
                   {publishing ? 'Publishing...' : 'Publish'}
                 </button>
+                <button
+                  onClick={async () => {
+                    setExportingRunway(true);
+                    try {
+                      let projectTitle: string | undefined;
+                      try { projectTitle = localStorage.getItem('cc_chat_title') || undefined; } catch { /* ignore */ }
+                      const res = await fetch('/api/v1/export/runway', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ project_title: projectTitle }),
+                      });
+                      if (!res.ok) throw new Error('Export failed');
+                      const manifest = await res.json();
+                      const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `${(manifest.project || 'untitled').replace(/[^a-zA-Z0-9_-]/g, '_')}-runway-manifest.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch { /* ignore */ }
+                    setExportingRunway(false);
+                  }}
+                  disabled={exportingRunway}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
+                  title="Export manifest for Runway"
+                >
+                  {exportingRunway ? 'Exporting...' : '\u{1F3AC} Runway'}
+                </button>
                 {selectedCount > 0 && (
                   <>
                     <div className="w-px h-6 bg-gray-200 mx-1" />
@@ -1141,7 +978,7 @@ export default function VisualCanvas() {
                       className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
                       title={`Delete ${selectedCount} selected node${selectedCount > 1 ? 's' : ''}`}
                     >
-                      🗑 Delete {selectedCount}
+                      {'\u{1F5D1}'} Delete {selectedCount}
                     </button>
                   </>
                 )}
@@ -1153,14 +990,22 @@ export default function VisualCanvas() {
                 >
                   {'\u{1F4CB}'} Copy for AI
                 </button>
+                <button
+                  onClick={sceneId ? loadSceneItems : openCloudLoadModal}
+                  disabled={importingCloud}
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-emerald-600 hover:bg-emerald-50 transition-colors disabled:opacity-50"
+                  title="Load items from your clouds"
+                >
+                  {importingCloud ? 'Loading...' : sceneId ? '\u{2601}\u{FE0F} Reload Scene' : '\u{2601}\u{FE0F} Load from Cloud'}
+                </button>
                 <div className="w-px h-6 bg-gray-200 mx-1" />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={importing}
                   className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                  title="Import file (TXT, MD, DOCX)"
+                  title="Upload file (TXT, MD, DOCX)"
                 >
-                  {importing ? 'Importing...' : '\u{1F4C4} Import'}
+                  {importing ? 'Uploading...' : '\u{1F4E4} Upload File'}
                 </button>
                 <input
                   ref={fileInputRef}
@@ -1197,6 +1042,123 @@ export default function VisualCanvas() {
         onUpdate={handlePanelUpdate}
         onDelete={handleDeleteNode}
       />
+
+      {/* Cloud Load Modal */}
+      {showCloudLoadModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCloudLoadModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-800">Load Cloud Items</h2>
+                {activeProjectId && (
+                  <span className="text-xs text-gray-500">
+                    Project: {projects.find(p => p.id === activeProjectId)?.title || 'Selected project'}
+                  </span>
+                )}
+              </div>
+              <button onClick={() => setShowCloudLoadModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+
+            {/* Body */}
+            <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+              {cloudLoadLoading ? (
+                <div className="flex items-center justify-center py-12 text-gray-400">
+                  <svg className="animate-spin h-6 w-6 mr-2" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                  Loading items...
+                </div>
+              ) : Object.keys(cloudLoadGroups).length === 0 ? (
+                <div className="text-center py-12 text-gray-400">No cloud items found{activeProjectId ? ' for this project' : ''}.</div>
+              ) : (
+                Object.entries(cloudLoadGroups).map(([cloudType, items]) => {
+                  const CLOUD_TYPE_LABELS: Record<string, string> = {
+                    characters: 'Characters', scenes: 'Stage', world: 'World',
+                    ideas: 'Ideas', references: 'References', arc: 'Arc',
+                  };
+                  const CLOUD_TYPE_EMOJI: Record<string, string> = {
+                    characters: '\u{1F464}', scenes: '\u{1F3AC}', world: '\u{1F30D}',
+                    ideas: '\u{1F4A1}', references: '\u{1F4D1}', arc: '\u{1F4C8}',
+                  };
+                  const label = CLOUD_TYPE_LABELS[cloudType] || cloudType;
+                  const emoji = CLOUD_TYPE_EMOJI[cloudType] || '\u{2601}\u{FE0F}';
+                  const isCollapsed = cloudLoadCollapsed.has(cloudType);
+                  const groupCheckedCount = items.filter(i => cloudLoadChecked.has(i.id)).length;
+                  const allChecked = groupCheckedCount === items.length;
+
+                  return (
+                    <div key={cloudType} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <div
+                        className="flex items-center gap-2 px-3 py-2 bg-gray-50 cursor-pointer select-none hover:bg-gray-100 transition-colors"
+                        onClick={() => setCloudLoadCollapsed(prev => {
+                          const next = new Set(prev);
+                          isCollapsed ? next.delete(cloudType) : next.add(cloudType);
+                          return next;
+                        })}
+                      >
+                        <span className="text-xs text-gray-400">{isCollapsed ? '\u{25B6}' : '\u{25BC}'}</span>
+                        <input
+                          type="checkbox"
+                          checked={allChecked}
+                          onChange={e => {
+                            e.stopPropagation();
+                            setCloudLoadChecked(prev => {
+                              const next = new Set(prev);
+                              items.forEach(i => allChecked ? next.delete(i.id) : next.add(i.id));
+                              return next;
+                            });
+                          }}
+                          className="rounded border-gray-300"
+                        />
+                        <span>{emoji}</span>
+                        <span className="text-sm font-medium text-gray-700">{label}</span>
+                        <span className="text-xs text-gray-400 ml-auto">{groupCheckedCount}/{items.length}</span>
+                      </div>
+                      {!isCollapsed && (
+                        <div className="px-3 py-1 space-y-0.5 max-h-48 overflow-y-auto">
+                          {items.map(item => (
+                            <label key={item.id} className="flex items-center gap-2 py-1 px-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
+                              <input
+                                type="checkbox"
+                                checked={cloudLoadChecked.has(item.id)}
+                                onChange={() => setCloudLoadChecked(prev => {
+                                  const next = new Set(prev);
+                                  next.has(item.id) ? next.delete(item.id) : next.add(item.id);
+                                  return next;
+                                })}
+                                className="rounded border-gray-300"
+                              />
+                              <span className="text-gray-700 truncate">{item.title || '(untitled)'}</span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Footer */}
+            {!cloudLoadLoading && Object.keys(cloudLoadGroups).length > 0 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => setShowCloudLoadModal(false)}
+                  className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCloudLoadConfirm}
+                  disabled={cloudLoadChecked.size === 0}
+                  className="px-4 py-2 rounded-lg text-sm font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50"
+                >
+                  Load Selected ({cloudLoadChecked.size})
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
