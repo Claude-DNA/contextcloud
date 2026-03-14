@@ -76,21 +76,26 @@ export function parseCloudItems(text: string): ParsedCloudItem[] {
   for (const line of lines) {
     const trimmed = line.trim();
 
-    // Check if this line is a layer heading (e.g. "CHARACTERS" or "**CHARACTERS**" or "🌍 WORLD" or "CHARACTERS (3 items)")
-    const headingCandidate = trimmed
-      .replace(/\*+/g, '')           // strip markdown bold
-      // eslint-disable-next-line no-misleading-character-class
-      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27FF}\u{FE00}-\u{FEFF}]/gu, '') // strip emoji & symbols
-      .replace(/^[\s#\-:]+/, '')     // strip leading hashes, dashes, colons (markdown headers)
-      .trim()
-      .toUpperCase();
-    // Exact match first, then startsWith to handle "CHARACTERS (3 items):" suffixes
-    const matchedKey = LAYER_KEYS.find(k =>
-      headingCandidate === k ||
-      headingCandidate.startsWith(k + ' ') ||
-      headingCandidate.startsWith(k + ':') ||
-      headingCandidate.startsWith(k + '\t')
-    );
+    // Check if this line is a layer heading.
+    // Strategy: strip EVERYTHING that isn't a letter/digit/space, then search for keywords.
+    // This handles: "🌍 UNIVERSE", "**CHARACTERS**", "## STAGE", "💡 IDEAS (12 items)", etc.
+    const lineUpper = trimmed.toUpperCase();
+    // Quick check: skip lines that start with a bullet (they're items, not headings)
+    const isBullet = /^[•\-\*]\s+/.test(trimmed);
+    let matchedKey: string | undefined;
+    if (!isBullet) {
+      // Build a stripped version: keep only ASCII letters, digits, and spaces
+      const stripped = lineUpper.replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+      // A heading line should be SHORT (the keyword alone or with a count)
+      // and the keyword should be a complete word in the stripped string
+      if (stripped.length > 0 && stripped.length < 60) {
+        matchedKey = LAYER_KEYS.find(k => {
+          // keyword must appear as a whole word (surrounded by space or at start/end)
+          const re = new RegExp(`(?:^| )${k}(?:$| |\\(|:)`);
+          return re.test(stripped);
+        });
+      }
+    }
     if (matchedKey) {
       currentType = LAYER_MAP[matchedKey];
       continue;
@@ -165,13 +170,35 @@ function parseBulletItem(raw: string, cloudType: CloudType): ParsedCloudItem | n
 
 /**
  * Parse ALL messages in a conversation and return deduplicated items.
- * Later messages override earlier ones (by title + type).
+ *
+ * Special case: if the LATEST assistant message is a full cloud snapshot
+ * (contains "Context Cloud: ... [total items: N]"), use ONLY that message's
+ * items — it's a complete re-extraction and supersedes everything before it.
+ * This prevents old items from diluting a fresh bulk extraction.
  */
 export function parseAllMessages(messages: { role: string; content: string }[]): ParsedCloudItem[] {
-  const itemMap = new Map<string, ParsedCloudItem>();
+  // Find the latest assistant message
+  const assistantMessages = messages.filter(m => m.role === 'assistant');
+  const latest = assistantMessages[assistantMessages.length - 1];
 
-  for (const msg of messages) {
-    if (msg.role !== 'assistant') continue;
+  // If latest message is a full snapshot (contains "Context Cloud: ... [total items:")
+  // use it exclusively — it's a bulk extraction
+  if (latest && /Context Cloud:.*\[total items:\s*\d+\]/i.test(latest.content)) {
+    const items = parseCloudItems(latest.content);
+    if (items.length > 0) {
+      // Deduplicate within this message (title + type)
+      const itemMap = new Map<string, ParsedCloudItem>();
+      for (const item of items) {
+        const key = `${item.cloud_type}::${item.title.toLowerCase()}`;
+        itemMap.set(key, item);
+      }
+      return Array.from(itemMap.values());
+    }
+  }
+
+  // Default: merge all messages, later entries override earlier (by title + type)
+  const itemMap = new Map<string, ParsedCloudItem>();
+  for (const msg of assistantMessages) {
     const items = parseCloudItems(msg.content);
     for (const item of items) {
       const key = `${item.cloud_type}::${item.title.toLowerCase()}`;
