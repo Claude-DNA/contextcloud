@@ -357,7 +357,12 @@ export default function VisualCanvas() {
             dragging: false, selected: false,
             data: {
               type: 'chapterAct', label: 'Chapter / Act', emoji: '📑', color: '#4A90D9',
-              title: chapter.name, content: chapter.description || '',
+              title: chapter.name,
+            content: (chapter.plots || [])
+              .map((p: { name?: string; content?: string }) =>
+                [p.name, p.content].filter(Boolean).join(': ')
+              )
+              .join('\n') || '',
               chapterId: chapter.id,
               isProxy: false, isContainer: false, stateColor: null,
               parentNodeId: '', parentLabel: '', graphId: draftId,
