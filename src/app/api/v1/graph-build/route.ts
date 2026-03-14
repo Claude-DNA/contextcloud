@@ -435,19 +435,35 @@ export async function POST(req: NextRequest) {
   const graph = sanitizeGraph(parsed);
 
   // Post-process: fill in empty content from original cloud items
-  // Node IDs are "node_{originalId}" — strip prefix to look up original content
-  const itemContentMap = new Map<string, string>();
+  // Primary: ID-based lookup (node IDs should be "node_{uuid}")
+  // Fallback: title-based lookup (Gemini sometimes uses human-readable IDs)
+  const itemContentById = new Map<string, string>();
+  const itemContentByTitle = new Map<string, string>(); // lower-cased title → content
   for (const row of res.rows) {
-    if (row.content) itemContentMap.set(row.id as string, row.content as string);
+    const content = (row.content as string) || '';
+    if (content) {
+      itemContentById.set(row.id as string, content);
+      itemContentByTitle.set((row.title as string).toLowerCase().trim(), content);
+    }
   }
   for (const node of graph.nodes) {
     if (!node.data.content) {
-      // Try "node_" prefix strip first, then direct ID lookup
       const rawId = node.id.replace(/^node_/, '');
-      const content = itemContentMap.get(rawId) || itemContentMap.get(node.id) || '';
+      const content =
+        itemContentById.get(rawId) ||          // UUID match
+        itemContentById.get(node.id) ||         // direct match
+        itemContentByTitle.get((node.data.title || '').toLowerCase().trim()) || // title match
+        '';
       if (content) node.data.content = content;
     }
   }
+
+  // Telemetry: log node IDs and content fill status for diagnosis
+  const emptyAfterFill = graph.nodes.filter(n => !n.data.content).map(n => `${n.id}(${n.type})`);
+  if (emptyAfterFill.length > 0) {
+    console.warn('[graph-build] nodes still empty after fill:', emptyAfterFill.join(', '));
+  }
+  console.log('[graph-build] built', graph.nodes.length, 'nodes,', graph.edges.length, 'edges; items:', totalItems);
 
   return NextResponse.json({
     nodes: graph.nodes,

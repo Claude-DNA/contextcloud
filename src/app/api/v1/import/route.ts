@@ -91,9 +91,10 @@ CRITICAL RULES:
 - Characters: name + their core contradiction (not just their role).
 - Scenes: name + at least one sensory detail.
 - World: the actual rule or fact, not a description of the description.
-- Arc: one beat per entry — "Act 3: X happens" not "Act 3-5: things happen".
+- Arc: one beat per entry. Title = brief label ("Act 1: The Meeting"). Content = the FULL scene description from the source — preserve original language, details, emotional register, subtext. Do NOT summarize. If the source has 3 paragraphs for this beat, the content should have those 3 paragraphs.
 - When in doubt, include it. The user can delete; they can't add what you didn't extract.
 - Tags should be 1-3 relevant keywords per item.
+- content fields must NEVER be empty strings. If a field has no dedicated text in the source, write 2-3 sentences synthesizing what's known about it.
 
 Document text:
 ${text.slice(0, 30000)}`;

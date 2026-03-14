@@ -24,6 +24,7 @@ export default function ChatPage() {
   const [projectTitle, setProjectTitle] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
   const [lsLoaded, setLsLoaded] = useState(false); // prevents empty-state flash on remount
+  const [restoreInfo, setRestoreInfo] = useState<string | null>(null);
 
   // Keep a ref to latest messages for the streaming callback
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -58,6 +59,14 @@ export default function ChatPage() {
       if (storedTitle) setProjectTitle(storedTitle);
     } catch { /* ignore corrupt localStorage */ }
     setLsLoaded(true);
+    // Diagnostic: confirm restore in console + brief toast
+    const debugStored = localStorage.getItem(LS_KEY_MESSAGES);
+    const debugCount = debugStored ? (() => { try { return JSON.parse(debugStored).length; } catch { return 0; } })() : 0;
+    console.log('[chat] LS restore check:', debugCount > 0 ? `${debugCount} messages` : 'empty');
+    if (debugCount > 0) {
+      setRestoreInfo(`Session restored (${debugCount} messages)`);
+      setTimeout(() => setRestoreInfo(null), 3000);
+    }
   }, []);
 
   // Persist messages to localStorage on change + on unmount (prevents navigation race condition)
@@ -237,6 +246,12 @@ export default function ChatPage() {
       <Sidebar />
       <main className="flex-1 ml-60 flex flex-col">
         <Header />
+        {/* Session restore indicator */}
+        {restoreInfo && (
+          <div className="px-4 py-1 bg-green-50 border-b border-green-100 text-xs text-green-700 text-center">
+            ✓ {restoreInfo}
+          </div>
+        )}
         {/* New project button */}
         {messages.length > 0 && (
           <div className="px-4 py-1 border-b border-border bg-white flex justify-end">
