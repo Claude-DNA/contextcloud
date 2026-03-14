@@ -194,10 +194,7 @@ export default function VisualCanvas() {
   const [scenesList, setScenesList] = useState<SceneListItem[]>([]);
   const [scenesListLoading, setScenesListLoading] = useState(false);
   const [selectedSceneForLoad, setSelectedSceneForLoad] = useState<string | null>(null);
-  const [sceneLoadItems, setSceneLoadItems] = useState<SceneItem[]>([]);
-  const [sceneLoadChecked, setSceneLoadChecked] = useState<Set<string>>(new Set());
   const [sceneLoadLoading, setSceneLoadLoading] = useState(false);
-  const [sceneLoadIsFallback, setSceneLoadIsFallback] = useState(false);
 
   // ── History (undo / redo, max 10 steps) ────────────────────────────────────
   const MAX_HISTORY = 10;
@@ -629,8 +626,6 @@ export default function VisualCanvas() {
     setShowCloudLoadModal(true);
     setCloudLoadTab('scenes');
     setSelectedSceneForLoad(null);
-    setSceneLoadItems([]);
-    setSceneLoadIsFallback(false);
     setCloudLoadGroups({});
     setCloudLoadChecked(new Set());
     // Immediately load scenes list
@@ -658,9 +653,6 @@ export default function VisualCanvas() {
   const handleSwitchToScenesTab = useCallback(() => {
     setCloudLoadTab('scenes');
     setSelectedSceneForLoad(null);
-    setSceneLoadItems([]);
-    setSceneLoadChecked(new Set());
-    setSceneLoadIsFallback(false);
     fetchScenesForModal();
   }, [fetchScenesForModal]);
 
@@ -690,57 +682,41 @@ export default function VisualCanvas() {
   }, [cloudItemsUrl, cloudLoadGroups, showToast]);
 
   // ── Scenes tab: select a scene → fetch its items ───────────────────────────
-  // If scene has no attached items, automatically fall back to loading all cloud items
-  const handleSelectSceneForLoad = useCallback(async (sId: string) => {
+  // One-click scene load: click a scene → immediately load all its items → close modal
+  // If scene has no attached items, falls back to loading all cloud items
+  const handleClickScene = useCallback(async (sId: string, sceneTitle: string) => {
     setSelectedSceneForLoad(sId);
-    setSceneLoadItems([]);
-    setSceneLoadChecked(new Set());
-    setSceneLoadIsFallback(false);
     setSceneLoadLoading(true);
+
     try {
+      // 1. Try to get scene-specific items
       const res = await fetch(`/api/v1/arc-scenes/${sId}/items`);
       const data = await res.json();
-      const items: SceneItem[] = data.items || [];
+      let items: Array<{ id: string; cloud_type: string; title: string; content: string }> = data.items || [];
 
-      if (items.length > 0) {
-        setSceneLoadItems(items);
-        setSceneLoadChecked(new Set(items.map(i => i.id)));
-      } else {
-        // No attached items — auto-load all cloud items as fallback
-        try {
-          const fallbackRes = await fetch(cloudItemsUrl);
-          const fallbackData = await fallbackRes.json();
-          const fallbackItems: SceneItem[] = (fallbackData.nodes || [])
-            .filter((n: { cloud_type: string }) => n.cloud_type !== 'arc')
-            .map((n: { id: string; cloud_type: string; title: string; content?: string }) => ({
-              id: n.id,
-              cloud_type: n.cloud_type,
-              title: n.title,
-              content: n.content || '',
-            }));
-          setSceneLoadItems(fallbackItems);
-          setSceneLoadChecked(new Set(fallbackItems.map(i => i.id)));
-          setSceneLoadIsFallback(true);
-        } catch { /* ignore */ }
+      // 2. Fallback: if no attached items, load all cloud items
+      if (items.length === 0) {
+        const fallbackRes = await fetch(cloudItemsUrl);
+        const fallbackData = await fallbackRes.json();
+        items = (fallbackData.nodes || [])
+          .filter((n: { cloud_type: string }) => n.cloud_type !== 'arc')
+          .map((n: { id: string; cloud_type: string; title: string; content?: string }) => ({
+            id: n.id,
+            cloud_type: n.cloud_type,
+            title: n.title,
+            content: n.content || '',
+          }));
       }
-    } catch { /* ignore */ }
-    setSceneLoadLoading(false);
-  }, [cloudItemsUrl]);
 
-  // ── Confirm load (both tabs) ────────────────────────────────────────────────
-  const handleCloudLoadConfirm = useCallback(() => {
-    if (cloudLoadTab === 'clouds') {
-      const allItems = Object.values(cloudLoadGroups).flat();
-      const selected = allItems.filter(item => cloudLoadChecked.has(item.id));
-      loadCloudNodesToCanvas(selected);
-    } else {
-      // Scene tab: layout items in columns by type, add hub + edges
-      const selected = sceneLoadItems.filter(i => sceneLoadChecked.has(i.id));
-      if (!selected.length) { showToast('Select at least one item'); return; }
-      const scene = scenesList.find(s => s.id === selectedSceneForLoad);
+      if (!items.length) {
+        showToast('No cloud items found — add items to your Clouds first');
+        setSceneLoadLoading(false);
+        return;
+      }
 
-      const byType = new Map<string, SceneItem[]>();
-      for (const item of selected) {
+      // 3. Build nodes in column layout by type
+      const byType = new Map<string, typeof items>();
+      for (const item of items) {
         const list = byType.get(item.cloud_type) || [];
         list.push(item);
         byType.set(item.cloud_type, list);
@@ -750,27 +726,33 @@ export default function VisualCanvas() {
       for (const [, typeItems] of byType) {
         const x = colIndex * 380 + 80;
         typeItems.forEach((item, rowIndex) => {
-          const meta = typeof item.metadata === 'string'
-            ? JSON.parse(item.metadata || '{}')
-            : (item.metadata || {});
           cloudNodes.push({
             id: `cloud_${item.id}`,
-            type: mapCloudType(item.cloud_type, meta),
+            type: mapCloudType(item.cloud_type, {}),
             title: item.title,
-            content: item.content || '',
+            content: item.content,
             position: { x, y: rowIndex * 220 + 80 },
           });
         });
         colIndex++;
       }
-      loadCloudNodesToCanvas(cloudNodes, scene?.title || 'Scene');
+
+      // 4. Load into canvas with scene hub + edges, close modal
+      setShowCloudLoadModal(false);
+      loadCloudNodesToCanvas(cloudNodes, sceneTitle);
+    } catch {
+      showToast('Failed to load scene');
     }
+    setSceneLoadLoading(false);
+  }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast]);
+
+  // ── Confirm load — only used by "By Cloud Type" tab now ──────────────────────
+  const handleCloudLoadConfirm = useCallback(() => {
+    const allItems = Object.values(cloudLoadGroups).flat();
+    const selected = allItems.filter(item => cloudLoadChecked.has(item.id));
+    loadCloudNodesToCanvas(selected);
     setShowCloudLoadModal(false);
-  }, [
-    cloudLoadTab, cloudLoadGroups, cloudLoadChecked,
-    sceneLoadItems, sceneLoadChecked, scenesList, selectedSceneForLoad,
-    loadCloudNodesToCanvas, showToast,
-  ]);
+  }, [cloudLoadGroups, cloudLoadChecked, loadCloudNodesToCanvas]);
 
   // ── Load scene items (scene mode — auto on entry) ──────────────────────────
   const loadSceneItems = useCallback(async () => {
@@ -1537,18 +1519,12 @@ export default function VisualCanvas() {
                   )
                 )}
 
-                {/* ── Scenes tab ──────────────────────────────────────────────── */}
+                {/* ── Scenes tab — one click to load ─────────────────────────── */}
                 {cloudLoadTab === 'scenes' && (
-                  <div className="space-y-3">
-                    {/* Info banner */}
-                    <div className="bg-pink-50 border border-pink-100 rounded-lg px-3 py-2 text-xs text-pink-700">
-                      Select a scene → choose items → Load. A scene hub node will be created and all items connected to it automatically.
-                    </div>
-
-                    {/* Scene list */}
+                  <div className="space-y-1.5">
                     {scenesListLoading ? (
-                      <div className="flex items-center justify-center py-8 text-gray-400">
-                        <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                      <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
+                        <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                         </svg>
@@ -1559,92 +1535,42 @@ export default function VisualCanvas() {
                         No scenes found. Add scenes in Arc Cloud first.
                       </div>
                     ) : (
-                      <div className="space-y-1.5">
+                      <>
+                        <p className="text-xs text-gray-400 mb-2">Click a scene to load it into the editor.</p>
                         {scenesList.map(scene => (
                           <button
                             key={scene.id}
-                            onClick={() => handleSelectSceneForLoad(scene.id)}
-                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
-                              selectedSceneForLoad === scene.id
-                                ? 'border-pink-400 bg-pink-50 ring-1 ring-pink-300'
-                                : 'border-gray-200 hover:border-pink-200 hover:bg-pink-50/30'
+                            onClick={() => handleClickScene(scene.id, scene.title)}
+                            disabled={sceneLoadLoading && selectedSceneForLoad === scene.id}
+                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:border-pink-300 hover:bg-pink-50/40 ${
+                              sceneLoadLoading && selectedSceneForLoad === scene.id
+                                ? 'border-pink-400 bg-pink-50 opacity-70'
+                                : 'border-gray-200'
                             }`}
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-gray-800 text-sm">{scene.title}</span>
-                              {scene.attached_count > 0 && (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 font-medium">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="min-w-0">
+                                <span className="font-medium text-gray-800 text-sm">{scene.title}</span>
+                                {scene.content && (
+                                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{scene.content}</p>
+                                )}
+                              </div>
+                              {sceneLoadLoading && selectedSceneForLoad === scene.id ? (
+                                <svg className="animate-spin h-4 w-4 text-pink-500 shrink-0" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                              ) : scene.attached_count > 0 ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 font-medium shrink-0">
                                   {scene.attached_count} items
                                 </span>
+                              ) : (
+                                <span className="text-xs text-gray-300 shrink-0">all clouds →</span>
                               )}
                             </div>
-                            {scene.content && (
-                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{scene.content}</p>
-                            )}
                           </button>
                         ))}
-                      </div>
-                    )}
-
-                    {/* Items for selected scene */}
-                    {selectedSceneForLoad && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        {sceneLoadIsFallback && (
-                          <div className="mb-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700">
-                            No items attached to this scene — showing all your cloud items.{' '}
-                            <a href="/workspace/arc-cloud" target="_blank" className="underline">Attach specific items →</a>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-gray-600 uppercase tracking-wider">
-                            {sceneLoadIsFallback ? 'All cloud items (fallback)' : 'Items in scene'}
-                          </p>
-                          {sceneLoadItems.length > 0 && (
-                            <button
-                              onClick={() => {
-                                const allIds = new Set(sceneLoadItems.map(i => i.id));
-                                const allChecked = sceneLoadItems.every(i => sceneLoadChecked.has(i.id));
-                                setSceneLoadChecked(allChecked ? new Set() : allIds);
-                              }}
-                              className="text-xs text-indigo-600 hover:underline"
-                            >
-                              {sceneLoadItems.every(i => sceneLoadChecked.has(i.id)) ? 'Deselect all' : 'Select all'}
-                            </button>
-                          )}
-                        </div>
-                        {sceneLoadLoading ? (
-                          <div className="flex items-center py-4 text-gray-400 text-sm gap-2">
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                            </svg>
-                            Loading items...
-                          </div>
-                        ) : sceneLoadItems.length === 0 ? (
-                          <p className="text-sm text-gray-400 py-3">No cloud items found in your clouds yet.</p>
-                        ) : (
-                          <div className="space-y-1 max-h-48 overflow-y-auto">
-                            {sceneLoadItems.map(item => (
-                              <label key={item.id} className="flex items-center gap-2 py-1.5 px-2 rounded-lg hover:bg-gray-50 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={sceneLoadChecked.has(item.id)}
-                                  onChange={() => setSceneLoadChecked(prev => {
-                                    const next = new Set(prev);
-                                    next.has(item.id) ? next.delete(item.id) : next.add(item.id);
-                                    return next;
-                                  })}
-                                  className="rounded border-gray-300"
-                                />
-                                <span className="text-xs px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 font-mono">
-                                  {item.cloud_type}
-                                </span>
-                                <span className="text-sm text-gray-700 truncate">{item.title || '(untitled)'}</span>
-                              </label>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      </>
                     )}
                   </div>
                 )}
@@ -1658,18 +1584,16 @@ export default function VisualCanvas() {
                 >
                   Cancel
                 </button>
-                <button
-                  onClick={handleCloudLoadConfirm}
-                  disabled={
-                    (cloudLoadTab === 'clouds' && cloudLoadChecked.size === 0) ||
-                    (cloudLoadTab === 'scenes' && sceneLoadChecked.size === 0)
-                  }
-                  className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {cloudLoadTab === 'clouds'
-                    ? `Load ${cloudLoadChecked.size} item${cloudLoadChecked.size !== 1 ? 's' : ''}`
-                    : `Load ${sceneLoadChecked.size} item${sceneLoadChecked.size !== 1 ? 's' : ''} + connect`}
-                </button>
+                {/* Scenes tab: clicking a scene loads immediately — no button needed */}
+                {cloudLoadTab === 'clouds' && (
+                  <button
+                    onClick={handleCloudLoadConfirm}
+                    disabled={cloudLoadChecked.size === 0}
+                    className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Load {cloudLoadChecked.size} item{cloudLoadChecked.size !== 1 ? 's' : ''}
+                  </button>
+                )}
               </div>
             </div>
           </div>
