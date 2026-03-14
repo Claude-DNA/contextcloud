@@ -1223,9 +1223,12 @@ export default function VisualCanvas() {
       formData.append('file', file);
       const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error || 'Import failed'); return; }
-      if (data.saved && data.items) {
-        showToast(`${data.saved} items saved to your clouds — click Load from Cloud to view them`);
+      if (!res.ok) {
+        showToast(data.error || 'Import failed');
+      } else if (data.saved > 0) {
+        showToast(`✅ ${data.saved} items saved to your clouds — click Load from Cloud to view them`);
+      } else {
+        showToast('⚠️ No items could be extracted from the file. Try a richer document.');
       }
     } catch { showToast('Import failed'); }
     setImporting(false);
