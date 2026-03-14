@@ -258,6 +258,8 @@ export default function VisualCanvas() {
   const onImageGeneratedRef = useRef<(id: string, url: string) => void>(() => {});
   const onDeleteNodeRef = useRef<(id: string) => void>(() => {});
   const draftIdRef = useRef<string | null>(null);
+  // Ref so loadSceneItems (defined before handleAutoBuild) can call it without deps ordering issues
+  const handleAutoBuildRef = useRef<(sceneIds?: string[]) => void>(() => {});
   useEffect(() => { draftIdRef.current = draftId; }, [draftId]);
 
   // Hydrate a stored node back into a live node with current handlers
@@ -893,8 +895,10 @@ export default function VisualCanvas() {
       const items: SceneItem[] = data.items || [];
 
       if (!items.length) {
-        showToast('No items attached to this scene — attach items in Arc Cloud first');
+        // No attachments yet — fall back to AI graph build focused on this arc scene
         setImportingCloud(false);
+        showToast('No items attached yet — building graph from your clouds...');
+        handleAutoBuildRef.current([sceneId]);
         return;
       }
 
@@ -1212,6 +1216,9 @@ export default function VisualCanvas() {
       setAutoBuilding(false);
     }
   }, [activeProjectId, showToast, captureBeforeAction, setNodes, setEdges]);
+
+  // Keep ref in sync so loadSceneItems (defined earlier) can call handleAutoBuild without deps ordering issues
+  useEffect(() => { handleAutoBuildRef.current = handleAutoBuild; }, [handleAutoBuild]);
 
   // ── File import ─────────────────────────────────────────────────────────────
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
