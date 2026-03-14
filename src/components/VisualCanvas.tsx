@@ -1534,44 +1534,68 @@ export default function VisualCanvas() {
                       <div className="text-center py-8 text-gray-400 text-sm">
                         No scenes found. Add scenes in Arc Cloud first.
                       </div>
-                    ) : (
-                      <>
-                        <p className="text-xs text-gray-400 mb-2">Click a scene to load it into the editor.</p>
-                        {scenesList.map(scene => (
-                          <button
-                            key={scene.id}
-                            onClick={() => handleClickScene(scene.id, scene.title)}
-                            disabled={sceneLoadLoading && selectedSceneForLoad === scene.id}
-                            className={`w-full text-left px-4 py-3 rounded-xl border transition-all hover:border-pink-300 hover:bg-pink-50/40 ${
-                              sceneLoadLoading && selectedSceneForLoad === scene.id
-                                ? 'border-pink-400 bg-pink-50 opacity-70'
-                                : 'border-gray-200'
-                            }`}
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="min-w-0">
-                                <span className="font-medium text-gray-800 text-sm">{scene.title}</span>
-                                {scene.content && (
-                                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{scene.content}</p>
+                    ) : (() => {
+                        // Group scenes by arc prefix (part before " — "), or "Story Structure" if no prefix
+                        const groups = new Map<string, typeof scenesList>();
+                        for (const scene of scenesList) {
+                          const sepIdx = scene.title.indexOf(' — ');
+                          const groupKey = sepIdx >= 0 ? scene.title.slice(0, sepIdx) : '—';
+                          const list = groups.get(groupKey) || [];
+                          list.push(scene);
+                          groups.set(groupKey, list);
+                        }
+                        return (
+                          <div className="space-y-4">
+                            <p className="text-xs text-gray-400">Click a scene to load it into the editor.</p>
+                            {[...groups.entries()].map(([groupKey, groupScenes]) => (
+                              <div key={groupKey}>
+                                {groupKey !== '—' && (
+                                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5 px-1">
+                                    📖 {groupKey}
+                                  </p>
                                 )}
+                                <div className="space-y-1.5">
+                                  {groupScenes.map(scene => {
+                                    const sepIdx = scene.title.indexOf(' — ');
+                                    const displayTitle = sepIdx >= 0 ? scene.title.slice(sepIdx + 3) : scene.title;
+                                    const isLoading = sceneLoadLoading && selectedSceneForLoad === scene.id;
+                                    return (
+                                      <button
+                                        key={scene.id}
+                                        onClick={() => handleClickScene(scene.id, scene.title)}
+                                        disabled={isLoading}
+                                        className={`w-full text-left px-4 py-2.5 rounded-xl border transition-all hover:border-pink-300 hover:bg-pink-50/40 ${
+                                          isLoading ? 'border-pink-400 bg-pink-50 opacity-70' : 'border-gray-200'
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="min-w-0">
+                                            <span className="font-medium text-gray-800 text-sm">{displayTitle}</span>
+                                            {scene.content && (
+                                              <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{scene.content}</p>
+                                            )}
+                                          </div>
+                                          {isLoading ? (
+                                            <svg className="animate-spin h-4 w-4 text-pink-500 shrink-0" viewBox="0 0 24 24">
+                                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                            </svg>
+                                          ) : scene.attached_count > 0 ? (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 font-medium shrink-0">
+                                              {scene.attached_count}
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
-                              {sceneLoadLoading && selectedSceneForLoad === scene.id ? (
-                                <svg className="animate-spin h-4 w-4 text-pink-500 shrink-0" viewBox="0 0 24 24">
-                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                              ) : scene.attached_count > 0 ? (
-                                <span className="text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-600 font-medium shrink-0">
-                                  {scene.attached_count} items
-                                </span>
-                              ) : (
-                                <span className="text-xs text-gray-300 shrink-0">all clouds →</span>
-                              )}
-                            </div>
-                          </button>
-                        ))}
-                      </>
-                    )}
+                            ))}
+                          </div>
+                        );
+                      })()
+                    }
                   </div>
                 )}
               </div>
