@@ -1,284 +1,160 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
-import ChapterSection from '@/components/arc-cloud/ChapterSection';
-import PlotEditorModal from '@/components/arc-cloud/PlotEditorModal';
-import AlternativesModal from '@/components/arc-cloud/AlternativesModal';
 
-interface Arc {
+interface ArcScene {
   id: string;
-  name: string;
-  description: string | null;
-}
-
-interface Plot {
-  id: string;
-  name: string;
-  content: string | null;
+  title: string;
+  content: string;
   sort_order: number;
-  active_alternative_id: string | null;
-  alternatives_count: string | number;
+  attached_count: number;
 }
 
-interface Chapter {
+interface AttachedItem {
   id: string;
-  name: string;
-  sort_order: number;
-  plots: Plot[];
+  title: string;
+  content: string;
+  cloud_type: string;
+  tags: string[];
+  metadata: Record<string, string>;
 }
+
+const TYPE_LABELS: Record<string, { label: string; color: string }> = {
+  characters: { label: 'Characters', color: '#6366f1' },
+  references: { label: 'References', color: '#f97316' },
+  scenes:     { label: 'Stage',      color: '#10b981' },
+  world:      { label: 'World',      color: '#06b6d4' },
+  ideas:      { label: 'Ideas',      color: '#eab308' },
+};
+
+const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors bg-white';
 
 export default function ArcCloudPage() {
-  const [arcs, setArcs] = useState<Arc[]>([]);
-  const [selectedArcId, setSelectedArcId] = useState<string | null>(null);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  const [scenes, setScenes] = useState<ArcScene[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chaptersLoading, setChaptersLoading] = useState(false);
-  const [arcDropdownOpen, setArcDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [adding, setAdding] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [attachedItems, setAttachedItems] = useState<Record<string, AttachedItem[]>>({});
+  const [attachedLoading, setAttachedLoading] = useState<string | null>(null);
 
-  // Modal states
-  const [editingPlot, setEditingPlot] = useState<Plot | null>(null);
-  const [altPlot, setAltPlot] = useState<Plot | null>(null);
+  // Form state
+  const [formTitle, setFormTitle] = useState('');
+  const [formContent, setFormContent] = useState('');
 
-  const selectedArc = arcs.find(a => a.id === selectedArcId) || null;
-
-  // Collect all plots in order for the editor
-  const allPlots = chapters.flatMap(ch => ch.plots);
-
-  // Fetch arcs list
-  const fetchArcs = useCallback(async () => {
+  const fetchScenes = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/v1/arcs');
+      const res = await fetch('/api/v1/arc-scenes');
       const data = await res.json();
-      const arcList: Arc[] = data.arcs || [];
-      setArcs(arcList);
-      if (arcList.length > 0 && !selectedArcId) {
-        setSelectedArcId(arcList[0].id);
-      }
+      setScenes(data.scenes || []);
     } catch (err) {
-      console.error('Failed to fetch arcs:', err);
-    } finally {
-      setLoading(false);
+      console.error('Failed to fetch scenes:', err);
     }
-  }, [selectedArcId]);
-
-  // Fetch chapters+plots for selected arc
-  const fetchChapters = useCallback(async () => {
-    if (!selectedArcId) {
-      setChapters([]);
-      return;
-    }
-    setChaptersLoading(true);
-    try {
-      const res = await fetch(`/api/v1/arcs/${selectedArcId}/chapters`);
-      const data = await res.json();
-      setChapters(data.chapters || []);
-    } catch (err) {
-      console.error('Failed to fetch chapters:', err);
-    } finally {
-      setChaptersLoading(false);
-    }
-  }, [selectedArcId]);
-
-  useEffect(() => {
-    fetchArcs();
-  }, [fetchArcs]);
-
-  useEffect(() => {
-    fetchChapters();
-  }, [fetchChapters]);
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setArcDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    setLoading(false);
   }, []);
 
-  // Delete arc
-  const handleDeleteArc = async (arcId: string, arcName: string) => {
-    if (!confirm(`Delete arc "${arcName}" and all its chapters/plots? This cannot be undone.`)) return;
+  useEffect(() => {
+    fetch('/api/v1/ping').catch(() => {});
+  }, []);
+
+  useEffect(() => { fetchScenes(); }, [fetchScenes]);
+
+  const fetchAttached = async (arcItemId: string) => {
+    setAttachedLoading(arcItemId);
     try {
-      await fetch(`/api/v1/arcs/${arcId}`, { method: 'DELETE' });
-      if (selectedArcId === arcId) setSelectedArcId(null);
-      await fetchArcs();
-      setArcDropdownOpen(false);
+      const res = await fetch(`/api/v1/arc-scenes/${arcItemId}/items`);
+      const data = await res.json();
+      setAttachedItems(prev => ({ ...prev, [arcItemId]: data.items || [] }));
     } catch (err) {
-      console.error('Failed to delete arc:', err);
+      console.error('Failed to fetch attached items:', err);
+    }
+    setAttachedLoading(null);
+  };
+
+  const handleExpand = (sceneId: string) => {
+    if (expandedId === sceneId) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(sceneId);
+      if (!attachedItems[sceneId]) {
+        fetchAttached(sceneId);
+      }
     }
   };
 
-  // Create new arc
-  const handleNewArc = async () => {
-    const name = prompt('New arc name:');
-    if (!name?.trim()) return;
-    const description = prompt('Description (optional):') || '';
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTitle.trim()) return;
+    setSaving(true);
     try {
-      const res = await fetch('/api/v1/arcs', {
+      const res = await fetch('/api/v1/cloud-items', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), description: description.trim() }),
+        body: JSON.stringify({ cloud_type: 'arc', title: formTitle.trim(), content: formContent, tags: [], metadata: {} }),
       });
       if (res.ok) {
-        const data = await res.json();
-        await fetchArcs();
-        setSelectedArcId(data.arc?.id || data.id);
-        setArcDropdownOpen(false);
+        setAdding(false);
+        setFormTitle('');
+        setFormContent('');
+        await fetchScenes();
       }
-    } catch (err) {
-      console.error('Failed to create arc:', err);
-    }
+    } catch { /* ignore */ }
+    setSaving(false);
   };
 
-  // Add chapter
-  const handleAddChapter = async () => {
-    if (!selectedArcId) return;
-    const name = prompt('Chapter name:');
-    if (!name?.trim()) return;
+  const handleUpdate = async (id: string, e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formTitle.trim()) return;
+    setSaving(true);
     try {
-      const res = await fetch(`/api/v1/arcs/${selectedArcId}/chapters`, {
-        method: 'POST',
+      const res = await fetch(`/api/v1/cloud-items/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim() }),
+        body: JSON.stringify({ title: formTitle.trim(), content: formContent }),
       });
       if (res.ok) {
-        await fetchChapters();
+        setEditingId(null);
+        setFormTitle('');
+        setFormContent('');
+        await fetchScenes();
       }
-    } catch (err) {
-      console.error('Failed to add chapter:', err);
-    }
+    } catch { /* ignore */ }
+    setSaving(false);
   };
 
-  // Add plot to chapter
-  const handleAddPlot = async (chapterId: string) => {
-    const name = prompt('Plot name:');
-    if (!name?.trim()) return;
-    try {
-      const res = await fetch(`/api/v1/chapters/${chapterId}/plots`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), content: '' }),
-      });
-      if (res.ok) {
-        await fetchChapters();
-      }
-    } catch (err) {
-      console.error('Failed to add plot:', err);
-    }
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this scene and detach all items? This cannot be undone.')) return;
+    await fetch(`/api/v1/cloud-items/${id}`, { method: 'DELETE' });
+    if (expandedId === id) setExpandedId(null);
+    await fetchScenes();
   };
 
-  // Rename chapter
-  const handleRenameChapter = async (chapterId: string, newName: string) => {
-    try {
-      await fetch(`/api/v1/arcs/${selectedArcId}/chapters`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: chapterId, name: newName }),
-      });
-      await fetchChapters();
-    } catch (err) {
-      console.error('Failed to rename chapter:', err);
-    }
+  const startEdit = (scene: ArcScene) => {
+    setEditingId(scene.id);
+    setAdding(false);
+    setFormTitle(scene.title);
+    setFormContent(scene.content);
   };
 
-  // Plot editor save
-  const handlePlotSave = async (updated: { id: string; name: string; content: string }) => {
-    try {
-      await fetch(`/api/v1/plots/${updated.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: updated.name, content: updated.content }),
-      });
-      await fetchChapters();
-      setEditingPlot(null);
-    } catch (err) {
-      console.error('Failed to save plot:', err);
-    }
+  const cancelForm = () => {
+    setAdding(false);
+    setEditingId(null);
+    setFormTitle('');
+    setFormContent('');
   };
 
-  // Active alternative change
-  const handleActiveAltChange = async (altId: string | null) => {
-    if (!altPlot) return;
-    try {
-      await fetch(`/api/v1/plots/${altPlot.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ active_alternative_id: altId }),
-      });
-      await fetchChapters();
-    } catch (err) {
-      console.error('Failed to set active alternative:', err);
+  // Group attached items by cloud_type
+  const groupItems = (items: AttachedItem[]) => {
+    const grouped: Record<string, AttachedItem[]> = {};
+    for (const item of items) {
+      if (!grouped[item.cloud_type]) grouped[item.cloud_type] = [];
+      grouped[item.cloud_type].push(item);
     }
-  };
-
-  // Export
-  const handleExport = () => {
-    const lines: string[] = [];
-    for (const ch of chapters) {
-      lines.push(`## ${ch.name}`);
-      for (const p of ch.plots) {
-        lines.push(`### ${p.name}`);
-        lines.push(p.content || '');
-        lines.push('');
-      }
-    }
-    const text = lines.join('\n');
-    const blob = new Blob([text], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${selectedArc?.name || 'arc'}-export.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Upload
-  const handleUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.txt,.md';
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file || !selectedArcId) return;
-      const text = await file.text();
-      // Simple parse: ## = chapter, ### = plot
-      const chapterBlocks = text.split(/^## /m).filter(b => b.trim());
-      for (const block of chapterBlocks) {
-        const lines = block.split('\n');
-        const chapterName = lines[0]?.trim();
-        if (!chapterName) continue;
-        const chRes = await fetch(`/api/v1/arcs/${selectedArcId}/chapters`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: chapterName }),
-        });
-        if (!chRes.ok) continue;
-        const chData = await chRes.json();
-        const chapterId = chData.chapter?.id || chData.id;
-        if (!chapterId) continue;
-
-        const plotBlocks = block.split(/^### /m).slice(1);
-        for (const pBlock of plotBlocks) {
-          const pLines = pBlock.split('\n');
-          const plotName = pLines[0]?.trim();
-          const plotContent = pLines.slice(1).join('\n').trim();
-          if (!plotName) continue;
-          await fetch(`/api/v1/chapters/${chapterId}/plots`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: plotName, content: plotContent }),
-          });
-        }
-      }
-      await fetchChapters();
-    };
-    input.click();
+    return grouped;
   };
 
   return (
@@ -286,151 +162,229 @@ export default function ArcCloudPage() {
       <Sidebar />
       <main className="flex-1 ml-60 flex flex-col">
         <Header />
-        <div className="flex-1 p-8 max-w-5xl mx-auto w-full">
-          {/* Page header */}
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
+        <div className="flex-1 p-8 w-full">
+          <div className="max-w-3xl mx-auto">
+
+            {/* Title bar */}
+            <div className="flex items-center justify-between mb-6">
               <h1 className="text-xl font-semibold text-foreground">
-                Arc Cloud{selectedArc ? `: ${selectedArc.name}` : ''}
+                Arc Cloud — Scenes
               </h1>
-            </div>
-
-            {/* Arc selector dropdown */}
-            <div className="relative" ref={dropdownRef}>
               <button
-                onClick={() => setArcDropdownOpen(!arcDropdownOpen)}
-                className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors flex items-center gap-2"
+                onClick={() => { setAdding(true); setEditingId(null); setFormTitle(''); setFormContent(''); }}
+                disabled={adding}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                style={{ background: '#ec4899' }}
               >
-                {selectedArc ? 'Switch Arc' : 'New Arc'}
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {arcDropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 w-56 bg-card-bg border border-border rounded-xl shadow-lg z-20 overflow-hidden">
-                  <div className="max-h-60 overflow-y-auto">
-                    {arcs.map(arc => (
-                      <div key={arc.id} className="group flex items-center">
-                        <button
-                          onClick={() => { setSelectedArcId(arc.id); setArcDropdownOpen(false); }}
-                          className={`flex-1 text-left px-4 py-2.5 text-sm transition-colors ${
-                            arc.id === selectedArcId
-                              ? 'bg-accent/10 text-accent font-medium'
-                              : 'text-foreground hover:bg-gray-50'
-                          }`}
-                        >
-                          {arc.name}
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDeleteArc(arc.id, arc.name); }}
-                          className="opacity-0 group-hover:opacity-100 px-2 py-2.5 text-red-400 hover:text-red-600 hover:bg-red-50 transition-all text-xs"
-                          title="Delete arc"
-                        >✕</button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="border-t border-border">
-                    <button
-                      onClick={handleNewArc}
-                      className="w-full text-left px-4 py-2.5 text-sm text-accent hover:bg-accent/5 transition-colors font-medium"
-                    >
-                      + New Arc
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Content */}
-          {loading ? (
-            <p className="text-center text-muted text-sm py-16">Loading arcs...</p>
-          ) : arcs.length === 0 ? (
-            <div className="text-center py-16">
-              <p className="text-muted text-sm mb-4">No arcs yet. Create your first arc to get started.</p>
-              <button
-                onClick={handleNewArc}
-                className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
-              >
-                + New Arc
+                + Add Scene
               </button>
             </div>
-          ) : chaptersLoading ? (
-            <p className="text-center text-muted text-sm py-16">Loading chapters...</p>
-          ) : (
-            <>
-              {/* Chapters list */}
-              <div className="space-y-3">
-                {chapters.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-border rounded-xl">
-                    <p className="text-muted text-sm mb-3">No chapters yet. Add your first chapter.</p>
+
+            {/* Add form */}
+            {adding && (
+              <div className="mb-4 rounded-xl border border-border bg-card-bg p-4">
+                <p className="text-xs text-muted uppercase tracking-wider mb-3">New Scene</p>
+                <form onSubmit={handleCreate} className="space-y-3">
+                  <input
+                    autoFocus
+                    value={formTitle}
+                    onChange={e => setFormTitle(e.target.value)}
+                    placeholder="Story beat…"
+                    className={inputCls}
+                  />
+                  <textarea
+                    value={formContent}
+                    onChange={e => setFormContent(e.target.value)}
+                    placeholder="What happens at this turning point — the shift, the consequence, the surprise…"
+                    rows={3}
+                    className={`${inputCls} resize-y`}
+                  />
+                  <div className="flex gap-2 pt-1">
                     <button
-                      onClick={handleAddChapter}
-                      className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+                      type="submit"
+                      disabled={saving || !formTitle.trim()}
+                      className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
+                      style={{ background: '#ec4899' }}
                     >
-                      + Add Chapter
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button type="button" onClick={cancelForm} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border">
+                      Cancel
                     </button>
                   </div>
-                ) : (
-                  chapters.map(chapter => (
-                    <ChapterSection
-                      key={chapter.id}
-                      chapter={chapter}
-                      onPlotClick={(plot) => setEditingPlot(plot)}
-                      onAltClick={(plot) => setAltPlot(plot)}
-                      onAddPlot={handleAddPlot}
-                      onRename={handleRenameChapter}
-                    />
-                  ))
-                )}
+                </form>
               </div>
+            )}
 
-              {/* Bottom bar */}
-              {chapters.length > 0 && (
-                <div className="flex items-center gap-3 border-t border-border pt-4 mt-6">
-                  <button
-                    onClick={handleAddChapter}
-                    className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors"
+            {/* Scene list */}
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <div key={i} className="h-20 rounded-xl bg-card-bg border border-border animate-pulse" />
+                ))}
+              </div>
+            ) : scenes.length === 0 && !adding ? (
+              <div className="text-center py-16">
+                <div className="text-4xl mb-3">🎬</div>
+                <p className="text-muted text-sm mb-4">No arc scenes yet. Add your first scene to start building the scaffold.</p>
+                <button
+                  onClick={() => { setAdding(true); setFormTitle(''); setFormContent(''); }}
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity"
+                  style={{ background: '#ec4899' }}
+                >
+                  + Add Scene
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {scenes.map(scene => (
+                  <div
+                    key={scene.id}
+                    className="rounded-xl border border-border bg-card-bg overflow-hidden group"
+                    style={{ borderLeftColor: '#ec4899', borderLeftWidth: 3 }}
                   >
-                    + Add Chapter
-                  </button>
-                  <button
-                    onClick={handleExport}
-                    className="px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Export
-                  </button>
-                  <button
-                    onClick={handleUpload}
-                    className="px-4 py-2 text-sm border border-border text-foreground rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Upload
-                  </button>
-                </div>
-              )}
-            </>
-          )}
+                    {editingId === scene.id ? (
+                      <div className="p-4">
+                        <form onSubmit={(e) => handleUpdate(scene.id, e)} className="space-y-3">
+                          <input
+                            autoFocus
+                            value={formTitle}
+                            onChange={e => setFormTitle(e.target.value)}
+                            placeholder="Story beat…"
+                            className={inputCls}
+                          />
+                          <textarea
+                            value={formContent}
+                            onChange={e => setFormContent(e.target.value)}
+                            placeholder="What happens at this turning point…"
+                            rows={3}
+                            className={`${inputCls} resize-y`}
+                          />
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              type="submit"
+                              disabled={saving || !formTitle.trim()}
+                              className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
+                              style={{ background: '#ec4899' }}
+                            >
+                              {saving ? 'Saving…' : 'Save'}
+                            </button>
+                            <button type="button" onClick={cancelForm} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border">
+                              Cancel
+                            </button>
+                          </div>
+                        </form>
+                      </div>
+                    ) : (
+                      <div>
+                        {/* Scene header — clickable to expand */}
+                        <button
+                          onClick={() => handleExpand(scene.id)}
+                          className="w-full text-left p-4 hover:bg-gray-50/50 transition-colors"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <h3 className="font-semibold text-foreground">{scene.title}</h3>
+                                {scene.attached_count > 0 && (
+                                  <span
+                                    className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
+                                    style={{ background: '#ec489918', color: '#ec4899' }}
+                                  >
+                                    {scene.attached_count} attached
+                                  </span>
+                                )}
+                              </div>
+                              {scene.content && (
+                                <p className="mt-1 text-sm text-muted leading-relaxed line-clamp-2">{scene.content}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+                                <button
+                                  onClick={() => startEdit(scene)}
+                                  className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
+                                >Edit</button>
+                                <button
+                                  onClick={() => handleDelete(scene.id)}
+                                  className="px-2 py-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                >Delete</button>
+                              </div>
+                              <svg
+                                className={`w-4 h-4 text-muted transition-transform ${expandedId === scene.id ? 'rotate-180' : ''}`}
+                                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+                        </button>
+
+                        {/* Expanded: attached items grouped by type */}
+                        {expandedId === scene.id && (
+                          <div className="border-t border-border px-4 py-3 bg-gray-50/30">
+                            {attachedLoading === scene.id ? (
+                              <p className="text-xs text-muted py-2">Loading attached items...</p>
+                            ) : !attachedItems[scene.id] || attachedItems[scene.id].length === 0 ? (
+                              <div className="text-center py-4">
+                                <p className="text-xs text-muted mb-2">No items attached to this scene yet.</p>
+                                <button
+                                  disabled
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
+                                  title="Coming soon"
+                                >
+                                  Attach items
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {Object.entries(groupItems(attachedItems[scene.id])).map(([type, items]) => {
+                                  const typeInfo = TYPE_LABELS[type] || { label: type, color: '#6b7280' };
+                                  return (
+                                    <div key={type}>
+                                      <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: typeInfo.color }}>
+                                        {typeInfo.label} ({items.length})
+                                      </p>
+                                      <div className="space-y-1">
+                                        {items.map(item => (
+                                          <div
+                                            key={item.id}
+                                            className="px-3 py-2 rounded-lg bg-card-bg border border-border text-sm"
+                                            style={{ borderLeftColor: typeInfo.color, borderLeftWidth: 2 }}
+                                          >
+                                            <span className="font-medium text-foreground">{item.title}</span>
+                                            {item.content && (
+                                              <p className="text-xs text-muted mt-0.5 line-clamp-1">{item.content}</p>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                                <div className="pt-1">
+                                  <button
+                                    disabled
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted cursor-not-allowed opacity-60"
+                                    title="Coming soon"
+                                  >
+                                    Attach items
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
         </div>
       </main>
-
-      {/* Modals */}
-      {editingPlot && (
-        <PlotEditorModal
-          plot={editingPlot}
-          allPlots={allPlots}
-          onClose={() => setEditingPlot(null)}
-          onSave={handlePlotSave}
-        />
-      )}
-
-      {altPlot && (
-        <AlternativesModal
-          plot={altPlot}
-          onClose={() => { setAltPlot(null); fetchChapters(); }}
-          onActiveChange={handleActiveAltChange}
-        />
-      )}
     </div>
   );
 }

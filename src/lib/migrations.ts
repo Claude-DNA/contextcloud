@@ -207,6 +207,19 @@ export async function runMigrations() {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_trans_item_id ON cloud_item_transformations (cloud_item_id)`);
 
+    // Arc scaffold — junction table linking cloud_items to arc scenes
+    await query(`
+      CREATE TABLE IF NOT EXISTS cloud_item_scenes (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        cloud_item_id UUID NOT NULL REFERENCES cloud_items(id) ON DELETE CASCADE,
+        arc_item_id UUID NOT NULL REFERENCES cloud_items(id) ON DELETE CASCADE,
+        UNIQUE(cloud_item_id, arc_item_id),
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_scenes_item ON cloud_item_scenes(cloud_item_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_scenes_arc ON cloud_item_scenes(arc_item_id)`);
+
     // BYOT — user-stored Google AI key
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_ai_key TEXT`);
 
