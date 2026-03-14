@@ -60,12 +60,21 @@ export default function ChatPage() {
     setLsLoaded(true);
   }, []);
 
-  // Persist messages to localStorage on change
+  // Persist messages to localStorage on change + on unmount (prevents navigation race condition)
   useEffect(() => {
     if (messages.length > 0) {
       localStorage.setItem(LS_KEY_MESSAGES, JSON.stringify(messages));
     }
   }, [messages]);
+
+  // Guarantee save on unmount — messagesRef holds latest value even mid-render
+  useEffect(() => {
+    return () => {
+      if (messagesRef.current.length > 0) {
+        localStorage.setItem(LS_KEY_MESSAGES, JSON.stringify(messagesRef.current));
+      }
+    };
+  }, []);
 
   // Persist projectTitle
   useEffect(() => {

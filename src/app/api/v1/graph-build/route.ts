@@ -170,14 +170,14 @@ Given:
 Correct output:
 {
   "nodes": [
-    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"","type":"scene"}},
-    {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"...","type":"character"}},
-    {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"...","type":"character"}},
+    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"Daniel and Jane meet in a simulated shared experience designed to build genuine bonds. The bond forms before either questions it.","type":"scene"}},
+    {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"Observant, drawn to connection. Her core contradiction: she trusts constructed experiences more than organic ones.","type":"character"}},
+    {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"Falls asleep first — an unconscious form of trust. His core contradiction: open to intimacy but unable to name it.","type":"character"}},
     {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","type":"charactersProxy"}},
     {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"Hopeful but afraid.","type":"state"}},
     {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","type":"charactersProxy"}},
     {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"Resolute, closed off.","type":"state"}},
-    {"id":"node_world1","type":"world","position":{"x":0,"y":300},"data":{"title":"Zero-G Biology","content":"...","type":"world"}}
+    {"id":"node_world1","type":"world","position":{"x":0,"y":300},"data":{"title":"Zero-G Biology","content":"Biological expansion in zero-g behaves differently than calculated. Neither side asked before acting.","type":"world"}}
   ],
   "edges": [
     {"id":"e_jane_proxy","source":"node_char_jane","target":"proxy_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
@@ -193,6 +193,14 @@ Correct output:
 Note: No "hub_source" handles. Edges connect to named targetHandles: "characters", "world", "plot", "references".
 
 ════════════════════════════════
+CONTENT RULE — CRITICAL
+════════════════════════════════
+
+For EVERY node: copy the full `content` field from the corresponding cloud item into `data.content`.
+NEVER leave `data.content` as an empty string "". NEVER use "..." as a placeholder.
+If the cloud item has content, use it verbatim. If it has none, write a 1-sentence summary of the title.
+
+════════════════════════════════
 OUTPUT FORMAT
 ════════════════════════════════
 
@@ -202,7 +210,7 @@ OUTPUT FORMAT
       "id": "node_ORIGINAL_ID",
       "type": "scene",
       "position": { "x": 0, "y": 0 },
-      "data": { "title": "Scene Title", "content": "Scene description.", "type": "scene" }
+      "data": { "title": "Scene Title", "content": "Full content from the cloud item — never empty.", "type": "scene" }
     }
   ],
   "edges": [
@@ -425,6 +433,21 @@ export async function POST(req: NextRequest) {
   }
 
   const graph = sanitizeGraph(parsed);
+
+  // Post-process: fill in empty content from original cloud items
+  // Node IDs are "node_{originalId}" — strip prefix to look up original content
+  const itemContentMap = new Map<string, string>();
+  for (const row of res.rows) {
+    if (row.content) itemContentMap.set(row.id as string, row.content as string);
+  }
+  for (const node of graph.nodes) {
+    if (!node.data.content) {
+      // Try "node_" prefix strip first, then direct ID lookup
+      const rawId = node.id.replace(/^node_/, '');
+      const content = itemContentMap.get(rawId) || itemContentMap.get(node.id) || '';
+      if (content) node.data.content = content;
+    }
+  }
 
   return NextResponse.json({
     nodes: graph.nodes,
