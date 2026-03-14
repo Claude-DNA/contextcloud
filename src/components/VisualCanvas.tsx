@@ -1202,14 +1202,15 @@ export default function VisualCanvas() {
   }, [showToast]);
 
   // ── Categorised node types for sidebar ─────────────────────────────────────
-  const categorized = useMemo(() => ({
-    content: NODE_TYPES.filter(n => n.category === 'content' && !n.isProxy),
-    narrative: NODE_TYPES.filter(n => n.category === 'narrative' as NodeTypeConfig['category']),
-    proxy: NODE_TYPES.filter(n => n.isProxy === true),
-    reference: NODE_TYPES.filter(n => n.category === 'reference'),
-    meta: NODE_TYPES.filter(n => n.category === 'meta'),
-    container: NODE_TYPES.filter(n => n.category === 'container'),
-  }), []);
+  // Only show non-hidden node types in the palette, grouped by new sections
+  const categorized = useMemo(() => {
+    const visible = NODE_TYPES.filter(n => !n.hidden);
+    return {
+      story:     visible.filter(n => n.category === 'content'),
+      character: visible.filter(n => n.category === 'proxy' || n.category === 'meta'),
+      reference: visible.filter(n => n.category === 'reference'),
+    };
+  }, []);
 
   if (!session) {
     return (
@@ -1260,11 +1261,12 @@ export default function VisualCanvas() {
               </div>
               <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
 
-              {categorized.container.length > 0 && (
+              {/* Story nodes */}
+              {categorized.story.length > 0 && (
                 <div className="mb-4">
-                  <div className="text-xs text-indigo-600 font-medium mb-2">Subclouds</div>
+                  <div className="text-xs text-blue-600 font-semibold mb-2 uppercase tracking-wide">Story</div>
                   <div className="space-y-0.5">
-                    {categorized.container.map(nt => (
+                    {categorized.story.map(nt => (
                       <button key={nt.type} onClick={() => addNode(nt)}
                         className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
                         <span>{nt.emoji}</span><span>{nt.label}</span>
@@ -1273,63 +1275,12 @@ export default function VisualCanvas() {
                   </div>
                 </div>
               )}
-              {categorized.content.length > 0 && (
+              {/* Character pattern nodes */}
+              {categorized.character.length > 0 && (
                 <div className="mb-4">
-                  <div className="text-xs text-blue-600 font-medium mb-2">Content</div>
+                  <div className="text-xs text-violet-600 font-semibold mb-2 uppercase tracking-wide">Character</div>
                   <div className="space-y-0.5">
-                    {categorized.content.map(nt => (
-                      <button key={nt.type} onClick={() => addNode(nt)}
-                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {categorized.narrative.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs text-cyan-600 font-medium mb-2">Narrative</div>
-                  <div className="space-y-0.5">
-                    {categorized.narrative.map(nt => (
-                      <button key={nt.type} onClick={() => addNode(nt)}
-                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {categorized.proxy.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs text-purple-600 font-medium mb-2">Proxy</div>
-                  <div className="space-y-0.5">
-                    {categorized.proxy.map(nt => (
-                      <button key={nt.type} onClick={() => addNode(nt)}
-                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-600">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {categorized.reference.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs text-amber-600 font-medium mb-2">Reference</div>
-                  <div className="space-y-0.5">
-                    {categorized.reference.map(nt => (
-                      <button key={nt.type} onClick={() => addNode(nt)}
-                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {categorized.meta.length > 0 && (
-                <div className="mb-4">
-                  <div className="text-xs text-purple-600 font-medium mb-2">Meta</div>
-                  <div className="space-y-0.5">
-                    {categorized.meta.map(nt => (
+                    {categorized.character.map(nt => (
                       <button key={nt.type} onClick={() => addNode(nt)}
                         className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
                         <span>{nt.emoji}</span><span>{nt.label}</span>
@@ -1340,6 +1291,20 @@ export default function VisualCanvas() {
                             ))}
                           </span>
                         )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Reference nodes */}
+              {categorized.reference.length > 0 && (
+                <div className="mb-4">
+                  <div className="text-xs text-amber-600 font-semibold mb-2 uppercase tracking-wide">References</div>
+                  <div className="space-y-0.5">
+                    {categorized.reference.map(nt => (
+                      <button key={nt.type} onClick={() => addNode(nt)}
+                        className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
+                        <span>{nt.emoji}</span><span>{nt.label}</span>
                       </button>
                     ))}
                   </div>
