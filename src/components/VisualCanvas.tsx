@@ -1226,14 +1226,19 @@ export default function VisualCanvas() {
       if (!res.ok) {
         showToast(data.error || 'Import failed');
       } else if (data.saved > 0) {
-        showToast(`✅ ${data.saved} items saved to your clouds — click Load from Cloud to view them`);
+        showToast(`✅ ${data.saved} items saved — building graph...`);
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        // Auto-trigger graph build after successful import
+        handleAutoBuild();
+        return;
       } else {
         showToast('⚠️ No items could be extracted from the file. Try a richer document.');
       }
     } catch { showToast('Import failed'); }
     setImporting(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
-  }, [showToast]);
+  }, [showToast, handleAutoBuild]);
 
   // ── Categorised node types for sidebar ─────────────────────────────────────
   // Only show non-hidden node types in the palette, grouped by new sections
