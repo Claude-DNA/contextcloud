@@ -568,8 +568,9 @@ export default function VisualCanvas() {
   );
 
   // ── loadCloudNodesToCanvas ──────────────────────────────────────────────────
-  // connectToScene: if trueName is provided, create a hub chapterAct node and
-  // draw edges from it to every loaded item.
+  // hubTitle: if provided, creates a chapterAct hub node and connects every item to it.
+  // Scene loads (hubTitle set) REPLACE the canvas so items land in the column layout
+  // and aren't hidden behind stale scattered positions from a prior load.
   const loadCloudNodesToCanvas = useCallback(
     (
       cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }>,
@@ -583,34 +584,53 @@ export default function VisualCanvas() {
       );
 
       let hubNode: Node | null = null;
-      let newEdges: Edge[] = [];
+      let hubId = '';
 
       if (hubTitle) {
-        const hubId = `hub_${Date.now()}`;
-        const avgX = newNodes.reduce((s, n) => s + n.position.x, 0) / newNodes.length;
+        hubId = `hub_${Date.now()}`;
+        // Centre the hub above all items (use the mid-point of the column span)
+        const xs = newNodes.map(n => n.position.x);
+        const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
         const minY = Math.min(...newNodes.map(n => n.position.y));
-        hubNode = makeNode(hubId, 'chapterAct', { x: avgX - 100, y: minY - 220 }, { title: hubTitle });
-        newEdges = newNodes.map(n => ({
-          id: `e_hub_${n.id}_${Date.now()}`,
+        hubNode = makeNode(hubId, 'chapterAct', { x: centerX - 60, y: minY - 240 }, { title: hubTitle });
+      }
+
+      const allNodes = [...newNodes, ...(hubNode ? [hubNode] : [])];
+
+      if (hubTitle) {
+        // Scene load: replace canvas with just these nodes (clean layout, no stale positions)
+        setNodes(allNodes);
+        setEdges([]);
+      } else {
+        // Cloud type load: merge into existing canvas
+        setNodes(nds => {
+          const existingIds = new Set(nds.map(n => n.id));
+          return [...nds, ...allNodes.filter(n => !existingIds.has(n.id))];
+        });
+      }
+
+      if (hubTitle && hubId) {
+        // Defer edge creation so React Flow has time to commit nodes first.
+        // sourceHandle must be 'hub_source' — chapterAct only has named handles;
+        // without a sourceHandle, React Flow can't find a default source and drops the edge.
+        const edgesToAdd: Edge[] = newNodes.map((n, i) => ({
+          id: `e_hub_${hubId}_${i}`,
           source: hubId,
           target: n.id,
+          sourceHandle: 'hub_source',
           animated: true,
           style: { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '6 3' },
         }));
+        setTimeout(() => {
+          setEdges(edgesToAdd);
+          setTimeout(() => reactFlowInstance.fitView({ duration: 600, padding: 0.18 }), 100);
+        }, 80);
       }
 
-      const allToAdd = [...newNodes, ...(hubNode ? [hubNode] : [])];
-
-      setNodes(nds => {
-        const existingIds = new Set(nds.map(n => n.id));
-        return [...nds, ...allToAdd.filter(n => !existingIds.has(n.id))];
-      });
-      if (newEdges.length) {
-        setEdges(eds => [...eds, ...newEdges]);
-      }
       showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded${hubTitle ? ' for scene' : ' from Cloud'}`);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
+      if (!hubTitle) {
+        setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
+      }
     },
     [makeNode, setNodes, setEdges, showToast, reactFlowInstance, captureBeforeAction]
   );
@@ -835,22 +855,26 @@ export default function VisualCanvas() {
       }
 
       // Hub node at top center, edges from hub to every item
-      const avgX = newNodes.reduce((s, n) => s + n.position.x, 0) / newNodes.length;
+      const xs = newNodes.map(n => n.position.x);
+      const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
       const hubId = `scene_hub_${sceneId}`;
-      const hub = makeNode(hubId, 'chapterAct', { x: avgX - 100, y: -180 },
+      const hub = makeNode(hubId, 'chapterAct', { x: centerX - 60, y: -200 },
         { title: sceneName || 'Scene' });
-
-      const hubEdges: Edge[] = newNodes.map(n => ({
-        id: `e_hub_${n.id}`,
-        source: hubId,
-        target: n.id,
-        animated: true,
-        style: { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '6 3' },
-      }));
 
       const allNodes = [hub, ...newNodes];
       setNodes(allNodes);
-      setEdges(hubEdges);
+      // Defer edge creation — chapterAct only has named handles; sourceHandle must be
+      // 'hub_source' (the bottom-center handle added to HubNode for programmatic connections)
+      const hubEdges: Edge[] = newNodes.map((n, i) => ({
+        id: `e_hub_${n.id}_${i}`,
+        source: hubId,
+        target: n.id,
+        sourceHandle: 'hub_source',
+        animated: true,
+        style: { stroke: '#ec4899', strokeWidth: 2, strokeDasharray: '6 3' },
+      }));
+      setTimeout(() => setEdges(hubEdges), 80);
+
       // Initialise history with this state so first undo goes back to empty
       undoStack.current = [];
       redoStack.current = [];
@@ -858,8 +882,7 @@ export default function VisualCanvas() {
       setCanRedo(false);
 
       showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded for scene`);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
-      setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 2000);
+      setTimeout(() => reactFlowInstance.fitView({ duration: 600, padding: 0.18 }), 300);
     } catch {
       showToast('Failed to load scene items');
     } finally {

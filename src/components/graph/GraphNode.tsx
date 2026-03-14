@@ -330,6 +330,15 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
           </Fragment>
         );
       })}
+      {/* hub_source: invisible bottom-center source handle used when programmatically
+          connecting scene items via loadCloudNodesToCanvas. Also lets users manually
+          draw edges from the hub to items they add later. */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        id="hub_source"
+        style={{ background: '#ec4899', width: 8, height: 8, border: '2px solid white', left: '50%', bottom: -4, opacity: 0.6 }}
+      />
 
       {/* Delete */}
       {onDelete && (
