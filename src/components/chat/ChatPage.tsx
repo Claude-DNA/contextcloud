@@ -23,6 +23,7 @@ export default function ChatPage() {
   const [cloudItems, setCloudItems] = useState<ParsedCloudItem[]>([]);
   const [projectTitle, setProjectTitle] = useState<string | null>(null);
   const [isComplete, setIsComplete] = useState(false);
+  const [lsLoaded, setLsLoaded] = useState(false); // prevents empty-state flash on remount
 
   // Keep a ref to latest messages for the streaming callback
   const messagesRef = useRef<ChatMessage[]>([]);
@@ -56,6 +57,7 @@ export default function ChatPage() {
       const storedTitle = localStorage.getItem(LS_KEY_TITLE);
       if (storedTitle) setProjectTitle(storedTitle);
     } catch { /* ignore corrupt localStorage */ }
+    setLsLoaded(true);
   }, []);
 
   // Persist messages to localStorage on change
@@ -242,6 +244,7 @@ export default function ChatPage() {
               streaming={streaming}
               streamingText={streamingText}
               onSend={handleSend}
+              loading={!lsLoaded}
             />
           </div>
 

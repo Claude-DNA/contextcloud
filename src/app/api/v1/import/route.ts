@@ -193,8 +193,24 @@ export async function POST(req: NextRequest) {
     }
     await runMigrations();
 
+    // Deduplicate: skip items whose (cloud_type, lower(title)) already exist for this user
+    const existingRes = await query(
+      `SELECT LOWER(title) AS ltitle, cloud_type FROM cloud_items WHERE user_id = $1`,
+      [session.user.id]
+    );
+    const existingSet = new Set(existingRes.rows.map(
+      (r: { ltitle: string; cloud_type: string }) => `${r.cloud_type}::${r.ltitle}`
+    ));
+    const newItems = items.filter(item =>
+      !existingSet.has(`${item.cloud_type}::${item.title.trim().toLowerCase()}`)
+    );
+
+    if (newItems.length === 0) {
+      return NextResponse.json({ saved: 0, items: [], skipped: items.length, errors: [] });
+    }
+
     // Get current max sort_order per type
-    const typeList = [...new Set(items.map(i => i.cloud_type))];
+    const typeList = [...new Set(newItems.map(i => i.cloud_type))];
     const maxRes = await query(
       `SELECT cloud_type, COALESCE(MAX(sort_order), -1) + 1 AS next_order
        FROM cloud_items
@@ -213,7 +229,7 @@ export async function POST(req: NextRequest) {
     const placeholders: string[] = [];
     let p = 1;
 
-    for (const item of items) {
+    for (const item of newItems) {
       const base = nextOrderMap[item.cloud_type] ?? 0;
       const offset = typeCounters[item.cloud_type] ?? 0;
       typeCounters[item.cloud_type] = offset + 1;
@@ -235,6 +251,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       saved: result.rowCount,
       items: result.rows,
+      skipped: items.length - newItems.length,
       errors: [],
     });
   } catch (err) {

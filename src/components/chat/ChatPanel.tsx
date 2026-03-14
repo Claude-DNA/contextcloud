@@ -17,9 +17,10 @@ interface ChatPanelProps {
   streaming: boolean;
   streamingText: string;
   onSend: (text: string, attachments?: AttachedFile[]) => void;
+  loading?: boolean; // true while localStorage is being checked on mount
 }
 
-export default function ChatPanel({ messages, streaming, streamingText, onSend }: ChatPanelProps) {
+export default function ChatPanel({ messages, streaming, streamingText, onSend, loading }: ChatPanelProps) {
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -83,7 +84,10 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend }
     <div className="flex flex-col h-full">
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {messages.length === 0 && !streaming && (
+        {loading && (
+          <div className="text-center py-16 text-muted text-xs">Restoring session…</div>
+        )}
+        {!loading && messages.length === 0 && !streaming && (
           <div className="text-center py-16">
             <div className="text-4xl mb-3">💬</div>
             <p className="text-muted text-sm mb-1">Start building your Context Cloud.</p>

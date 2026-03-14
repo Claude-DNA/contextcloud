@@ -1233,10 +1233,17 @@ export default function VisualCanvas() {
       if (!res.ok) {
         showToast(data.error || 'Import failed');
       } else if (data.saved > 0) {
-        showToast(`✅ ${data.saved} items saved — building graph...`);
+        const skipped = data.skipped > 0 ? ` (${data.skipped} already existed)` : '';
+        showToast(`✅ ${data.saved} new items saved${skipped} — building graph...`);
         setImporting(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
         // Auto-trigger graph build after successful import
+        handleAutoBuild();
+        return;
+      } else if (data.skipped > 0) {
+        showToast(`All ${data.skipped} items already in your clouds — building graph...`);
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
         handleAutoBuild();
         return;
       } else {
