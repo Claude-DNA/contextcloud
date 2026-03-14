@@ -330,14 +330,20 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
           </Fragment>
         );
       })}
-      {/* hub_source: invisible bottom-center source handle used when programmatically
-          connecting scene items via loadCloudNodesToCanvas. Also lets users manually
-          draw edges from the hub to items they add later. */}
+      {/* hub_source: bottom-center source handle for programmatic scene hub → item edges */}
       <Handle
         type="source"
         position={Position.Bottom}
         id="hub_source"
         style={{ background: '#ec4899', width: 8, height: 8, border: '2px solid white', left: '50%', bottom: -4, opacity: 0.6 }}
+      />
+      {/* Default (no-id) target handle so edges without targetHandle can connect to this node.
+          Needed when hub nodes (scene, plot, etc.) are loaded as cloud items — React Flow
+          can't find a default target handle on nodes that only have named handles. */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        style={{ opacity: 0, pointerEvents: 'none', width: 1, height: 1, left: -1, top: '50%' }}
       />
 
       {/* Delete */}

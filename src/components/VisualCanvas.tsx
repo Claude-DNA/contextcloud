@@ -784,14 +784,18 @@ export default function VisualCanvas() {
       // 2. No attachments → fetch all cloud items and show checklist for review
       const fallbackRes = await fetch(cloudItemsUrl);
       const fallbackData = await fallbackRes.json();
-      const allNodes: CloudModalItem[] = (fallbackData.nodes || []).map((n: CloudModalItem) => ({
-        id: n.id,
-        type: n.type,
-        cloud_type: n.cloud_type,
-        title: n.title,
-        content: n.content || '',
-        position: n.position,
-      }));
+      // Exclude arc items — they are scaffold hubs, not content. If included they'd
+      // render as a second chapterAct node and create confusing "References inlet" edges.
+      const allNodes: CloudModalItem[] = (fallbackData.nodes || [])
+        .filter((n: CloudModalItem) => n.cloud_type !== 'arc')
+        .map((n: CloudModalItem) => ({
+          id: n.id,
+          type: n.type,
+          cloud_type: n.cloud_type,
+          title: n.title,
+          content: n.content || '',
+          position: n.position,
+        }));
 
       if (!allNodes.length) {
         showToast('No cloud items found — add items to your Clouds first');
@@ -824,7 +828,8 @@ export default function VisualCanvas() {
   // ── Scene checklist confirm — build layout from checked items, load + close ──
   const handleSceneChecklistConfirm = useCallback(() => {
     if (!sceneChecklistForScene || sceneChecklistChecked.size === 0) return;
-    const selected = sceneChecklistItems.filter(i => sceneChecklistChecked.has(i.id));
+    // Always exclude arc items — they're scaffold hubs, not visual nodes
+    const selected = sceneChecklistItems.filter(i => sceneChecklistChecked.has(i.id) && i.cloud_type !== 'arc');
 
     // Build column layout by cloud_type
     const byType = new Map<string, CloudModalItem[]>();
