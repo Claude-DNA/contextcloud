@@ -167,72 +167,69 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
   );
 }
 
-/* --- StateNode --- small square with 6-color picker --- */
+/* --- StateNode --- character emotional state, with optional color picker --- */
 function StateNode({ id, data }: { id: string; data: GraphNodeData }) {
   const { stateColor, onStateColorChange, onDelete } = data;
+  const hasContent = !!(data.title || data.content);
 
   const handleColorPick = useCallback(
-    (hex: string) => {
-      if (onStateColorChange) {
-        onStateColorChange(id, hex);
-      }
-    },
+    (hex: string) => { if (onStateColorChange) onStateColorChange(id, hex); },
     [id, onStateColorChange]
+  );
+
+  const colorDots = (
+    <div className="flex gap-1 flex-wrap justify-center px-1">
+      {Object.entries(STATE_COLORS).map(([key, { hex }]) => (
+        <button key={key} onClick={() => handleColorPick(hex)}
+          title={STATE_COLORS[key as keyof typeof STATE_COLORS].label}
+          className="transition-transform hover:scale-125"
+          style={{ width: hasContent ? 10 : 12, height: hasContent ? 10 : 12, borderRadius: '50%',
+            background: hex, border: stateColor === hex ? '2px solid #374151' : '1px solid #d1d5db',
+            cursor: 'pointer', padding: 0 }}
+        />
+      ))}
+    </div>
   );
 
   return (
     <div className="group relative">
       {onDelete && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+        <button onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-          title="Delete node"
-        >{'\u00D7'}</button>
+          title="Delete node">{'\u00D7'}</button>
       )}
-    <div
-      className="rounded-lg shadow-sm"
-      style={{
-        width: 100,
-        height: 100,
-        background: stateColor
-          ? `${stateColor}1A`
-          : '#ffffff',
-        border: stateColor ? `2px solid ${stateColor}` : '2px solid #d1d5db',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-      }}
-    >
-      <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
-
-      <IconBadge color="#888888" type="state" />
-      <span className="text-[11px] text-gray-600 font-medium">State</span>
-
-      {/* Color picker -- 6 circles */}
-      <div className="flex gap-1 flex-wrap justify-center px-1">
-        {Object.entries(STATE_COLORS).map(([key, { hex }]) => (
-          <button
-            key={key}
-            onClick={() => handleColorPick(hex)}
-            title={STATE_COLORS[key as keyof typeof STATE_COLORS].label}
-            className="transition-transform hover:scale-125"
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: '50%',
-              background: hex,
-              border: stateColor === hex ? '2px solid #374151' : '1px solid #d1d5db',
-              cursor: 'pointer',
-              padding: 0,
-            }}
-          />
-        ))}
-      </div>
-
-      <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
-    </div>
+      {hasContent ? (
+        /* Rich state card — used in auto-built graphs */
+        <div className="rounded-lg shadow-sm overflow-hidden"
+          style={{ width: 200, background: stateColor ? `${stateColor}1A` : '#fff',
+            border: stateColor ? `2px solid ${stateColor}` : '2px solid #d1d5db' }}>
+          <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+          <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+          <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 border-b border-gray-100"
+            style={{ background: stateColor ? `${stateColor}18` : '#f9fafb' }}>
+            <IconBadge color={stateColor || '#888888'} type="state" />
+            <span className="text-[11px] font-semibold text-gray-700 truncate">{data.title || 'State'}</span>
+          </div>
+          {data.content && (
+            <div className="px-2.5 py-2">
+              <p className="text-[11px] text-gray-600 leading-snug">{data.content}</p>
+            </div>
+          )}
+          <div className="px-2.5 pb-2">{colorDots}</div>
+        </div>
+      ) : (
+        /* Compact color-only state node — manual use */
+        <div className="rounded-lg shadow-sm"
+          style={{ width: 100, height: 100, background: stateColor ? `${stateColor}1A` : '#fff',
+            border: stateColor ? `2px solid ${stateColor}` : '2px solid #d1d5db',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+          <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+          <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
+          <IconBadge color="#888888" type="state" />
+          <span className="text-[11px] text-gray-600 font-medium">State</span>
+          {colorDots}
+        </div>
+      )}
     </div>
   );
 }
@@ -721,9 +718,14 @@ function CharactersProxyNode({ id, data, selected }: { id: string; data: GraphNo
   const [loading, setLoading] = useState(true);
   const [picking, setPicking] = useState(false);
 
+  // Detect if content is a plain string (auto-built graph) vs JSON array (manual picker)
+  const rawContent = (data.content as string) || '';
+  const isAutoBuilt = rawContent !== '' && (() => { try { const p = JSON.parse(rawContent); return !Array.isArray(p); } catch { return true; } })();
+
   // Selected IDs stored in data.content as JSON
   const selectedIds: string[] = (() => {
-    try { return JSON.parse((data.content as string) || '[]'); } catch { return []; }
+    if (isAutoBuilt) return [];
+    try { return JSON.parse(rawContent || '[]'); } catch { return []; }
   })();
 
   useEffect(() => {
@@ -744,6 +746,40 @@ function CharactersProxyNode({ id, data, selected }: { id: string; data: GraphNo
   const shown = selectedIds.length > 0
     ? allChars.filter(c => selectedIds.includes(c.id))
     : [];
+
+  // Auto-built mode: render as simple proxy card (no picker UI)
+  if (isAutoBuilt) {
+    return (
+      <div
+        className="group relative bg-white rounded-xl shadow-sm"
+        style={{
+          width: 200,
+          border: selected ? `2px solid ${color}` : `1.5px solid ${color}60`,
+          boxShadow: selected ? `0 0 0 3px ${color}22` : undefined,
+        }}
+      >
+        {onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(id); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="absolute -top-2 -right-2 z-20 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
+          >×</button>
+        )}
+        <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-2.5 !h-2.5 !border-2 !border-indigo-200" />
+        <Handle type="source" position={Position.Right} className="!bg-indigo-400 !w-2.5 !h-2.5 !border-2 !border-indigo-200" />
+        <div className="px-3 py-2 rounded-t-xl border-b border-gray-100" style={{ background: `${color}18` }}>
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs">👤</span>
+            <span className="text-xs font-semibold text-gray-700 truncate">{data.title || 'Character'}</span>
+          </div>
+          <span className="text-[10px] text-gray-400 block">in scene</span>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-[11px] text-gray-600 leading-snug line-clamp-3">{rawContent}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

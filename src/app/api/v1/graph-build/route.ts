@@ -83,10 +83,15 @@ STRUCTURAL RULES — follow exactly
 2. CHARACTER PROXY + STATE PATTERN (mandatory for every character in every scene)
    - Decide which characters appear in each scene based on content clues
    - For each character-scene pairing, create TWO new nodes:
-     a) charactersProxy node: id = "proxy_{charId}_{sceneId}"
-     b) state node: id = "state_{charId}_{sceneId}"
-        content = one sentence: what is this character feeling/doing/wanting in THIS scene?
+     a) charactersProxy node: id = "proxy_{charId}_{sceneId}", title = character name
+        data.content = brief role in this scene (e.g. "Protagonist discovering the protocol")
+     b) state node: id = "state_{charId}_{sceneId}", title = "{CharName} — {SceneTitle}"
+        data.content = character's emotional state/formula in this scene.
+        LOOK at the arc item's content for formulas like "(Wonder + Joy) × Love".
+        If a formula exists, include it VERBATIM. Otherwise write 1 sentence of their state.
+        NEVER leave state data.content empty.
    - Connect: character → proxy → state → scene (targetHandle: "characters")
+   - NEVER create a direct character → scene edge. The ONLY path is character→proxy→state→scene.
    - If no clear characters for a scene, use the 1-2 most relevant ones
 
 3. WORLD + STAGE CONNECTIONS
@@ -173,10 +178,10 @@ Correct output:
     {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"Daniel and Jane meet in a simulated shared experience designed to build genuine bonds. The bond forms before either questions it.","type":"scene"}},
     {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"Observant, drawn to connection. Her core contradiction: she trusts constructed experiences more than organic ones.","type":"character"}},
     {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"Falls asleep first — an unconscious form of trust. His core contradiction: open to intimacy but unable to name it.","type":"character"}},
-    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","type":"charactersProxy"}},
-    {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"Hopeful but afraid.","type":"state"}},
-    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","type":"charactersProxy"}},
-    {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"Resolute, closed off.","type":"state"}},
+    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","content":"Opens to connection through the simulated space — watches the landscape, trusts the silence.","type":"charactersProxy"}},
+    {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"(Wonder + Joy) × Love — maximum openness. No fear. No confusion.","type":"state"}},
+    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","content":"Falls asleep first — an unconscious act of trust neither names yet.","type":"charactersProxy"}},
+    {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Trusts without naming it.","type":"state"}},
     {"id":"node_world1","type":"world","position":{"x":0,"y":300},"data":{"title":"Zero-G Biology","content":"Biological expansion in zero-g behaves differently than calculated. Neither side asked before acting.","type":"world"}}
   ],
   "edges": [
