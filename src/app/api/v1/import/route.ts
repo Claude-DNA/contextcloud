@@ -68,7 +68,7 @@ interface ExtractedItem {
   tags: string[];
 }
 
-async function callGeminiExtract(text: string): Promise<ExtractedItem[]> {
+async function callGeminiExtract(text: string, structureBlock = '', temperatureBlock = ''): Promise<ExtractedItem[]> {
   const prompt = `You are Context Cloud Architect — the lossless extraction engine for contextcloud.studio.
 Mission: retain 100% of the information from the source text. Map every fact into the six layers. Never omit, merge, summarize, or invent.
 
@@ -209,7 +209,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract items using CloudCompanion 6-layer format
-    const items = await callGeminiExtract(text);
+    const items = await callGeminiExtract(text, structureBlock, temperatureBlock);
 
     if (items.length === 0) {
       return NextResponse.json({ error: 'No items could be extracted from the file' }, { status: 400 });

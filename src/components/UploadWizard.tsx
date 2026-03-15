@@ -79,9 +79,17 @@ export const STORY_STRUCTURES: StoryStructure[] = [
     beats: ['The Problem', 'Why It Matters', 'Attempts That Failed', 'The Solution', 'Proof It Works', 'Call to Action'],
   },
   {
+    id: 'ai_detect',
+    name: 'AI-Detect',
+    description: 'AI analyzes your files and recommends the best structure',
+    examples: [],
+    icon: '🤖',
+    beats: [],
+  },
+  {
     id: 'custom',
     name: 'Custom',
-    description: 'AI discovers the structure from your file',
+    description: 'Provide your own beat sheet or notes',
     examples: [],
     icon: '🔮',
     beats: [],
