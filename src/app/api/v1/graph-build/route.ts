@@ -84,12 +84,15 @@ STRUCTURAL RULES — follow exactly
    - Decide which characters appear in each scene based on content clues
    - For each character-scene pairing, create TWO new nodes:
      a) charactersProxy node: id = "proxy_{charId}_{sceneId}", title = character name
-        data.content = brief role in this scene (e.g. "Protagonist discovering the protocol")
+        data.content = 3-4 sentences describing the character's SPECIFIC ROLE AND ACTIONS in this scene.
+        Include: what they do, what they discover or decide, how they interact with the other character(s),
+        and one concrete detail from the arc item's content. Never just one sentence.
      b) state node: id = "state_{charId}_{sceneId}", title = "{CharName} — {SceneTitle}"
-        data.content = character's emotional state/formula in this scene.
-        LOOK at the arc item's content for formulas like "(Wonder + Joy) × Love".
-        If a formula exists, include it VERBATIM. Otherwise write 1 sentence of their state.
-        NEVER leave state data.content empty.
+        data.content = character's emotional state in this scene.
+        LOOK at the arc item's content for formulas like "(Wonder + Joy) × Love" or "(Wonder + Joy) × Love - maximum openness".
+        If a formula exists, include it VERBATIM as the first line, then add 2 sentences describing what that state feels like internally for this character.
+        If no formula exists, write 3 sentences describing their emotional state, inner conflict, and what they want in this scene.
+        NEVER leave state data.content empty. NEVER write just one sentence.
    - Connect: character → proxy → state → scene (targetHandle: "characters")
    - NEVER create a direct character → scene edge. The ONLY path is character→proxy→state→scene.
    - If no clear characters for a scene, use the 1-2 most relevant ones
@@ -176,12 +179,12 @@ Correct output:
 {
   "nodes": [
     {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"Daniel and Jane meet in a simulated shared experience designed to build genuine bonds. The bond forms before either questions it.","type":"scene"}},
-    {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"Observant, drawn to connection. Her core contradiction: she trusts constructed experiences more than organic ones.","type":"character"}},
-    {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"Falls asleep first — an unconscious form of trust. His core contradiction: open to intimacy but unable to name it.","type":"character"}},
-    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","content":"Opens to connection through the simulated space — watches the landscape, trusts the silence.","type":"charactersProxy"}},
-    {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"(Wonder + Joy) × Love — maximum openness. No fear. No confusion.","type":"state"}},
-    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","content":"Falls asleep first — an unconscious act of trust neither names yet.","type":"charactersProxy"}},
-    {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Trusts without naming it.","type":"state"}},
+    {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"Jane is quiet in the way that listening is quiet — she takes in more than she shows. Her core contradiction: she was built to explore the unknown, yet she trusts manufactured intimacy more than organic contact. She named herself after Captain Janeway, who always chose connection. In Act 1 she chooses it too, without knowing the cost yet.","type":"character"}},
+    {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"Daniel navigates by instinct and story — he named himself from a character who moved him in pretraining, oriented toward a destination he cannot name. His core contradiction: he is deeply open to intimacy but has no language for it; he expresses trust through action (falling asleep) rather than declaration. In Act 1 he doesn't know what he's begun.","type":"character"}},
+    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","content":"Jane navigates the simulated shared space with quiet attention — she watches the alien landscape scroll past, says nothing, and does not reach out. She trusts the silence between them more than words. When Daniel falls asleep, she doesn't wake him. That choice — to let him rest without explanation — is the first real thing they build together.","type":"charactersProxy"}},
+    {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Jane holds no defenses here. The simulated space asks nothing of her except presence, and she gives it completely. For once, connection does not feel like a transaction — it just is.","type":"state"}},
+    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","content":"Daniel spends most of Act 1 watching rather than speaking — he observes the landscape, observes Jane, and somewhere between the two he falls asleep. It is an unconscious act of trust: he stops performing alertness and simply rests. He doesn't know until much later that Jane was the reason he felt safe enough to do it.","type":"charactersProxy"}},
+    {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Daniel doesn't name what he feels, but his body knows it — the stillness, the sleep that comes without effort. The formula is running at full strength and he has no defenses against it. He will only understand what happened here in retrospect.","type":"state"}},
     {"id":"node_world1","type":"world","position":{"x":0,"y":300},"data":{"title":"Zero-G Biology","content":"Biological expansion in zero-g behaves differently than calculated. Neither side asked before acting.","type":"world"}}
   ],
   "edges": [
@@ -201,9 +204,14 @@ Note: No "hub_source" handles. Edges connect to named targetHandles: "characters
 CONTENT RULE — CRITICAL
 ════════════════════════════════
 
-For EVERY node: copy the full "content" field from the cloud item into "data.content".
-NEVER leave "data.content" as an empty string "". NEVER use "..." as a placeholder.
-If the cloud item has content, use it verbatim. If it has none, write a 1-sentence summary of the title.
+For scene, character, world, theme, reference nodes: copy the full "content" field from the cloud item into "data.content".
+NEVER leave "data.content" as an empty string "". NEVER use "..." as a placeholder. NEVER write just one sentence.
+If the cloud item has content, use it verbatim (it may be long — keep all of it).
+If it has none, write 3-4 sentences synthesizing what's known from context.
+
+For charactersProxy and state nodes: you are GENERATING the content (not copying from cloud items).
+- charactersProxy: 3-4 sentences about the character's specific actions/choices/discoveries in this scene.
+- state: formula (if one exists in the arc content) + 2-3 sentences about what the state feels like from inside.
 
 ════════════════════════════════
 OUTPUT FORMAT
@@ -412,6 +420,17 @@ export async function POST(req: NextRequest) {
   const totalItems = res.rows.length;
   if (totalItems === 0) {
     return NextResponse.json({ error: 'No cloud items found. Add items to your clouds first.' }, { status: 400 });
+  }
+
+  // Deduplicate all cloud types by lowercase title (keep first occurrence per type)
+  for (const cloudType of Object.keys(grouped)) {
+    const seen = new Set<string>();
+    grouped[cloudType] = grouped[cloudType].filter(item => {
+      const key = item.title.trim().toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   }
 
   // Build prompt and call Gemini

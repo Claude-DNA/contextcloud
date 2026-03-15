@@ -343,21 +343,19 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
               {/* CENTER COLUMN — CONTENT */}
               <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-3">
                 {/* Editable title */}
-                {!isState && (
-                  <input
-                    value={isReference ? (externalTitle || title) : title}
-                    onChange={handleTitleChange}
-                    placeholder="Untitled"
-                    className="w-full text-lg font-semibold text-gray-900 placeholder-gray-300 bg-transparent focus:outline-none border-b border-transparent focus:border-gray-300 transition-colors pb-1"
-                  />
-                )}
+                <input
+                  value={isReference ? (externalTitle || title) : title}
+                  onChange={handleTitleChange}
+                  placeholder="Untitled"
+                  className="w-full text-lg font-semibold text-gray-900 placeholder-gray-300 bg-transparent focus:outline-none border-b border-transparent focus:border-gray-300 transition-colors pb-1"
+                />
 
                 {/* Type hint */}
                 {!isState && (
                   <span className="text-[10px] text-gray-400">{CONTENT_HINTS[nodeType] || 'Add content...'}</span>
                 )}
 
-                {/* Content textarea for regular nodes */}
+                {/* Content textarea — regular nodes */}
                 {!isState && !isProxy && !isReference && nodeType !== 'arc' && (
                   <textarea
                     value={content}
@@ -366,6 +364,20 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                     className="flex-1 w-full bg-gray-50 text-gray-800 text-sm rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200 leading-relaxed"
                     style={{ minHeight: 200, resize: 'none' }}
                   />
+                )}
+
+                {/* Content textarea — state nodes with text content (from auto-build) */}
+                {isState && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-gray-400">Emotional state / formula text</span>
+                    <textarea
+                      value={content}
+                      onChange={handleContentChange}
+                      placeholder="Describe the emotional state or formula, e.g. (Wonder + Joy) × Love..."
+                      className="w-full bg-gray-50 text-gray-800 text-sm rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200 leading-relaxed"
+                      style={{ minHeight: 80, resize: 'vertical' }}
+                    />
+                  </div>
                 )}
 
                 {/* Get Suggestions button */}
