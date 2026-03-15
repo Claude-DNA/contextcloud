@@ -27,7 +27,7 @@ import { GraphContext } from '@/components/graph/GraphContext';
 import NodePanel from '@/components/graph/NodePanel';
 import DraftBrowser from '@/components/graph/DraftBrowser';
 import { useProject } from '@/context/ProjectContext';
-import UploadWizard, { type StoryStructure } from '@/components/UploadWizard';
+import UploadWizard, { type StoryStructure, type ExtractionMode } from '@/components/UploadWizard';
 
 // Register all node types to the same GraphNode component
 const nodeTypes: Record<string, typeof GraphNodeComponent> = {};
@@ -1228,6 +1228,7 @@ export default function VisualCanvas() {
     files: File[],
     structure: StoryStructure,
     temperature: number,
+    mode: ExtractionMode,
   ) => {
     if (!files.length) return;
     setImporting(true);
@@ -1242,6 +1243,7 @@ export default function VisualCanvas() {
         formData.append('structureName', structure.name);
         formData.append('structureBeats', JSON.stringify(structure.beats));
         formData.append('temperature', String(temperature));
+        formData.append('mode', mode);
         const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Import failed'); setImporting(false); return; }

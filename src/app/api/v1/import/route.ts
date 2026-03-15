@@ -68,7 +68,31 @@ interface ExtractedItem {
   tags: string[];
 }
 
-async function callGeminiExtract(text: string, structureBlock = '', temperatureBlock = ''): Promise<ExtractedItem[]> {
+function buildCharacterTransformBlock(): string {
+  return `
+━━━ CHARACTER TRANSFORMATION MODE (overrides default arc organization) ━━━
+Your primary focus is HOW characters change across the story.
+
+CHARACTERS layer — for every character item, include:
+  1. BEFORE STATE: who they are at the story's opening (beliefs, fears, behavior patterns)
+  2. CATALYST: the event or relationship that forces change
+  3. RESISTANCE: what they cling to — why change is hard for this specific person
+  4. AFTER STATE: who they become (or fail to become) by the end
+  5. CENTRAL CONTRADICTION: what they want vs what they actually need
+  6. TRANSFORMATION AGENTS: which other characters or events drive the arc
+
+ARC layer — organize beats around CHARACTER TURNING POINTS, not plot events:
+  - Each beat title should name whose transformation it marks and how
+  - Example: "Daniel's First Betrayal of the Creed" not "Act 2 Rising Action"
+
+IDEAS layer — focus on themes that directly DRIVE or REFLECT character transformation.
+  Each idea item: the tension → how it lives inside a specific character → what it costs them.
+
+All other layers (scenes, world, references) — extract normally as supporting context.
+`;
+}
+
+async function callGeminiExtract(text: string, structureBlock = '', temperatureBlock = '', characterTransformBlock = '', geminiTemperature = 0.7): Promise<ExtractedItem[]> {
   const prompt = `You are Context Cloud Architect — the lossless extraction engine for contextcloud.studio.
 Mission: retain 100% of the information from the source text. Map every fact into the six layers. Never omit, merge, summarize, or invent.
 
@@ -106,6 +130,7 @@ Return ONLY a valid JSON array — no markdown, no code fences:
 ━━━ SOURCE TEXT ━━━
 ${structureBlock}
 ${temperatureBlock}
+${characterTransformBlock}
 ${text.slice(0, 30000)}`;
 
   if (!GOOGLE_AI_API_KEY) {
@@ -118,7 +143,7 @@ ${text.slice(0, 30000)}`;
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       generationConfig: {
-        temperature: 0.7,
+        temperature: geminiTemperature,
         maxOutputTokens: 8192,
         responseMimeType: 'application/json',
       },
@@ -190,26 +215,39 @@ export async function POST(req: NextRequest) {
     const structureName  = formData.get('structureName')  as string | null;
     const structureBeats = formData.get('structureBeats') as string | null;
     const temperatureRaw = formData.get('temperature')    as string | null;
-    const temperature    = temperatureRaw ? parseFloat(temperatureRaw) : 0.0;
+    const modeRaw        = formData.get('mode')           as string | null;
+    const temperature    = temperatureRaw ? parseFloat(temperatureRaw) : 0.5;
+    const mode           = modeRaw === 'character' ? 'character' : 'structure';
+
+    // Map user temperature (0–1) to Gemini temperature
+    // Strict Mirror (0.0) → 0.2 (needs some variance for quality), Co-Author (0.8) → 0.9
+    const geminiTemperature = mode === 'character'
+      ? Math.max(0.4, Math.min(1.0, temperature + 0.1))  // character mode: slightly warmer
+      : Math.max(0.2, Math.min(1.0, temperature + 0.2)); // structure mode: floor at 0.2
+
     const beats: string[] = structureBeats ? JSON.parse(structureBeats) : [];
-    const structureBlock = (structureName && structureId !== 'custom' && beats.length > 0)
-      ? 'STORY STRUCTURE: ' + structureName + '\n' +
-        'Organize the ARC items to follow this structure. Use these as arc item titles in order:\n' +
-        beats.map((b, i) => (i + 1) + '. ' + b).join('\n') + '\n'
-      : (structureName && structureId !== 'custom')
-      ? 'STORY STRUCTURE: ' + structureName + ' — use this structure to organize arc beats.\n'
+    const structureBlock = mode === 'structure'
+      ? (structureName && structureId !== 'custom' && beats.length > 0)
+        ? 'STORY STRUCTURE: ' + structureName + '\n' +
+          'Organize the ARC items to follow this structure. Use these as arc item titles in order:\n' +
+          beats.map((b, i) => (i + 1) + '. ' + b).join('\n') + '\n'
+        : (structureName && structureId !== 'custom')
+        ? 'STORY STRUCTURE: ' + structureName + ' — use this structure to organize arc beats.\n'
+        : ''
       : '';
 
     const temperatureBlock = temperature >= 0.5
       ? 'TEMPERATURE: ' + temperature.toFixed(1) + ' — Co-Author Mode. After extracting all facts, you MAY propose additional items implied by the source. Label suggested items with tags: ["suggested"].'
       : 'TEMPERATURE: ' + temperature.toFixed(1) + ' — Strict Mirror. Extract only. Do not add, infer, or suggest anything not in the source text.';
 
+    const characterTransformBlock = mode === 'character' ? buildCharacterTransformBlock() : '';
+
     if (!text || text.trim().length < 10) {
       return NextResponse.json({ error: 'File appears to be empty or could not be read' }, { status: 400 });
     }
 
-    // Extract items using CloudCompanion 6-layer format
-    const items = await callGeminiExtract(text, structureBlock, temperatureBlock);
+    // Extract items using Context Cloud Architect prompt
+    const items = await callGeminiExtract(text, structureBlock, temperatureBlock, characterTransformBlock, geminiTemperature);
 
     if (items.length === 0) {
       return NextResponse.json({ error: 'No items could be extracted from the file' }, { status: 400 });

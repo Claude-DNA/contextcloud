@@ -106,25 +106,35 @@ const TEMP_PRESETS = [
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
+export type ExtractionMode = 'structure' | 'character';
+
 interface UploadWizardProps {
   onClose: () => void;
-  onGenerate: (files: File[], structure: StoryStructure, temperature: number) => void;
+  onGenerate: (files: File[], structure: StoryStructure, temperature: number, mode: ExtractionMode) => void;
   importing?: boolean;
 }
 
-type Step = 'files' | 'structure' | 'temperature' | 'generate';
-const STEPS: Step[] = ['files', 'structure', 'temperature', 'generate'];
+type Step = 'files' | 'mode' | 'structure' | 'temperature' | 'generate';
+// structure mode: files → mode → structure → temperature → generate
+// character mode: files → mode → temperature → generate
+function getSteps(mode: ExtractionMode): Step[] {
+  return mode === 'character'
+    ? ['files', 'mode', 'temperature', 'generate']
+    : ['files', 'mode', 'structure', 'temperature', 'generate'];
+}
 
 export default function UploadWizard({ onClose, onGenerate, importing = false }: UploadWizardProps) {
-  const [step, setStep]             = useState<Step>('files');
-  const [files, setFiles]           = useState<File[]>([]);
-  const [structure, setStructure]   = useState<StoryStructure>(STORY_STRUCTURES[0]);
-  const [temperature, setTemperature] = useState(0.0);
-  const [dragging, setDragging]     = useState(false);
+  const [step, setStep]               = useState<Step>('files');
+  const [files, setFiles]             = useState<File[]>([]);
+  const [mode, setMode]               = useState<ExtractionMode>('structure');
+  const [structure, setStructure]     = useState<StoryStructure>(STORY_STRUCTURES[0]);
+  const [temperature, setTemperature] = useState(0.5);
+  const [dragging, setDragging]       = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const stepIndex  = STEPS.indexOf(step);
-  const canAdvance = step === 'files' ? files.length > 0 : true;
+  const STEPS       = getSteps(mode);
+  const stepIndex   = STEPS.indexOf(step);
+  const canAdvance  = step === 'files' ? files.length > 0 : true;
 
   // ── File handling ──────────────────────────────────────────────────────────
 
@@ -149,7 +159,12 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
 
   const next = () => {
     if (step === 'generate') {
-      onGenerate(files, structure, temperature);
+      onGenerate(files, structure, temperature, mode);
+    } else if (step === 'mode') {
+      // switching mode resets defaults
+      if (mode === 'character') setTemperature(0.5);
+      else setTemperature(0.0);
+      setStep(STEPS[stepIndex + 1]);
     } else {
       setStep(STEPS[stepIndex + 1]);
     }
@@ -163,9 +178,10 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
 
   const STEP_LABELS: Record<Step, string> = {
     files:       '1. Choose Files',
-    structure:   '2. Choose Structure',
-    temperature: '3. Choose Temperature',
-    generate:    '4. Generate Clouds',
+    mode:        '2. Choose Mode',
+    structure:   '3. Choose Structure',
+    temperature: mode === 'character' ? '3. Set Temperature' : '4. Set Temperature',
+    generate:    mode === 'character' ? '4. Generate Clouds' : '5. Generate Clouds',
   };
 
   const nextLabel = step === 'generate' ? (importing ? 'Generating…' : 'Generate Clouds ✨') : 'Next →';
@@ -245,6 +261,43 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
             </div>
           )}
 
+          {/* ── Step: Mode ── */}
+          {step === 'mode' && (
+            <div className="flex flex-col gap-4">
+              <p className="text-sm text-gray-500">
+                How should the AI approach your material?
+              </p>
+              <button
+                onClick={() => setMode('structure')}
+                className={`text-left rounded-xl border p-4 transition-all ${
+                  mode === 'structure'
+                    ? 'border-accent bg-accent/5 shadow-sm'
+                    : 'border-border hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="text-2xl mb-1">📖</div>
+                <div className="text-sm font-semibold text-gray-800">Story Structure</div>
+                <div className="text-xs text-gray-400 mt-1 leading-snug">
+                  Extract all six layers faithfully. Choose a narrative framework (Three Act, Hero's Journey, etc.) to organise the arc. Best for plot-driven material.
+                </div>
+              </button>
+              <button
+                onClick={() => setMode('character')}
+                className={`text-left rounded-xl border p-4 transition-all ${
+                  mode === 'character'
+                    ? 'border-accent bg-accent/5 shadow-sm'
+                    : 'border-border hover:border-gray-300 hover:bg-gray-50'
+                }`}
+              >
+                <div className="text-2xl mb-1">🔮</div>
+                <div className="text-sm font-semibold text-gray-800">Character Transformation</div>
+                <div className="text-xs text-gray-400 mt-1 leading-snug">
+                  Focus on how characters change. Maps transformation arcs (before → catalyst → resistance → after), contradictions, and key relationships. Arc beats are organised around turning points, not plot events.
+                </div>
+              </button>
+            </div>
+          )}
+
           {/* ── Step 2: Structure ── */}
           {step === 'structure' && (
             <div className="grid grid-cols-3 gap-3">
@@ -321,15 +374,18 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
             </div>
           )}
 
-          {/* ── Step 4: Summary / Generate ── */}
+          {/* ── Step: Summary / Generate ── */}
           {step === 'generate' && (
             <div className="flex flex-col gap-5">
               <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3">
                 <Row label="Files" value={files.map(f => f.name).join(', ')} />
-                <Row label="Structure" value={`${structure.icon} ${structure.name} — ${structure.description}`} />
+                <Row label="Mode" value={mode === 'character' ? '🔮 Character Transformation' : '📖 Story Structure'} />
+                {mode === 'structure' && (
+                  <Row label="Structure" value={`${structure.icon} ${structure.name} — ${structure.description}`} />
+                )}
                 <Row label="Temperature" value={`${temperature.toFixed(1)} — ${TEMP_PRESETS.find(p => p.value === temperature)?.label ?? 'Custom'}`} />
               </div>
-              {structure.beats.length > 0 && (
+              {mode === 'structure' && structure.beats.length > 0 && (
                 <div>
                   <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Pre-seeded arc beats</p>
                   <div className="flex flex-wrap gap-1.5">
@@ -340,7 +396,10 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                 </div>
               )}
               <p className="text-sm text-gray-500">
-                The AI will extract all items from your files, organize the arc using the chosen structure, and build your cloud at temperature {temperature.toFixed(1)}.
+                {mode === 'character'
+                  ? `The AI will map how your characters transform — arcs, contradictions, turning points — at temperature ${temperature.toFixed(1)}.`
+                  : `The AI will extract all items from your files, organize the arc using the chosen structure, and build your cloud at temperature ${temperature.toFixed(1)}.`
+                }
               </p>
             </div>
           )}
