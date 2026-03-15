@@ -55,6 +55,7 @@ export default function ArcCloudPage() {
   // Legacy migration
   const [hasLegacyData, setHasLegacyData] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const LEGACY_DISMISSED_KEY = 'arc_legacy_banner_dismissed';
 
   // Attach items modal state
   const [attachModalSceneId, setAttachModalSceneId] = useState<string | null>(null);
@@ -94,13 +95,16 @@ export default function ArcCloudPage() {
 
   useEffect(() => { fetchScenes(); }, [fetchScenes]);
 
-  // Check for legacy arc data that needs migration
+  // Check for legacy arc data that needs migration (skip if user already dismissed)
   useEffect(() => {
+    try {
+      if (localStorage.getItem(LEGACY_DISMISSED_KEY)) return; // dismissed — never show again
+    } catch { /* ignore */ }
     fetch('/api/v1/arc-scenes/migrate-legacy')
       .then(r => r.json())
       .then(d => setHasLegacyData(d.hasLegacy || false))
       .catch(() => {});
-  }, []);
+  }, [LEGACY_DISMISSED_KEY]);
 
   const handleMigrateLegacy = async () => {
     setMigrating(true);
@@ -108,12 +112,18 @@ export default function ArcCloudPage() {
       const res = await fetch('/api/v1/arc-scenes/migrate-legacy', { method: 'POST' });
       const data = await res.json();
       showToast(data.message || 'Migration complete');
+      try { localStorage.setItem(LEGACY_DISMISSED_KEY, '1'); } catch { /* ignore */ }
       setHasLegacyData(false);
       await fetchScenes();
     } catch {
       showToast('Migration failed — try again');
     }
     setMigrating(false);
+  };
+
+  const handleDismissLegacy = () => {
+    try { localStorage.setItem(LEGACY_DISMISSED_KEY, '1'); } catch { /* ignore */ }
+    setHasLegacyData(false);
   };
 
   const fetchAttached = async (arcItemId: string) => {
@@ -311,14 +321,22 @@ export default function ArcCloudPage() {
                   <p className="text-sm font-medium text-amber-800">You have story structure from the old Arc Cloud</p>
                   <p className="text-xs text-amber-600 mt-0.5">Import your existing arcs & chapters into the new format with one click.</p>
                 </div>
-                <button
-                  onClick={handleMigrateLegacy}
-                  disabled={migrating}
-                  className="shrink-0 px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity hover:opacity-90"
-                  style={{ background: '#f59e0b' }}
-                >
-                  {migrating ? 'Importing…' : 'Import now'}
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handleDismissLegacy}
+                    className="px-3 py-2 rounded-lg text-xs text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    onClick={handleMigrateLegacy}
+                    disabled={migrating}
+                    className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity hover:opacity-90"
+                    style={{ background: '#f59e0b' }}
+                  >
+                    {migrating ? 'Importing…' : 'Import now'}
+                  </button>
+                </div>
               </div>
             )}
 
