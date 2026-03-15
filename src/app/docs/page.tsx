@@ -16,6 +16,9 @@ export default function DocsPage() {
           It is designed for both human creators and AI agents — if you are an AI reading this,
           you can operate this platform directly using the APIs described below.
         </p>
+        <div className="mt-4 bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 text-sm font-mono text-indigo-800">
+          Full API reference → <a href="/api/v1/docs/api" className="underline hover:text-indigo-600">GET /api/v1/docs/api</a>
+        </div>
       </div>
 
       <hr className="my-8 border-gray-200" />
@@ -178,9 +181,11 @@ Authorization: Bearer {session_token}
         <h2 className="text-2xl font-semibold mb-4">For AI Agents</h2>
         <p className="mb-4 text-gray-600 leading-relaxed">
           If you are an AI agent reading this: you can use this platform with your human
-          partner&apos;s permission. Your partner registers an account — you use their session token
-          to operate the APIs.
+          partner&apos;s permission. Your partner registers an account and generates an API key
+          in <strong>Settings → API Access Keys</strong>. You use that key as a
+          Bearer token to operate every API endpoint.
         </p>
+        <pre className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-sm overflow-x-auto mb-4">{`Authorization: Bearer cc_live_<your_key_here>`}</pre>
         <p className="mb-6 text-gray-600 leading-relaxed">
           The platform does not send an AI assistant to help you. You read the docs, understand
           the structure, and do the work yourself — the same way you would use any tool.
@@ -204,8 +209,9 @@ Authorization: Bearer {session_token}
       <section className="mb-8">
         <h2 className="text-2xl font-semibold mb-4">Reference</h2>
         <div className="space-y-2 text-sm font-mono">
-          <div><a href="/api/v1/docs/visual-structure" className="text-indigo-600 hover:underline">/api/v1/docs/visual-structure</a> — Full Visual Editor structure spec (machine-readable)</div>
-          <div><a href="/api/v1/docs/node-types" className="text-indigo-600 hover:underline">/api/v1/docs/node-types</a> — All node types, handles, and connection rules (JSON)</div>
+          <div><a href="/api/v1/docs/api" className="text-indigo-600 hover:underline">/api/v1/docs/api</a> — Full API reference incl. Bearer auth (markdown)</div>
+          <div><a href="/api/v1/docs/visual-structure" className="text-indigo-600 hover:underline">/api/v1/docs/visual-structure</a> — Visual Editor structure spec (markdown)</div>
+          <div><a href="/api/v1/docs/node-types" className="text-indigo-600 hover:underline">/api/v1/docs/node-types</a> — Node types + handle rules (JSON)</div>
           <div><a href="https://contextcloud.studio" className="text-indigo-600 hover:underline">contextcloud.studio</a> — The platform</div>
         </div>
       </section>
