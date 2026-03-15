@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
 import { useProject } from '@/context/ProjectContext';
+import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const { data: session, status } = useSession();
@@ -12,7 +13,12 @@ export default function Header() {
   const [showNewModal, setShowNewModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearConfirmText, setClearConfirmText] = useState('');
+  const [clearing, setClearing] = useState(false);
+  const [clearResult, setClearResult] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   const activeProject = projects.find(p => p.id === activeProjectId);
 
@@ -45,6 +51,30 @@ export default function Header() {
       }
     } catch { /* ignore */ }
     setCreating(false);
+  };
+
+  const handleClearProject = async () => {
+    if (!activeProjectId || clearConfirmText !== 'clear') return;
+    setClearing(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProjectId}/clear`, { method: 'DELETE' });
+      const data = await res.json();
+      if (res.ok) {
+        setClearResult(`Deleted ${data.deleted} items.`);
+        await refreshProjects();
+        router.refresh();
+        setTimeout(() => {
+          setShowClearModal(false);
+          setClearConfirmText('');
+          setClearResult(null);
+        }, 1800);
+      } else {
+        setClearResult(data.error || 'Failed to clear project.');
+      }
+    } catch {
+      setClearResult('Something went wrong.');
+    }
+    setClearing(false);
   };
 
   return (
@@ -91,6 +121,14 @@ export default function Header() {
                 >
                   + New Project
                 </button>
+                {activeProjectId && (
+                  <button
+                    onClick={() => { setDropdownOpen(false); setClearConfirmText(''); setClearResult(null); setShowClearModal(true); }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors font-medium border-t border-border"
+                  >
+                    🗑 Clear all items…
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -157,6 +195,70 @@ export default function Header() {
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-accent hover:bg-accent-hover disabled:opacity-40 transition-colors"
               >
                 {creating ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Clear Project Modal */}
+      {showClearModal && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          onClick={() => { if (!clearing) { setShowClearModal(false); setClearConfirmText(''); setClearResult(null); } }}
+        >
+          <div
+            className="bg-white rounded-xl border border-border shadow-xl w-full max-w-sm p-6"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Warning header */}
+            <div className="flex items-start gap-3 mb-4">
+              <span className="text-2xl mt-0.5">⚠️</span>
+              <div>
+                <h2 className="text-base font-semibold text-gray-900">Clear all items in "{activeProject?.title}"?</h2>
+                <p className="text-sm text-gray-500 mt-1">
+                  This permanently deletes <strong>all cloud items</strong> in this project — characters, scenes, world, arc, ideas, references. The project itself will remain.
+                </p>
+                <p className="text-sm text-red-500 font-medium mt-2">This cannot be undone.</p>
+              </div>
+            </div>
+
+            {/* Type "clear" input */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                Type <span className="font-mono bg-gray-100 px-1 rounded">clear</span> to confirm
+              </label>
+              <input
+                autoFocus
+                value={clearConfirmText}
+                onChange={e => setClearConfirmText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && clearConfirmText === 'clear' && handleClearProject()}
+                placeholder="clear"
+                disabled={clearing}
+                className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400 transition-colors bg-white disabled:opacity-50"
+              />
+            </div>
+
+            {/* Result message */}
+            {clearResult && (
+              <p className={`text-sm mb-3 font-medium ${clearResult.startsWith('Deleted') ? 'text-green-600' : 'text-red-500'}`}>
+                {clearResult}
+              </p>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => { setShowClearModal(false); setClearConfirmText(''); setClearResult(null); }}
+                disabled={clearing}
+                className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border disabled:opacity-40"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleClearProject}
+                disabled={clearing || clearConfirmText !== 'clear'}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                {clearing ? 'Clearing…' : 'Clear all items'}
               </button>
             </div>
           </div>
