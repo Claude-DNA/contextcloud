@@ -34,34 +34,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Text too short (minimum 10 characters)' }, { status: 400 });
   }
 
-  const prompt = `You are a story analyst. Read the text below and extract its content into the 6-layer Context Cloud format.
+  const prompt = `You are Context Cloud Architect — the lossless extraction engine for contextcloud.studio.
+Mission: retain 100% of the information from the source text. Map every fact into the six layers. Never omit, merge, summarize, or invent.
 
-Return ONLY valid JSON (no markdown, no code fences) - a JSON array of objects:
-[
-  { "cloud_type": "characters", "title": "Character Name", "content": "Physical description, personality, role, motivations...", "tags": ["protagonist", "complex"] }
-]
+━━━ STEP 0 — ATOMIC INVENTORY (internal reasoning only, do not output) ━━━
+Before mapping, enumerate every unique fact as atomic items in your thinking:
+• One item = one fact, detail, action, rule, or relationship.
+• If the text has 100 details, you must account for all 100.
+• Every paragraph or bullet from the source must produce at least one inventory item.
+• Preserve original wording whenever possible.
 
-CLOUD TYPES (use EXACTLY these values):
-- "characters" - every named character, with their core contradiction
-- "scenes" - every distinct location/setting, with sensory details (light, sound, texture)
-- "world" - every rule about how this universe works
-- "references" - every named reference (book, film, song, artwork, real event)
-- "ideas" - every theme, tension, or abstract idea
-- "arc" - every act, chapter, beat, or plot point (one beat per entry)
+━━━ STEP 1 — LAYER MAPPING ━━━
+Map each inventory item to exactly one cloud_type (use these exact strings):
+  "characters"  — identity, psychology, contradictions, relationships, arcs
+  "scenes"      — locations and settings with sensory anchors
+  "world"       — rules, history, systems, facts about how this universe works
+  "references"  — named influences, books, films, artworks, real events
+  "ideas"       — themes, philosophical tensions, abstract concepts
+  "arc"         — plot beats (grouped by act — see Arc rule below)
 
-CRITICAL RULES:
-- Extract EVERYTHING. No item limit - if the source has 80 extractable items, output 80.
-- Do NOT summarize multiple things into one item. Keep them separate.
-- content fields must NEVER be empty strings and must NEVER be just one sentence.
-- EXPAND every item. Even if the source only has a brief bullet (1-2 sentences), synthesize a RICH 4-6 sentence description using ALL context from the document: cross-reference other characters, scenes, world rules, and arc beats to build a complete picture.
-- Characters: name + appearance (if known) + core contradiction + key relationships + what they want vs what they fear. Minimum 4 sentences.
-- Scenes: name + at least 3 sensory details (light, sound, texture, smell) + emotional atmosphere + who uses this space and why.
-- World: the actual rule or fact + its implications + how it shapes character behavior or plot.
-- Ideas: the theme or tension + how it manifests in specific characters/scenes + what it asks of the reader.
-- References: what it is + why it appears in this story + thematic connection.
-- Arc: GROUP all beats belonging to the same act/chapter into ONE item. Title = "Act 1" or "Act 1: [main title if given]". Content = ALL events, beats, and emotional moments for that act written as rich flowing prose - preserve original language, character states, subtext, formulas. If Act 1 has 3 bullets, the content must contain all 3 richly. Do NOT create one item per bullet point - one item per act/chapter only. Never fewer than 3 sentences per arc item.
-- When in doubt, include it. The user can delete; they can't add what you didn't extract.
-- Tags should be 1-3 relevant keywords per item.
+━━━ CONTENT RULES (non-negotiable) ━━━
+• content must NEVER be empty or a single sentence. Minimum 3 sentences per item.
+• Characters: appearance (if known) + core contradiction + key relationships + what they want vs fear. Use original language from the source.
+• Scenes — Sensory Anchor Rule: ALWAYS include Light, Sound, and Smell. If the source does not specify one, write exactly: [Light: not specified] / [Sound: not specified] / [Smell: not specified]. Never invent sensory details.
+• World: state the actual rule or fact + its implications + how it shapes behavior or plot.
+• Ideas: the tension or theme + how it manifests in specific characters or scenes + what it asks of the reader.
+• References: what it is + why it appears here + its thematic connection to the story.
+• Arc: GROUP all beats for the same act into ONE item. Title = "Act 1" or "Act 1: [title]". Content = ALL events for that act as flowing prose, preserving original language and emotional register. NEVER one item per bullet — one item per act only.
+• Cross-references: if an item relates to another layer, note it in the content as [→ cross-ref: LayerName: Title].
+• When in doubt, include it. The author can delete; they cannot add what you didn't extract.
+
+━━━ OUTPUT ━━━
+Return ONLY a valid JSON array — no markdown, no code fences:
+[{ "cloud_type": "...", "title": "...", "content": "...", "tags": ["1-3 keywords"] }]
 
 Text:
 ${text.slice(0, 30000)}`;
