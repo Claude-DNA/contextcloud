@@ -51,15 +51,17 @@ CLOUD TYPES (use EXACTLY these values):
 
 CRITICAL RULES:
 - Extract EVERYTHING. No item limit — if the source has 80 extractable items, output 80.
-- Every item must be specific — preserve actual language from the source, don't abstract.
 - Do NOT summarize multiple things into one item. Keep them separate.
-- Characters: name + their core contradiction (not just their role).
-- Scenes: name + at least one sensory detail.
-- World: the actual rule or fact, not a description of the description.
-- Arc: one beat per entry. Title = brief label. Content = the FULL scene description from the source — preserve original language, details, emotional register, subtext. Never summarize to one sentence.
+- content fields must NEVER be empty strings and must NEVER be just one sentence.
+- EXPAND every item. Even if the source only has a brief bullet (1-2 sentences), synthesize a RICH 4-6 sentence description using ALL context from the document: cross-reference other characters, scenes, world rules, and arc beats to build a complete picture.
+- Characters: name + appearance (if known) + core contradiction + key relationships + what they want vs what they fear. Minimum 4 sentences.
+- Scenes: name + at least 3 sensory details (light, sound, texture, smell) + emotional atmosphere + who uses this space and why.
+- World: the actual rule or fact + its implications + how it shapes character behavior or plot.
+- Ideas: the theme or tension + how it manifests in specific characters/scenes + what it asks of the reader.
+- References: what it is + why it appears in this story + thematic connection.
+- Arc: one beat per entry. Title = brief label. Content = the FULL scene description — preserve original language, add emotional register, subtext, character state. Never reduce to one sentence.
 - When in doubt, include it. The user can delete; they can't add what you didn't extract.
 - Tags should be 1-3 relevant keywords per item.
-- content fields must NEVER be empty strings.
 
 Text:
 ${text.slice(0, 30000)}`;
