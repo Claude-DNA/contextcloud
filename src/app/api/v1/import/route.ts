@@ -12,53 +12,112 @@ const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemi
 const VALID_CLOUD_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
 type CloudType = typeof VALID_CLOUD_TYPES[number];
 
-async function extractTextFromFile(file: File): Promise<string> {
+// Represents extracted file content — either plain text or raw bytes for Gemini inline
+type FileContent =
+  | { kind: 'text'; text: string }
+  | { kind: 'binary'; mimeType: string; base64: string };
+
+async function extractFileContent(file: File): Promise<FileContent> {
   const name = file.name.toLowerCase();
 
+  // ── Plain text ──────────────────────────────────────────────────────────────
   if (name.endsWith('.txt') || name.endsWith('.md')) {
-    return await file.text();
+    return { kind: 'text', text: await file.text() };
   }
 
+  // ── DOCX — paragraph-aware extraction ──────────────────────────────────────
   if (name.endsWith('.docx')) {
-    // DOCX = ZIP archive - properly decompress with fflate
-    const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-
+    const bytes = new Uint8Array(await file.arrayBuffer());
     try {
       const unzipped = unzipSync(bytes);
+      const paragraphs: string[] = [];
 
-      // word/document.xml contains the main text
-      const docXmlBytes = unzipped['word/document.xml'];
-      if (!docXmlBytes) {
-        throw new Error('Could not find word/document.xml in DOCX');
+      // Pull text from document + any headers/footers
+      const xmlSlots = [
+        'word/document.xml',
+        'word/header1.xml', 'word/header2.xml', 'word/header3.xml',
+        'word/footer1.xml', 'word/footer2.xml',
+      ];
+
+      for (const slot of xmlSlots) {
+        const xmlBytes = unzipped[slot];
+        if (!xmlBytes) continue;
+        const xml = strFromU8(xmlBytes);
+
+        // Walk paragraph by paragraph so we preserve line breaks
+        const paraRx = /<w:p[ >][\s\S]*?<\/w:p>/g;
+        const runRx  = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
+        let pMatch: RegExpExecArray | null;
+        while ((pMatch = paraRx.exec(xml)) !== null) {
+          const runs: string[] = [];
+          let rMatch: RegExpExecArray | null;
+          while ((rMatch = runRx.exec(pMatch[0])) !== null) {
+            if (rMatch[1]) runs.push(rMatch[1]);
+          }
+          const line = runs.join('').trim();
+          if (line) paragraphs.push(line);
+        }
       }
 
-      const xmlStr = strFromU8(docXmlBytes);
-
-      // Extract text from <w:t> tags (Word text runs)
-      const textParts: string[] = [];
-      const regex = /<w:t[^>]*>([^<]*)<\/w:t>/g;
-      let match;
-      while ((match = regex.exec(xmlStr)) !== null) {
-        if (match[1].trim()) textParts.push(match[1]);
+      if (paragraphs.length > 0) {
+        return { kind: 'text', text: paragraphs.join('\n').slice(0, 50000) };
       }
 
-      // Also extract paragraph breaks for readability
-      const withBreaks = xmlStr.replace(/<w:p[ >]/g, '\n').replace(/<[^>]+>/g, '');
-      const cleanText = withBreaks.replace(/\s+/g, ' ').replace(/\n /g, '\n').trim();
-
-      const extracted = textParts.length > 20 ? textParts.join(' ') : cleanText;
-      return extracted.slice(0, 50000);
+      // Fallback: strip all XML tags from document.xml
+      const docXml = unzipped['word/document.xml'];
+      if (docXml) {
+        const raw = strFromU8(docXml).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        return { kind: 'text', text: raw.slice(0, 50000) };
+      }
+      throw new Error('No readable content found in DOCX');
     } catch {
-      // Fallback: strip tags from raw
-      const decoder = new TextDecoder('utf-8', { fatal: false });
-      const raw = decoder.decode(bytes);
-      return raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50000);
+      // Last resort: decode raw bytes and strip XML
+      const raw = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      return { kind: 'text', text: raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50000) };
     }
   }
 
-  // For PDF and other types, return what we can
-  return await file.text();
+  // ── PDF — send raw bytes to Gemini as inline document ───────────────────────
+  if (name.endsWith('.pdf')) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const base64 = Buffer.from(bytes).toString('base64');
+    return { kind: 'binary', mimeType: 'application/pdf', base64 };
+  }
+
+  // ── EPUB — unzip and extract OPS/content HTML files ────────────────────────
+  if (name.endsWith('.epub')) {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    try {
+      const unzipped = unzipSync(bytes);
+      const textParts: string[] = [];
+      for (const [path, data] of Object.entries(unzipped)) {
+        if (/(\.xhtml|\.html|\.htm)$/i.test(path)) {
+          const html = strFromU8(data as Uint8Array);
+          const stripped = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (stripped.length > 100) textParts.push(stripped);
+        }
+      }
+      if (textParts.length > 0) {
+        return { kind: 'text', text: textParts.join('\n\n').slice(0, 50000) };
+      }
+    } catch { /* fall through */ }
+    return { kind: 'text', text: '' };
+  }
+
+  // ── RTF — strip RTF control words ───────────────────────────────────────────
+  if (name.endsWith('.rtf')) {
+    const raw = await file.text();
+    const stripped = raw
+      .replace(/\{[^{}]*\}/g, ' ')     // remove groups
+      .replace(/\\[a-z]+\d*\s?/g, '')  // remove control words
+      .replace(/[{}\\]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    return { kind: 'text', text: stripped.slice(0, 50000) };
+  }
+
+  // ── Unknown: try as text ────────────────────────────────────────────────────
+  return { kind: 'text', text: (await file.text()).slice(0, 50000) };
 }
 
 interface ExtractedItem {
@@ -92,7 +151,7 @@ All other layers (scenes, world, references) — extract normally as supporting 
 `;
 }
 
-async function callGeminiExtract(text: string, structureBlock = '', temperatureBlock = '', characterTransformBlock = '', geminiTemperature = 0.7): Promise<ExtractedItem[]> {
+async function callGeminiExtract(input: FileContent, structureBlock = '', temperatureBlock = '', characterTransformBlock = '', geminiTemperature = 0.7): Promise<ExtractedItem[]> {
   const prompt = `You are Context Cloud Architect — the lossless extraction engine for contextcloud.studio.
 Mission: retain 100% of the information from the source text. Map every fact into the six layers. Never omit, merge, summarize, or invent.
 
@@ -127,21 +186,28 @@ Map each inventory item to exactly one cloud_type (use these exact strings):
 Return ONLY a valid JSON array — no markdown, no code fences:
 [{ "cloud_type": "...", "title": "...", "content": "...", "tags": ["1-3 keywords"] }]
 
-━━━ SOURCE TEXT ━━━
 ${structureBlock}
 ${temperatureBlock}
 ${characterTransformBlock}
-${text.slice(0, 30000)}`;
+${input.kind === 'text'
+  ? `━━━ SOURCE TEXT ━━━\n${input.text.slice(0, 30000)}`
+  : `━━━ SOURCE DOCUMENT ━━━\nThe attached document is the source material. Read it fully, then map all content to the six layers.`
+}`;
 
   if (!GOOGLE_AI_API_KEY) {
     throw new Error('GOOGLE_AI_API_KEY not configured');
   }
 
+  // Build content parts — PDF is sent as inline binary, everything else as text
+  const parts: object[] = input.kind === 'binary'
+    ? [{ text: prompt }, { inlineData: { mimeType: input.mimeType, data: input.base64 } }]
+    : [{ text: prompt }];
+
   const res = await fetch(`${GEMINI_URL}?key=${GOOGLE_AI_API_KEY}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts }],
       generationConfig: {
         temperature: geminiTemperature,
         maxOutputTokens: 8192,
@@ -206,11 +272,12 @@ export async function POST(req: NextRequest) {
     }
 
     const name = file.name.toLowerCase();
-    if (!name.endsWith('.txt') && !name.endsWith('.md') && !name.endsWith('.docx') && !name.endsWith('.pdf')) {
-      return NextResponse.json({ error: 'Unsupported file type. Use TXT, MD, DOCX, or PDF.' }, { status: 400 });
+    const supported = ['.txt', '.md', '.docx', '.pdf', '.epub', '.rtf'];
+    if (!supported.some(ext => name.endsWith(ext))) {
+      return NextResponse.json({ error: 'Unsupported file type. Use TXT, MD, DOCX, PDF, EPUB, or RTF.' }, { status: 400 });
     }
 
-    const text        = await extractTextFromFile(file);
+    const fileContent = await extractFileContent(file);
     const structureId    = formData.get('structure')      as string | null;
     const structureName  = formData.get('structureName')  as string | null;
     const structureBeats = formData.get('structureBeats') as string | null;
@@ -242,12 +309,15 @@ export async function POST(req: NextRequest) {
 
     const characterTransformBlock = mode === 'character' ? buildCharacterTransformBlock() : '';
 
-    if (!text || text.trim().length < 10) {
+    const isEmpty = fileContent.kind === 'text'
+      ? (!fileContent.text || fileContent.text.trim().length < 10)
+      : fileContent.base64.length < 100;
+    if (isEmpty) {
       return NextResponse.json({ error: 'File appears to be empty or could not be read' }, { status: 400 });
     }
 
     // Extract items using Context Cloud Architect prompt
-    const items = await callGeminiExtract(text, structureBlock, temperatureBlock, characterTransformBlock, geminiTemperature);
+    const items = await callGeminiExtract(fileContent, structureBlock, temperatureBlock, characterTransformBlock, geminiTemperature);
 
     if (items.length === 0) {
       return NextResponse.json({ error: 'No items could be extracted from the file' }, { status: 400 });

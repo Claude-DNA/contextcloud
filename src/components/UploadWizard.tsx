@@ -141,7 +141,7 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
   const addFiles = useCallback((incoming: FileList | null) => {
     if (!incoming) return;
     const accepted = Array.from(incoming).filter(f =>
-      /\.(txt|md|docx|pdf)$/i.test(f.name)
+      /\.(txt|md|docx|pdf|epub|rtf)$/i.test(f.name)
     );
     setFiles(prev => {
       const names = new Set(prev.map(f => f.name));
@@ -234,12 +234,12 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
               >
                 <div className="text-3xl mb-2">📄</div>
                 <p className="text-sm font-medium text-gray-700">Drop files here or click to browse</p>
-                <p className="text-xs text-gray-400 mt-1">TXT, MD, DOCX, PDF supported</p>
+                <p className="text-xs text-gray-400 mt-1">TXT, MD, DOCX, PDF, EPUB, RTF supported</p>
                 <input
                   ref={fileInputRef}
                   type="file"
                   multiple
-                  accept=".txt,.md,.docx,.pdf"
+                  accept=".txt,.md,.docx,.pdf,.epub,.rtf"
                   className="hidden"
                   onChange={e => addFiles(e.target.files)}
                 />
