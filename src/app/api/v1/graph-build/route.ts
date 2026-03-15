@@ -120,11 +120,13 @@ NODE TYPE REFERENCE — USE ONLY THESE EXACT STRINGS
 "state"          — for character emotional state in a scene
 "world"          — for world rules AND stage locations
 "theme"          — for ideas and themes
-"bookReference"  — for book references
-"filmReference"  — for film references
-"musicReference" — for music references
-"artReference"   — for art references
-"realEventReference" — for real event references
+"bookReference"      — for books, written works
+"filmReference"      — for films, TV series, shows (use for Star Trek, Voyager, etc.)
+"musicReference"     — for songs, albums, composers
+"artReference"       — for paintings, visual art
+"realEventReference" — for historical events, real people
+
+If unsure which reference subtype fits, default to "bookReference".
 
 CRITICAL: Do NOT use "chapterAct", "arc", "plot", "chapterPlot", "characterProxy", or any other type.
 Only the 11 types listed above are valid. Any other type string will be rejected.
@@ -134,14 +136,20 @@ Arc scenes MUST use type "scene" — not "chapterAct", not "arc".
 HANDLE REFERENCE
 ════════════════════════════════
 
-| connection                    | sourceHandle | targetHandle  |
-|-------------------------------|--------------|---------------|
-| scene → next scene            | "output"     | "prev_scene"  |
-| state → scene                 | (none)       | "characters"  |
-| world/stage → scene           | (none)       | "world"       |
-| theme → scene                 | (none)       | "plot"        |
-| reference → scene             | (none)       | "references"  |
-| proxy → state                 | (none)       | (none)        |
+EDGE DIRECTION — read carefully. Source is always the ITEM; target is always the SCENE (except scene chains).
+
+| connection                    | source        | target        | sourceHandle | targetHandle  |
+|-------------------------------|---------------|---------------|--------------|---------------|
+| scene → next scene            | scene node    | next scene    | "output"     | "prev_scene"  |
+| state → scene                 | state node    | scene node    | (none)       | "characters"  |
+| world/stage node → scene      | world node    | scene node    | (none)       | "world"       |
+| theme/idea node → scene       | theme node    | scene node    | (none)       | "plot"        |
+| reference node → scene        | reference node| scene node    | (none)       | "references"  |
+| proxy → state                 | proxy node    | state node    | (none)       | (none)        |
+
+⚠️ CRITICAL: NEVER generate scene → theme, scene → world, or scene → reference edges.
+The scene node's "output" handle connects ONLY to the next scene's "prev_scene" handle.
+All other items (themes, world, references) point INTO the scene, never out of it.
 
 Note: There is NO character master node. Proxy nodes are the starting point of the chain.
 
@@ -284,6 +292,8 @@ const TYPE_ALIASES: Record<string, string> = {
   chapterPlot: 'scene',
   arc: 'scene',
   plot: 'theme',
+  idea: 'theme',
+  ideas: 'theme',
   dialogue: 'theme',
   motivation: 'state',
   character: 'charactersProxy',   // master character nodes → proxies
@@ -291,7 +301,12 @@ const TYPE_ALIASES: Record<string, string> = {
   sceneProxy: 'scene',
   ideasProxy: 'theme',
   worldProxy: 'world',
+  // All reference subtypes → bookReference as default
+  references: 'bookReference',
+  reference: 'bookReference',
   referencesProxy: 'bookReference',
+  tvReference: 'filmReference',
+  seriesReference: 'filmReference',
 };
 
 function normalizeType(t: string): string {
