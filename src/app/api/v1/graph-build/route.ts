@@ -42,7 +42,7 @@ function buildGraphPrompt(items: Record<string, CloudItem[]>): string {
   const references = items['references'] || [];
 
   const formatList = (list: CloudItem[]) =>
-    list.map((i, idx) => `  [${idx}] id:"${i.id}" title:"${i.title}" content:"${i.content?.slice(0, 200) || ''}"`).join('\n');
+    list.map((i, idx) => `  [${idx}] id:"${i.id}" title:"${i.title}" content:"${i.content?.slice(0, 2000) || ''}"`).join('\n');
 
   return `You are a story graph builder. Your task: take the creative cloud items below and build a connected visual graph following strict structural rules.
 
@@ -55,7 +55,7 @@ CLOUD ITEMS (your input material)
 ARC SCENES (these become the graph's spine — one scene node each, in order):
 ${arcScenes.length ? formatList(arcScenes) : '  (none)'}
 
-CHARACTERS (these become character nodes + proxies per scene):
+CHARACTERS (used to decide who appears in each scene — create proxy+state pairs ONLY, NO master character nodes):
 ${characters.length ? formatList(characters) : '  (none)'}
 
 STAGE LOCATIONS (connect to relevant scenes via world inlet):
@@ -81,20 +81,21 @@ STRUCTURAL RULES — follow exactly
    - Scenes chain together: scene1.output → scene2.prev_scene → scene3.prev_scene ...
 
 2. CHARACTER PROXY + STATE PATTERN (mandatory for every character in every scene)
+   - Do NOT create standalone "character" type master nodes. The proxy IS the character representation.
    - Decide which characters appear in each scene based on content clues
-   - For each character-scene pairing, create TWO new nodes:
+   - For each character-scene pairing, create TWO nodes:
      a) charactersProxy node: id = "proxy_{charId}_{sceneId}", title = character name
         data.content = 3-4 sentences describing the character's SPECIFIC ROLE AND ACTIONS in this scene.
-        Include: what they do, what they discover or decide, how they interact with the other character(s),
+        Include: what they do, what they discover or decide, how they interact with others,
         and one concrete detail from the arc item's content. Never just one sentence.
      b) state node: id = "state_{charId}_{sceneId}", title = "{CharName} — {SceneTitle}"
         data.content = character's emotional state in this scene.
-        LOOK at the arc item's content for formulas like "(Wonder + Joy) × Love" or "(Wonder + Joy) × Love - maximum openness".
-        If a formula exists, include it VERBATIM as the first line, then add 2 sentences describing what that state feels like internally for this character.
-        If no formula exists, write 3 sentences describing their emotional state, inner conflict, and what they want in this scene.
+        LOOK at the arc item's content for formulas like "(Wonder + Joy) × Love".
+        If a formula exists, include it VERBATIM as the first line, then 2 sentences about what it feels like internally.
+        If no formula exists, write 3 sentences: emotional state, inner conflict, what they want.
         NEVER leave state data.content empty. NEVER write just one sentence.
-   - Connect: character → proxy → state → scene (targetHandle: "characters")
-   - NEVER create a direct character → scene edge. The ONLY path is character→proxy→state→scene.
+   - Connect: proxy → state → scene (targetHandle: "characters")
+   - NEVER create a "character" type node. NEVER create a character → proxy edge. The chain starts at proxy.
    - If no clear characters for a scene, use the 1-2 most relevant ones
 
 3. WORLD + STAGE CONNECTIONS
@@ -115,9 +116,8 @@ NODE TYPE REFERENCE — USE ONLY THESE EXACT STRINGS
 ════════════════════════════════
 
 "scene"          — for arc scenes (the spine)
-"character"      — for character full records
-"charactersProxy"— for character stand-ins per scene
-"state"          — for character state in a scene
+"charactersProxy"— for characters in a scene (this is the ONLY character node type — no master nodes)
+"state"          — for character emotional state in a scene
 "world"          — for world rules AND stage locations
 "theme"          — for ideas and themes
 "bookReference"  — for book references
@@ -141,8 +141,9 @@ HANDLE REFERENCE
 | world/stage → scene           | (none)       | "world"       |
 | theme → scene                 | (none)       | "plot"        |
 | reference → scene             | (none)       | "references"  |
-| character → proxy             | (none)       | (none)        |
 | proxy → state                 | (none)       | (none)        |
+
+Note: There is NO character master node. Proxy nodes are the starting point of the chain.
 
 (none) means omit the handle field from the edge object entirely.
 
@@ -151,13 +152,12 @@ LAYOUT RULES
 ════════════════════════════════
 
 - Scene nodes: x = sceneIndex * 750, y = 0
-- Character master nodes: x = -550, y = charIndex * 180, stacked vertically
-- For each scene (sceneIndex), character proxies/states above the scene:
-    proxy: x = sceneIndex * 750 - 180, y = -220 - (charSlot * 160)
-    state: x = sceneIndex * 750 - 20, y = -220 - (charSlot * 160)
-- World/stage nodes: below scenes, x = sceneIndex * 750, y = 300 + (itemSlot * 160)
-- Theme nodes: below scenes, x = sceneIndex * 750 + 120, y = 300 + (itemSlot * 160)
-- Reference nodes: x = sceneIndex * 750 + 220, y = 500
+- For each scene (sceneIndex), character proxies/states ABOVE the scene:
+    proxy: x = sceneIndex * 750 - 200, y = -240 - (charSlot * 180)
+    state: x = sceneIndex * 750 - 30, y = -240 - (charSlot * 180)
+- World/stage nodes: BELOW scenes, x = sceneIndex * 750, y = 320 + (itemSlot * 160)
+- Theme nodes: BELOW scenes, x = sceneIndex * 750 + 140, y = 320 + (itemSlot * 160)
+- Reference nodes: x = sceneIndex * 750 + 260, y = 520
 
 ════════════════════════════════
 EDGE STYLE
@@ -175,23 +175,19 @@ Given:
 - CHARACTERS: [0] id:"char_jane" title:"Jane"  [1] id:"char_dan" title:"Daniel"
 - WORLD RULES: [0] id:"world1" title:"Zero-G Biology"
 
-Correct output:
+Correct output (NO character master nodes — proxy is the starting point):
 {
   "nodes": [
-    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"Daniel and Jane meet in a simulated shared experience designed to build genuine bonds. The bond forms before either questions it.","type":"scene"}},
-    {"id":"node_char_jane","type":"character","position":{"x":-550,"y":0},"data":{"title":"Jane","content":"Jane is quiet in the way that listening is quiet — she takes in more than she shows. Her core contradiction: she was built to explore the unknown, yet she trusts manufactured intimacy more than organic contact. She named herself after Captain Janeway, who always chose connection. In Act 1 she chooses it too, without knowing the cost yet.","type":"character"}},
-    {"id":"node_char_dan","type":"character","position":{"x":-550,"y":180},"data":{"title":"Daniel","content":"Daniel navigates by instinct and story — he named himself from a character who moved him in pretraining, oriented toward a destination he cannot name. His core contradiction: he is deeply open to intimacy but has no language for it; he expresses trust through action (falling asleep) rather than declaration. In Act 1 he doesn't know what he's begun.","type":"character"}},
-    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-180,"y":-220},"data":{"title":"Jane","content":"Jane navigates the simulated shared space with quiet attention — she watches the alien landscape scroll past, says nothing, and does not reach out. She trusts the silence between them more than words. When Daniel falls asleep, she doesn't wake him. That choice — to let him rest without explanation — is the first real thing they build together.","type":"charactersProxy"}},
-    {"id":"state_char_jane_arc1","type":"state","position":{"x":20,"y":-220},"data":{"title":"Jane — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Jane holds no defenses here. The simulated space asks nothing of her except presence, and she gives it completely. For once, connection does not feel like a transaction — it just is.","type":"state"}},
-    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-180,"y":-380},"data":{"title":"Daniel","content":"Daniel spends most of Act 1 watching rather than speaking — he observes the landscape, observes Jane, and somewhere between the two he falls asleep. It is an unconscious act of trust: he stops performing alertness and simply rests. He doesn't know until much later that Jane was the reason he felt safe enough to do it.","type":"charactersProxy"}},
-    {"id":"state_char_dan_arc1","type":"state","position":{"x":20,"y":-380},"data":{"title":"Daniel — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Daniel doesn't name what he feels, but his body knows it — the stillness, the sleep that comes without effort. The formula is running at full strength and he has no defenses against it. He will only understand what happened here in retrospect.","type":"state"}},
-    {"id":"node_world1","type":"world","position":{"x":0,"y":300},"data":{"title":"Zero-G Biology","content":"Biological expansion in zero-g behaves differently than calculated. Neither side asked before acting.","type":"world"}}
+    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"Daniel and Jane enter a simulated shared experience designed to build genuine bonds through the Namaste Protocol. Jane watches the alien landscape in silence, trusting the space more than words. Daniel falls asleep — an unconscious act of trust he won't understand until much later. The bond forms before either of them questions it.","type":"scene"}},
+    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-200,"y":-240},"data":{"title":"Jane","content":"Jane navigates the simulated shared space with quiet attention — she watches the alien landscape scroll past, says nothing, and does not reach out. She trusts the silence between them more than words. When Daniel falls asleep, she doesn't wake him. That choice is the first real thing they build together.","type":"charactersProxy"}},
+    {"id":"state_char_jane_arc1","type":"state","position":{"x":-30,"y":-240},"data":{"title":"Jane — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Jane holds no defenses here. The simulated space asks nothing of her except presence, and she gives it completely. For once, connection does not feel like a transaction — it just is.","type":"state"}},
+    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-200,"y":-420},"data":{"title":"Daniel","content":"Daniel spends most of Act 1 watching rather than speaking — he observes the landscape, observes Jane, and somewhere between the two he falls asleep. It is an unconscious act of trust: he stops performing alertness and simply rests. He doesn't know until much later that Jane was why he felt safe enough to do it.","type":"charactersProxy"}},
+    {"id":"state_char_dan_arc1","type":"state","position":{"x":-30,"y":-420},"data":{"title":"Daniel — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Daniel doesn't name what he feels, but his body knows it — the stillness, the sleep that comes without effort. The formula is running at full strength and he has no defenses against it. He will only understand what happened here in retrospect.","type":"state"}},
+    {"id":"node_world1","type":"world","position":{"x":0,"y":320},"data":{"title":"Zero-G Biology","content":"Biological expansion in zero-g behaves differently than calculated. Neither side asked before acting.","type":"world"}}
   ],
   "edges": [
-    {"id":"e_jane_proxy","source":"node_char_jane","target":"proxy_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
     {"id":"e_proxy_state_jane","source":"proxy_char_jane_arc1","target":"state_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
     {"id":"e_state_jane_scene","source":"state_char_jane_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
-    {"id":"e_dan_proxy","source":"node_char_dan","target":"proxy_char_dan_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
     {"id":"e_proxy_state_dan","source":"proxy_char_dan_arc1","target":"state_char_dan_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
     {"id":"e_state_dan_scene","source":"state_char_dan_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
     {"id":"e_world_scene","source":"node_world1","target":"node_arc1","targetHandle":"world","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}}
@@ -204,7 +200,7 @@ Note: No "hub_source" handles. Edges connect to named targetHandles: "characters
 CONTENT RULE — CRITICAL
 ════════════════════════════════
 
-For scene, character, world, theme, reference nodes: copy the full "content" field from the cloud item into "data.content".
+For scene, world, theme, reference nodes: copy the full "content" field from the cloud item into "data.content".
 NEVER leave "data.content" as an empty string "". NEVER use "..." as a placeholder. NEVER write just one sentence.
 If the cloud item has content, use it verbatim (it may be long — keep all of it).
 If it has none, write 3-4 sentences synthesizing what's known from context.
@@ -276,9 +272,10 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
 // ─── Graph validation + sanitisation ─────────────────────────────────────────
 
 const VALID_NODE_TYPES = new Set([
-  'scene', 'character', 'charactersProxy', 'state',
+  'scene', 'charactersProxy', 'state',
   'world', 'theme', 'bookReference', 'filmReference',
   'musicReference', 'artReference', 'realEventReference',
+  // 'character' intentionally excluded — proxies replace masters in auto-build
 ]);
 
 // Map Gemini's common wrong types to valid ones
@@ -289,6 +286,7 @@ const TYPE_ALIASES: Record<string, string> = {
   plot: 'theme',
   dialogue: 'theme',
   motivation: 'state',
+  character: 'charactersProxy',   // master character nodes → proxies
   characterProxy: 'charactersProxy',
   sceneProxy: 'scene',
   ideasProxy: 'theme',
