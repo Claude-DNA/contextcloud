@@ -238,9 +238,9 @@ OUTPUT FORMAT
 Important:
 - Output ONLY the JSON object. No surrounding text, no markdown code fences.
 - Every id must be unique.
-- Include ALL arc scenes as scene nodes, ALL characters as character nodes.
+- Include ALL arc scenes as scene nodes. Do NOT create standalone character nodes — only proxy+state per scene.
 - Generate proxies + states for character-scene pairings you judge as relevant.
-- If arcScenes list is empty, build the best structure you can from the other items.`;
+- If arcScenes list is empty: create one synthetic scene node titled "All Scenes" and connect all characters, world items, and themes to it.`;
 }
 
 // ─── Gemini call ──────────────────────────────────────────────────────────────
