@@ -27,6 +27,7 @@ import { GraphContext } from '@/components/graph/GraphContext';
 import NodePanel from '@/components/graph/NodePanel';
 import DraftBrowser from '@/components/graph/DraftBrowser';
 import { useProject } from '@/context/ProjectContext';
+import UploadWizard, { type StoryStructure } from '@/components/UploadWizard';
 
 // Register all node types to the same GraphNode component
 const nodeTypes: Record<string, typeof GraphNodeComponent> = {};
@@ -210,6 +211,7 @@ export default function VisualCanvas() {
   const nodeCounter = useRef(0);
   const windowJustFocused = useRef(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showWizard, setShowWizard] = useState(false);
   const [importingCloud, setImportingCloud] = useState(false);
   const [exportingRunway, setExportingRunway] = useState(false);
 
@@ -1221,38 +1223,56 @@ export default function VisualCanvas() {
   useEffect(() => { handleAutoBuildRef.current = handleAutoBuild; }, [handleAutoBuild]);
 
   // ── File import ─────────────────────────────────────────────────────────────
-  const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Called from UploadWizard on final step
+  const handleWizardGenerate = useCallback(async (
+    files: File[],
+    structure: StoryStructure,
+    temperature: number,
+  ) => {
+    if (!files.length) return;
     setImporting(true);
+    setShowWizard(false);
+    let totalSaved = 0;
+    let totalSkipped = 0;
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast(data.error || 'Import failed');
-      } else if (data.saved > 0) {
-        const skipped = data.skipped > 0 ? ` (${data.skipped} already existed)` : '';
-        showToast(`✅ ${data.saved} new items saved${skipped} — building graph...`);
+      for (const file of files) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('structure', structure.id);
+        formData.append('structureName', structure.name);
+        formData.append('structureBeats', JSON.stringify(structure.beats));
+        formData.append('temperature', String(temperature));
+        const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
+        const data = await res.json();
+        if (!res.ok) { showToast(data.error || 'Import failed'); setImporting(false); return; }
+        totalSaved   += data.saved   ?? 0;
+        totalSkipped += data.skipped ?? 0;
+      }
+      if (totalSaved > 0) {
+        const skipped = totalSkipped > 0 ? ` (${totalSkipped} already existed)` : '';
+        showToast(`✅ ${totalSaved} new items saved${skipped} — building graph...`);
         setImporting(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-        // Auto-trigger graph build after successful import
         handleAutoBuild();
         return;
-      } else if (data.skipped > 0) {
-        showToast(`All ${data.skipped} items already in your clouds — building graph...`);
+      } else if (totalSkipped > 0) {
+        showToast(`All ${totalSkipped} items already in your clouds — building graph...`);
         setImporting(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
         handleAutoBuild();
         return;
       } else {
-        showToast('⚠️ No items could be extracted from the file. Try a richer document.');
+        showToast('⚠️ No items could be extracted. Try a richer document.');
       }
     } catch { showToast('Import failed'); }
     setImporting(false);
-    if (fileInputRef.current) fileInputRef.current.value = '';
   }, [showToast, handleAutoBuild]);
+
+  // Legacy direct-file handler (kept for drag-drop fallback)
+  const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    setShowWizard(true); // open wizard with file pre-loaded (handled via wizard state)
+  }, []);
 
   // ── Categorised node types for sidebar ─────────────────────────────────────
   // Only show non-hidden node types in the palette, grouped by new sections
@@ -1545,14 +1565,14 @@ export default function VisualCanvas() {
                   </button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
-                  {/* Upload file */}
+                  {/* Upload file — opens wizard */}
                   <button
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => setShowWizard(true)}
                     disabled={importing}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                    title="Upload file (TXT, MD, DOCX)"
+                    title="Upload files — choose structure & temperature"
                   >
-                    {importing ? 'Uploading...' : '📤 Upload File'}
+                    {importing ? '⏳ Uploading...' : '📤 Upload File'}
                   </button>
                   <input
                     ref={fileInputRef}
@@ -2028,6 +2048,15 @@ export default function VisualCanvas() {
           <div className="fixed top-20 right-4 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-md text-sm z-50 text-gray-800">
             {toast}
           </div>
+        )}
+
+        {/* Upload Wizard */}
+        {showWizard && (
+          <UploadWizard
+            onClose={() => setShowWizard(false)}
+            onGenerate={handleWizardGenerate}
+            importing={importing}
+          />
         )}
       </div>
     </div>

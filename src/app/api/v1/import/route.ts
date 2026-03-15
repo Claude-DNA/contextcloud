@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
@@ -104,6 +104,8 @@ Return ONLY a valid JSON array — no markdown, no code fences:
 [{ "cloud_type": "...", "title": "...", "content": "...", "tags": ["1-3 keywords"] }]
 
 ━━━ SOURCE TEXT ━━━
+${structureBlock}
+${temperatureBlock}
 ${text.slice(0, 30000)}`;
 
   if (!GOOGLE_AI_API_KEY) {
@@ -183,7 +185,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unsupported file type. Use TXT, MD, DOCX, or PDF.' }, { status: 400 });
     }
 
-    const text = await extractTextFromFile(file);
+    const text        = await extractTextFromFile(file);
+    const structureId    = formData.get('structure')      as string | null;
+    const structureName  = formData.get('structureName')  as string | null;
+    const structureBeats = formData.get('structureBeats') as string | null;
+    const temperatureRaw = formData.get('temperature')    as string | null;
+    const temperature    = temperatureRaw ? parseFloat(temperatureRaw) : 0.0;
+    const beats: string[] = structureBeats ? JSON.parse(structureBeats) : [];
+    const structureBlock = (structureName && structureId !== 'custom' && beats.length > 0)
+      ? 'STORY STRUCTURE: ' + structureName + '\n' +
+        'Organize the ARC items to follow this structure. Use these as arc item titles in order:\n' +
+        beats.map((b, i) => (i + 1) + '. ' + b).join('\n') + '\n'
+      : (structureName && structureId !== 'custom')
+      ? 'STORY STRUCTURE: ' + structureName + ' — use this structure to organize arc beats.\n'
+      : '';
+
+    const temperatureBlock = temperature >= 0.5
+      ? 'TEMPERATURE: ' + temperature.toFixed(1) + ' — Co-Author Mode. After extracting all facts, you MAY propose additional items implied by the source. Label suggested items with tags: ["suggested"].'
+      : 'TEMPERATURE: ' + temperature.toFixed(1) + ' — Strict Mirror. Extract only. Do not add, infer, or suggest anything not in the source text.';
+
     if (!text || text.trim().length < 10) {
       return NextResponse.json({ error: 'File appears to be empty or could not be read' }, { status: 400 });
     }
