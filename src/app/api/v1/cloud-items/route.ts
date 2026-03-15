@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
@@ -7,8 +7,8 @@ const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'ar
 type CloudType = typeof VALID_TYPES[number];
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
 
   const projectId = req.nextUrl.searchParams.get('project_id');
   let sql = 'SELECT * FROM cloud_items WHERE user_id = $1 AND cloud_type = $2';
-  const params: unknown[] = [session.user.id, cloudType];
+  const params: unknown[] = [userId, cloudType];
 
   if (projectId === 'unassigned') {
     sql += ' AND project_id IS NULL';
@@ -42,8 +42,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -65,14 +65,14 @@ export async function POST(req: NextRequest) {
 
   const maxRes = await query(
     'SELECT COALESCE(MAX(sort_order), -1) + 1 AS next_order FROM cloud_items WHERE user_id = $1 AND cloud_type = $2',
-    [session.user.id, cloud_type]
+    [userId, cloud_type]
   );
   const nextOrder = maxRes.rows[0]?.next_order ?? 0;
 
   const res = await query(
     `INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order, project_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [session.user.id, cloud_type, title.trim(), content, tags, JSON.stringify(metadata), nextOrder, project_id || null]
+    [userId, cloud_type, title.trim(), content, tags, JSON.stringify(metadata), nextOrder, project_id || null]
   );
 
   return NextResponse.json({ item: res.rows[0] }, { status: 201 });
@@ -80,8 +80,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE ?type=characters — clears all items of a cloud type for this user
 export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   if (!(await isDbAvailable())) {
@@ -95,7 +95,7 @@ export async function DELETE(req: NextRequest) {
   }
   const res = await query(
     'DELETE FROM cloud_items WHERE user_id=$1 AND cloud_type=$2',
-    [session.user.id, cloudType]
+    [userId, cloudType]
   );
   return NextResponse.json({ ok: true, deleted: res.rowCount ?? 0 });
 }

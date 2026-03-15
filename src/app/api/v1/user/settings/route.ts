@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -16,7 +16,7 @@ export async function GET() {
 
   const res = await query(
     'SELECT google_ai_key FROM users WHERE id = $1',
-    [session.user.id]
+    [userId]
   );
   const row = res.rows[0];
   const hasKey = !!(row?.google_ai_key && row.google_ai_key.trim().length > 0);
@@ -25,8 +25,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
   await query(
     'UPDATE users SET google_ai_key = $1 WHERE id = $2',
-    [key || null, session.user.id]
+    [key || null, userId]
   );
 
   return NextResponse.json({ ok: true, hasKey: key.length > 0 });

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 
-export async function GET(
-  _req: NextRequest,
+export async function GET(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -23,7 +22,7 @@ export async function GET(
      JOIN chapters c ON p.chapter_id = c.id
      JOIN arcs a ON c.arc_id = a.id
      WHERE p.id = $1 AND a.user_id = $2`,
-    [id, session.user.id]
+    [id, userId]
   );
   if (plotCheck.rows.length === 0) {
     return NextResponse.json({ error: 'Plot not found' }, { status: 404 });
@@ -44,8 +43,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -61,7 +60,7 @@ export async function POST(
      JOIN chapters c ON p.chapter_id = c.id
      JOIN arcs a ON c.arc_id = a.id
      WHERE p.id = $1 AND a.user_id = $2`,
-    [id, session.user.id]
+    [id, userId]
   );
   if (plotCheck.rows.length === 0) {
     return NextResponse.json({ error: 'Plot not found' }, { status: 404 });

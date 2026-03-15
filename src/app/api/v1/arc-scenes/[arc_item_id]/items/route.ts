@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // GET /api/v1/arc-scenes/[arc_item_id]/items — all items attached to this arc scene, grouped by cloud_type
-export async function GET(
-  _req: NextRequest,
+export async function GET(req: NextRequest,
   { params }: { params: Promise<{ arc_item_id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -24,7 +23,7 @@ export async function GET(
   // Verify arc item belongs to user
   const arcCheck = await query(
     `SELECT id FROM cloud_items WHERE id = $1 AND user_id = $2 AND cloud_type = 'arc'`,
-    [arc_item_id, session.user.id]
+    [arc_item_id, userId]
   );
 
   if (arcCheck.rows.length === 0) {

@@ -1,17 +1,18 @@
-import { auth } from '@/lib/auth-config';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUserId } from '@/lib/api-auth';
 import { buildManifest } from '../route';
 import { noKeyResponse } from '@/lib/ai-key';
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return new Response(JSON.stringify({ error: 'Authentication required' }), {
       status: 401,
       headers: { 'Content-Type': 'application/json' },
     });
   }
 
-  const result = await buildManifest(session.user.id, session.user.email);
+  const result = await buildManifest(userId);
 
   if ('error' in result) {
     if (result.error === 'BYOT_REQUIRED') return noKeyResponse();

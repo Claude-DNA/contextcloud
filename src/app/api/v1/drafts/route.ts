@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 let migrated = false;
 
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -22,15 +22,15 @@ export async function GET() {
 
   const res = await query(
     'SELECT id, title, description, type, status, tube_id, created_at, updated_at FROM cloud_drafts WHERE user_id = $1 ORDER BY updated_at DESC',
-    [session.user.id]
+    [userId]
   );
 
   return NextResponse.json({ drafts: res.rows });
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
      VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
      RETURNING id, title, description, type, status, created_at, updated_at`,
     [
-      session.user.id,
+      userId,
       title,
       description || '',
       type || 'cloud',
@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -111,7 +111,7 @@ export async function PUT(req: NextRequest) {
   sets.push('updated_at = NOW()');
 
   vals.push(id);
-  vals.push(session.user.id);
+  vals.push(userId);
 
   const res = await query(
     `UPDATE cloud_drafts SET ${sets.join(', ')} WHERE id = $${i++} AND user_id = $${i} RETURNING *`,
@@ -126,8 +126,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -141,7 +141,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 });
   }
 
-  await query('DELETE FROM cloud_drafts WHERE id = $1 AND user_id = $2', [id, session.user.id]);
+  await query('DELETE FROM cloud_drafts WHERE id = $1 AND user_id = $2', [id, userId]);
 
   return NextResponse.json({ success: true });
 }

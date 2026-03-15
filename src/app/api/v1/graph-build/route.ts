@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
@@ -342,8 +342,8 @@ function sanitizeGraph(raw: unknown): { nodes: BuildNode[]; edges: BuildEdge[] }
 // ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
 
   await runMigrations();
 
-  const apiKey = await getGeminiKey(session.user.id, session.user.email);
+  const apiKey = await getGeminiKey(userId);
   if (!apiKey) return noKeyResponse();
 
   const body = await req.json() as { project_id?: string; scene_ids?: string[] };
@@ -361,7 +361,7 @@ export async function POST(req: NextRequest) {
 
   // Fetch cloud items from DB
   let sql = `SELECT id, cloud_type, title, content, metadata FROM cloud_items WHERE user_id = $1`;
-  const params: unknown[] = [session.user.id];
+  const params: unknown[] = [userId];
 
   if (project_id) {
     sql += ` AND (project_id = $2 OR project_id IS NULL)`;

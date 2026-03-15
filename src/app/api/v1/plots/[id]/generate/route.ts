@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey } from '@/lib/ai-key';
 import { query } from '@/lib/db';
 import {
@@ -33,8 +33,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -61,7 +61,7 @@ export async function POST(
       return NextResponse.json({ error: 'Plot not found' }, { status: 404 });
     }
     const plot = plotRows.rows[0];
-    if (plot.arc_user_id !== session.user.id) {
+    if (plot.arc_user_id !== userId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -141,7 +141,7 @@ export async function POST(
 
     // 7. Generate
     let content: string;
-    const apiKey = aiNode?.apiKey || await getGeminiKey(session.user.id, session.user.email) || '';
+    const apiKey = aiNode?.apiKey || await getGeminiKey(userId) || '';
 
     if (aiNode?.apiKey && aiNode?.model && aiNode.model.startsWith('gemini')) {
       const temp = aiNode.temperature ?? temperature;

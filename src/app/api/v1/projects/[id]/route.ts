@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // PATCH /api/v1/projects/[id] — update project
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -20,7 +20,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const body = await req.json();
 
   // Verify ownership
-  const existing = await query('SELECT id FROM projects WHERE id = $1 AND user_id = $2', [id, session.user.id]);
+  const existing = await query('SELECT id FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
   if (existing.rows.length === 0) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
@@ -54,9 +54,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/v1/projects/[id] — delete project (ON DELETE SET NULL handles cloud_items)
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -68,7 +68,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const { id } = await params;
 
-  const res = await query('DELETE FROM projects WHERE id = $1 AND user_id = $2', [id, session.user.id]);
+  const res = await query('DELETE FROM projects WHERE id = $1 AND user_id = $2', [id, userId]);
   if ((res.rowCount ?? 0) === 0) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }

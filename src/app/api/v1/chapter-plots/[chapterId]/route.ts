@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 
-export async function GET(
-  _req: NextRequest,
+export async function GET(req: NextRequest,
   { params }: { params: Promise<{ chapterId: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
   if (!(await isDbAvailable())) {
@@ -21,7 +20,7 @@ export async function GET(
     `SELECT c.*, a.name as arc_name FROM chapters c
      JOIN arcs a ON a.id = c.arc_id
      WHERE c.id = $1 AND a.user_id = $2`,
-    [chapterId, session.user.id]
+    [chapterId, userId]
   );
   if (chapRes.rows.length === 0) {
     return NextResponse.json({ error: 'Chapter not found' }, { status: 404 });

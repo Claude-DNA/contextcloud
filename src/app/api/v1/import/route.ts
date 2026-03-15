@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { query, isDbAvailable } from '@/lib/db';
@@ -254,12 +254,12 @@ ${input.kind === 'text'
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const resolvedKey = await getGeminiKey(session.user.id, session.user.email);
+  const resolvedKey = await getGeminiKey(userId);
   if (!resolvedKey) return noKeyResponse();
   GOOGLE_AI_API_KEY = resolvedKey;
 
@@ -332,7 +332,7 @@ export async function POST(req: NextRequest) {
     // Deduplicate: skip items whose (cloud_type, lower(title)) already exist for this user
     const existingRes = await query(
       `SELECT LOWER(title) AS ltitle, cloud_type FROM cloud_items WHERE user_id = $1`,
-      [session.user.id]
+      [userId]
     );
     const existingSet = new Set(existingRes.rows.map(
       (r: { ltitle: string; cloud_type: string }) => `${r.cloud_type}::${r.ltitle}`
@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
        FROM cloud_items
        WHERE user_id = $1 AND cloud_type = ANY($2)
        GROUP BY cloud_type`,
-      [session.user.id, typeList]
+      [userId, typeList]
     );
     const nextOrderMap: Record<string, number> = {};
     for (const row of maxRes.rows) {
@@ -373,7 +373,7 @@ export async function POST(req: NextRequest) {
 
       const metadata = JSON.stringify({ source: 'file' });
       placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
-      values.push(session.user.id, item.cloud_type, item.title.trim(), item.content || '', item.tags || [], metadata, sortOrder);
+      values.push(userId, item.cloud_type, item.title.trim(), item.content || '', item.tags || [], metadata, sortOrder);
     }
 
     const insertSQL = `

@@ -1,5 +1,5 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { NextRequest, NextResponse } from 'next/server';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
@@ -208,9 +208,9 @@ export async function buildManifest(userId: string, userEmail?: string | null, p
   return { manifest };
 }
 
-export async function POST(req: Request) {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function POST(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -220,7 +220,7 @@ export async function POST(req: Request) {
     projectTitle = body?.project_title;
   } catch { /* no body is fine */ }
 
-  const result = await buildManifest(session.user.id, session.user.email, projectTitle);
+  const result = await buildManifest(userId, projectTitle);
 
   if ('error' in result) {
     if (result.error === 'BYOT_REQUIRED') return noKeyResponse();

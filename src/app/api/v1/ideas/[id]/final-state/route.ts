@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 
-export async function GET(
-  _req: NextRequest,
+export async function GET(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -19,7 +18,7 @@ export async function GET(
 
   const res = await query(
     'SELECT id, final_state_manual, final_state_generated FROM ideas WHERE id = $1 AND project_id = $2',
-    [id, session.user.id]
+    [id, userId]
   );
 
   if (res.rows.length === 0) {
@@ -33,8 +32,8 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -49,7 +48,7 @@ export async function POST(
   // Verify idea belongs to user
   const ideaRes = await query(
     'SELECT * FROM ideas WHERE id = $1 AND project_id = $2',
-    [id, session.user.id]
+    [id, userId]
   );
   if (ideaRes.rows.length === 0) {
     return NextResponse.json({ error: 'Idea not found' }, { status: 404 });

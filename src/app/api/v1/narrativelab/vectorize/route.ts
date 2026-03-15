@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { query } from '@/lib/db';
 import {
@@ -31,8 +31,8 @@ function vectorToRow(v: NarrativeVector) {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Build vectorization prompt and call Gemini
-    const apiKey = await getGeminiKey(session.user.id, session.user.email);
+    const apiKey = await getGeminiKey(userId);
     if (!apiKey) return noKeyResponse();
 
     const prompt = buildVectorizationPrompt(elementType, elementText);
@@ -120,8 +120,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 

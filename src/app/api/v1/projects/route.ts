@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // GET /api/v1/projects — all projects for the logged-in user with item counts
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -28,7 +28,7 @@ export async function GET() {
      ) c ON c.project_id = p.id
      WHERE p.user_id = $1
      ORDER BY p.created_at ASC`,
-    [session.user.id]
+    [userId]
   );
 
   return NextResponse.json({ projects: res.rows });
@@ -36,8 +36,8 @@ export async function GET() {
 
 // POST /api/v1/projects — create a project
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
   const res = await query(
     `INSERT INTO projects (user_id, title, description)
      VALUES ($1, $2, $3) RETURNING *`,
-    [session.user.id, title.trim(), description]
+    [userId, title.trim(), description]
   );
 
   return NextResponse.json({ project: res.rows[0] }, { status: 201 });

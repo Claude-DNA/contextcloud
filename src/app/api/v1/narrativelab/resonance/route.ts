@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query } from '@/lib/db';
 import {
   NarrativeVector,
@@ -24,8 +24,8 @@ function rowToVector(row: Record<string, unknown>): NarrativeVector {
  * Elements not yet vectorized are skipped (client should vectorize first).
  */
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 

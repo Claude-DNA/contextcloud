@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // POST /api/v1/arc-scenes/attach — attach a cloud item to an arc scene (idempotent)
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   // Verify both items belong to this user and arc_item_id is actually an arc item
   const verify = await query(
     `SELECT id, cloud_type FROM cloud_items WHERE id = ANY($1) AND user_id = $2`,
-    [[cloud_item_id, arc_item_id], session.user.id]
+    [[cloud_item_id, arc_item_id], userId]
   );
 
   if (verify.rows.length < 2) {
@@ -50,8 +50,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/v1/arc-scenes/attach — detach a cloud item from an arc scene
 export async function DELETE(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -71,7 +71,7 @@ export async function DELETE(req: NextRequest) {
   // Verify the arc item belongs to this user
   const verify = await query(
     `SELECT id FROM cloud_items WHERE id = $1 AND user_id = $2 AND cloud_type = 'arc'`,
-    [arc_item_id, session.user.id]
+    [arc_item_id, userId]
   );
 
   if (verify.rows.length === 0) {

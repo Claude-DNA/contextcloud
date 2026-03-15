@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user?.id) {
+    const userId = await getAuthUserId(req);
+    if (!userId) {
       return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
     }
 
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     if (draftId) {
       await query(
         `UPDATE cloud_drafts SET status = 'published', tube_id = $1, updated_at = NOW() WHERE id = $2 AND user_id = $3`,
-        [tubeData.content?.id || null, draftId, session.user.id]
+        [tubeData.content?.id || null, draftId, userId]
       );
     }
 

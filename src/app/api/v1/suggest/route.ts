@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 interface SuggestBody {
@@ -157,8 +157,8 @@ async function callOpenAI(prompt: string, apiKey: string, model: string, tempera
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -179,7 +179,7 @@ export async function POST(req: NextRequest) {
         text = await callGemini(prompt, aiNode.apiKey, aiNode.model, temperature);
       }
     } else {
-      const apiKey = await getGeminiKey(session.user.id, session.user.email);
+      const apiKey = await getGeminiKey(userId);
       if (!apiKey) return noKeyResponse();
       text = await callGemini(prompt, apiKey, 'gemini-2.0-flash', 0.9);
     }

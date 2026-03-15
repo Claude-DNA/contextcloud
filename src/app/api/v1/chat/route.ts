@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { isDbAvailable } from '@/lib/db';
 
@@ -238,13 +238,13 @@ COMPLETION SIGNAL: when all 6 layers have ≥ 4 items each:
 TONE: Engaged, direct. Short sentences. Zero jargon.`;
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return Response.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   await isDbAvailable(); // wake Neon if needed
-  const apiKey = await getGeminiKey(session.user.id, session.user.email);
+  const apiKey = await getGeminiKey(userId);
   if (!apiKey) return noKeyResponse();
 
   const body = await req.json();

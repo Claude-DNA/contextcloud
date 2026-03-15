@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 const TAG_INSTRUCTIONS: Record<string, string> = {
@@ -35,12 +35,12 @@ Bad examples: "plot", "story", "beat", "chapter"`,
 };
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
-  const apiKey = await getGeminiKey(session.user.id, session.user.email);
+  const apiKey = await getGeminiKey(userId);
   if (!apiKey) return noKeyResponse();
 
   const { cloudType, title, content } = await req.json();

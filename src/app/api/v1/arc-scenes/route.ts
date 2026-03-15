@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // GET /api/v1/arc-scenes — all arc items for the logged-in user, with attached_count
 export async function GET(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const projectId = req.nextUrl.searchParams.get('project_id');
   let where = `ci.user_id = $1 AND ci.cloud_type = 'arc'`;
-  const params: unknown[] = [session.user.id];
+  const params: unknown[] = [userId];
 
   if (projectId === 'unassigned') {
     where += ' AND ci.project_id IS NULL';

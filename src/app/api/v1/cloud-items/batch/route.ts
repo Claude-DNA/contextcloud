@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
@@ -18,8 +18,8 @@ interface BatchItem {
 // Body: { items: BatchItem[] }
 // Saves all items in a single transaction — avoids N parallel DB connections.
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
      FROM cloud_items
      WHERE user_id = $1 AND cloud_type = ANY($2)
      GROUP BY cloud_type`,
-    [session.user.id, typeList]
+    [userId, typeList]
   );
   const nextOrderMap: Record<string, number> = {};
   for (const row of maxRes.rows) {
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
     const sortOrder = base + offset;
 
     placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
-    values.push(session.user.id, item.cloud_type, item.title, item.content, item.tags, item.metadata, sortOrder, project_id || null);
+    values.push(userId, item.cloud_type, item.title, item.content, item.tags, item.metadata, sortOrder, project_id || null);
   }
 
   const insertSQL = `

@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 
-export async function GET(
-  _req: NextRequest,
+export async function GET(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -19,7 +18,7 @@ export async function GET(
 
   const res = await query(
     'SELECT * FROM ideas WHERE id = $1 AND project_id = $2',
-    [id, session.user.id]
+    [id, userId]
   );
 
   if (res.rows.length === 0) {
@@ -33,8 +32,8 @@ export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -62,7 +61,7 @@ export async function PUT(
   }
 
   vals.push(id);
-  vals.push(session.user.id);
+  vals.push(userId);
 
   const res = await query(
     `UPDATE ideas SET ${sets.join(', ')} WHERE id = $${i++} AND project_id = $${i} RETURNING *`,
@@ -76,12 +75,11 @@ export async function PUT(
   return NextResponse.json({ idea: res.rows[0] });
 }
 
-export async function DELETE(
-  _req: NextRequest,
+export async function DELETE(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -93,7 +91,7 @@ export async function DELETE(
 
   await query(
     'DELETE FROM ideas WHERE id = $1 AND project_id = $2',
-    [id, session.user.id]
+    [id, userId]
   );
 
   return NextResponse.json({ success: true });

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { isDbAvailable } from '@/lib/db';
 
@@ -18,13 +18,13 @@ const TYPE_ALIASES: Record<string, string> = {
 const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'];
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
   await isDbAvailable(); // wake Neon if needed
-  const apiKey = await getGeminiKey(session.user.id, session.user.email);
+  const apiKey = await getGeminiKey(userId);
   if (!apiKey) return noKeyResponse();
 
   const body = await req.json();

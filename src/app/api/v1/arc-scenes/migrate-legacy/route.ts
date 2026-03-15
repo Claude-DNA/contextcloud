@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { NextResponse , NextRequest } from 'next/server';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 
 // POST /api/v1/arc-scenes/migrate-legacy
 // One-time migration: copies arcs/chapters from legacy tables → cloud_items (cloud_type='arc')
 // Idempotent — skips items already migrated (matched by title)
-export async function POST() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function POST(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -17,7 +17,7 @@ export async function POST() {
   }
 
   await runMigrations();
-  const userId = session.user.id;
+  const _localUserId = userId;
 
   // 1. Fetch all arcs for this user
   const arcsRes = await query(
@@ -86,9 +86,9 @@ export async function POST() {
 
 // GET /api/v1/arc-scenes/migrate-legacy
 // Check if legacy data exists (for showing migration banner)
-export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) {
+export async function GET(req: NextRequest) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -98,7 +98,7 @@ export async function GET() {
 
   const res = await query(
     'SELECT COUNT(*) as count FROM arcs WHERE user_id = $1',
-    [session.user.id]
+    [userId]
   );
 
   const count = parseInt(res.rows[0]?.count || '0', 10);

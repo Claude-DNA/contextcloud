@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
 import { unzipSync, strFromU8 } from 'fflate';
@@ -382,11 +382,11 @@ async function upsertCloudItem(
 
 // ── Main handler ───────────────────────────────────────────────────────────
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const userId = session.user.id;
+  const _localUserId = userId;
 
   // Wake DB first (retries built in), then resolve key (which may also query DB)
   if (!(await isDbAvailable())) {
@@ -395,7 +395,7 @@ export async function POST(req: NextRequest) {
   await runMigrations();
 
   // Resolve BYOT key (DB is awake now, query will succeed)
-  const resolvedKey = await getGeminiKey(session.user.id, session.user.email);
+  const resolvedKey = await getGeminiKey(userId);
   if (!resolvedKey) return noKeyResponse();
   GOOGLE_AI_API_KEY = resolvedKey;
 

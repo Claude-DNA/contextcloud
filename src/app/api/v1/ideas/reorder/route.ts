@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth-config';
+import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getAuthUserId(req);
+  if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
 
@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < orderedIds.length; i++) {
     await query(
       'UPDATE ideas SET sort_order = $1 WHERE id = $2 AND project_id = $3',
-      [i, orderedIds[i], session.user.id]
+      [i, orderedIds[i], userId]
     );
   }
 
