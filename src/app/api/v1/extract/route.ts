@@ -36,21 +36,21 @@ export async function POST(req: NextRequest) {
 
   const prompt = `You are a story analyst. Read the text below and extract its content into the 6-layer Context Cloud format.
 
-Return ONLY valid JSON (no markdown, no code fences) — a JSON array of objects:
+Return ONLY valid JSON (no markdown, no code fences) - a JSON array of objects:
 [
   { "cloud_type": "characters", "title": "Character Name", "content": "Physical description, personality, role, motivations...", "tags": ["protagonist", "complex"] }
 ]
 
 CLOUD TYPES (use EXACTLY these values):
-- "characters" — every named character, with their core contradiction
-- "scenes" — every distinct location/setting, with sensory details (light, sound, texture)
-- "world" — every rule about how this universe works
-- "references" — every named reference (book, film, song, artwork, real event)
-- "ideas" — every theme, tension, or abstract idea
-- "arc" — every act, chapter, beat, or plot point (one beat per entry)
+- "characters" - every named character, with their core contradiction
+- "scenes" - every distinct location/setting, with sensory details (light, sound, texture)
+- "world" - every rule about how this universe works
+- "references" - every named reference (book, film, song, artwork, real event)
+- "ideas" - every theme, tension, or abstract idea
+- "arc" - every act, chapter, beat, or plot point (one beat per entry)
 
 CRITICAL RULES:
-- Extract EVERYTHING. No item limit — if the source has 80 extractable items, output 80.
+- Extract EVERYTHING. No item limit - if the source has 80 extractable items, output 80.
 - Do NOT summarize multiple things into one item. Keep them separate.
 - content fields must NEVER be empty strings and must NEVER be just one sentence.
 - EXPAND every item. Even if the source only has a brief bullet (1-2 sentences), synthesize a RICH 4-6 sentence description using ALL context from the document: cross-reference other characters, scenes, world rules, and arc beats to build a complete picture.
@@ -59,7 +59,7 @@ CRITICAL RULES:
 - World: the actual rule or fact + its implications + how it shapes character behavior or plot.
 - Ideas: the theme or tension + how it manifests in specific characters/scenes + what it asks of the reader.
 - References: what it is + why it appears in this story + thematic connection.
-- Arc: one beat per entry. Title = brief label. Content = the FULL scene description — preserve original language, add emotional register, subtext, character state. Never reduce to one sentence.
+- Arc: GROUP all beats belonging to the same act/chapter into ONE item. Title = "Act 1" or "Act 1: [main title if given]". Content = ALL events, beats, and emotional moments for that act written as rich flowing prose - preserve original language, character states, subtext, formulas. If Act 1 has 3 bullets, the content must contain all 3 richly. Do NOT create one item per bullet point - one item per act/chapter only. Never fewer than 3 sentences per arc item.
 - When in doubt, include it. The user can delete; they can't add what you didn't extract.
 - Tags should be 1-3 relevant keywords per item.
 
