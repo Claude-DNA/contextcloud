@@ -54,10 +54,13 @@ export default function Header() {
   };
 
   const handleClearProject = async () => {
-    if (!activeProjectId || clearConfirmText !== 'clear') return;
+    if (clearConfirmText !== 'clear') return;
     setClearing(true);
     try {
-      const res = await fetch(`/api/v1/projects/${activeProjectId}/clear`, { method: 'DELETE' });
+      const url = activeProjectId
+        ? `/api/v1/projects/${activeProjectId}/clear`
+        : `/api/v1/projects/unassigned/clear`;
+      const res = await fetch(url, { method: 'DELETE' });
       const data = await res.json();
       if (res.ok) {
         setClearResult(`Deleted ${data.deleted} items.`);
@@ -121,14 +124,12 @@ export default function Header() {
                 >
                   + New Project
                 </button>
-                {activeProjectId && (
-                  <button
-                    onClick={() => { setDropdownOpen(false); setClearConfirmText(''); setClearResult(null); setShowClearModal(true); }}
-                    className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors font-medium border-t border-border"
-                  >
-                    🗑 Clear all items…
-                  </button>
-                )}
+                <button
+                  onClick={() => { setDropdownOpen(false); setClearConfirmText(''); setClearResult(null); setShowClearModal(true); }}
+                  className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors font-medium border-t border-border"
+                >
+                  🗑 {activeProjectId ? `Clear "${activeProject?.title}"…` : 'Clear all unassigned items…'}
+                </button>
               </div>
             </div>
           )}
@@ -214,9 +215,14 @@ export default function Header() {
             <div className="flex items-start gap-3 mb-4">
               <span className="text-2xl mt-0.5">⚠️</span>
               <div>
-                <h2 className="text-base font-semibold text-gray-900">Clear all items in "{activeProject?.title}"?</h2>
+                <h2 className="text-base font-semibold text-gray-900">
+                  {activeProjectId ? `Clear all items in "${activeProject?.title}"?` : 'Clear all unassigned items?'}
+                </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  This permanently deletes <strong>all cloud items</strong> in this project — characters, scenes, world, arc, ideas, references. The project itself will remain.
+                  {activeProjectId
+                    ? <>This permanently deletes <strong>all cloud items</strong> in this project — characters, scenes, world, arc, ideas, references. The project itself will remain.</>
+                    : <>This permanently deletes <strong>all items not assigned to a project</strong> — everything currently visible under "All Projects" that has no project tag.</>
+                  }
                 </p>
                 <p className="text-sm text-red-500 font-medium mt-2">This cannot be undone.</p>
               </div>
