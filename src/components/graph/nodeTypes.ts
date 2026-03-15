@@ -54,6 +54,20 @@ export const NODE_TYPES: NodeTypeConfig[] = [
   { type: 'realEventReference', label: 'Real Event', emoji: '\u{1F4F0}', abbr: 'RE', icon: 'Landmark', category: 'reference', color: '#E8A838',
     inputs: [], outputs: ['world', 'theme'] },
 
+  // ── CAUSAL PROPAGATION NODES (auto-generated, hidden from palette) ───────────
+  { type: 'stateIn',  label: 'State In',   emoji: '→', abbr: 'SI', icon: 'Circle',    category: 'meta',    color: '#a78bfa',
+    hidden: true, inputs: ['charactersProxy'], outputs: ['scene'] },
+  { type: 'stateOut', label: 'State Out',  emoji: '↗', abbr: 'SO', icon: 'TrendingUp', category: 'meta',   color: '#7c3aed',
+    hidden: true, inputs: ['scene'], outputs: [] },
+  { type: 'stageIn',  label: 'Stage In',   emoji: '→', abbr: 'SI', icon: 'MapPin',    category: 'content', color: '#38bdf8',
+    hidden: true, inputs: [], outputs: ['scene'] },
+  { type: 'stageOut', label: 'Stage Out',  emoji: '↗', abbr: 'SO', icon: 'MapPin',    category: 'content', color: '#0891b2',
+    hidden: true, inputs: ['scene'], outputs: [] },
+  { type: 'worldIn',  label: 'World In',   emoji: '→', abbr: 'WI', icon: 'Globe',     category: 'content', color: '#34d399',
+    hidden: true, inputs: [], outputs: ['scene'] },
+  { type: 'worldOut', label: 'World Out',  emoji: '↗', abbr: 'WO', icon: 'Globe',     category: 'content', color: '#059669',
+    hidden: true, inputs: ['scene'], outputs: [] },
+
   // ── LEGACY / INTERNAL (hidden from palette, still render correctly) ──────────
   { type: 'plot', label: 'Plot', emoji: '\u{1F4D6}', abbr: 'PL', icon: 'GitBranch', category: 'content', color: '#4A90D9',
     hidden: true, inputs: ['*'], outputs: ['*'] },

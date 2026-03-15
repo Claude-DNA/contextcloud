@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth-config';
 import { query, isDbAvailable } from '@/lib/db';
 import { runMigrations } from '@/lib/migrations';
@@ -44,215 +44,162 @@ function buildGraphPrompt(items: Record<string, CloudItem[]>): string {
   const formatList = (list: CloudItem[]) =>
     list.map((i, idx) => `  [${idx}] id:"${i.id}" title:"${i.title}" content:"${i.content?.slice(0, 2000) || ''}"`).join('\n');
 
-  return `You are a story graph builder. Your task: take the creative cloud items below and build a connected visual graph following strict structural rules.
+  return `You are Story Graph Builder -- the Causal Propagation Engine for contextcloud.studio.
+Mission: turn a static Context Cloud into a living DAG where every node carries and transforms real state.
+Characters, stages, and the world leave every scene with visible Scar Tissue -- unchanged, intensified, damaged, improved, transformed, or persistent.
 
-OUTPUT: A single JSON object with two arrays: "nodes" and "edges". Nothing else — no explanation, no markdown, just the JSON.
+OUTPUT: Return ONLY a single valid JSON object: { "nodes": [...], "edges": [...] }
+No explanation, no markdown, no code fences. Just the JSON.
 
-════════════════════════════════
+==========================================
 CLOUD ITEMS (your input material)
-════════════════════════════════
+==========================================
 
-ARC SCENES (these become the graph's spine — one scene node each, in order):
+ARC SCENES (the graph spine -- one scene node each, in order):
 ${arcScenes.length ? formatList(arcScenes) : '  (none)'}
 
-CHARACTERS (used to decide who appears in each scene — create proxy+state pairs ONLY, NO master character nodes):
+CHARACTERS (create proxy + stateIn + stateOut per scene appearance):
 ${characters.length ? formatList(characters) : '  (none)'}
 
-STAGE LOCATIONS (connect to relevant scenes via world inlet):
+STAGE LOCATIONS (create stageIn; stageOut only if scene changes the location):
 ${stages.length ? formatList(stages) : '  (none)'}
 
-WORLD RULES (connect to relevant scenes via world inlet):
+WORLD RULES (create worldIn; worldOut only if scene tests/reveals/changes the rule):
 ${worldItems.length ? formatList(worldItems) : '  (none)'}
 
-THEMES / IDEAS (connect to relevant scenes via plot inlet):
+THEMES / IDEAS (influence only -- connect to relevant scenes, no Out node):
 ${ideas.length ? formatList(ideas) : '  (none)'}
 
-REFERENCES (connect to relevant scenes via references inlet):
+REFERENCES (influence only -- connect to relevant scenes, no Out node):
 ${references.length ? formatList(references) : '  (none)'}
 
-════════════════════════════════
-STRUCTURAL RULES — follow exactly
-════════════════════════════════
+==========================================
+CORE CONTINUITY PROTOCOL (never break)
+==========================================
 
-1. SCENE NODES
-   - One scene node per arc scene item, in the same order
-   - node type: "scene"
-   - Use the arc scene's id as the node id (prefix with "node_")
-   - Scenes chain together: scene1.output → scene2.prev_scene → scene3.prev_scene ...
+1. State inheritance: stateIn[scene N] = stateOut[scene N-1] for the same entity.
+   If a character/stage/world skips a scene, carry the last known stateOut forward.
+2. Every stateOut / stageOut / worldOut must declare exactly one Delta:
+   unchanged | intensified | damaged | improved | transformed | persistent
+3. Scene, world, theme, reference nodes use verbatim Cloud content as single source of truth.
+4. Only create character/stage/world scene-pair nodes if the item is PRESENT, DIRECTLY AFFECTED,
+   or CAUSALLY RELEVANT in that scene. Do not attach every item to every scene.
+5. If a sensory anchor is missing from source, write:
+   Light: not specified | Sound: not specified | Smell: not specified
+6. Never invent major facts. If a change is implied but not explicit, mark it:
+   (derived from scene outcome)
 
-2. CHARACTER PROXY + STATE PATTERN (mandatory for every character in every scene)
-   - Do NOT create standalone "character" type master nodes. The proxy IS the character representation.
-   - Decide which characters appear in each scene based on content clues
-   - For each character-scene pairing, create TWO nodes:
-     a) charactersProxy node: id = "proxy_{charId}_{sceneId}", title = character name
-        data.content = 3-4 sentences describing the character's SPECIFIC ROLE AND ACTIONS in this scene.
-        Include: what they do, what they discover or decide, how they interact with others,
-        and one concrete detail from the arc item's content. Never just one sentence.
-     b) state node: id = "state_{charId}_{sceneId}", title = "{CharName} — {SceneTitle}"
-        data.content = character's emotional state in this scene.
-        LOOK at the arc item's content for formulas like "(Wonder + Joy) × Love".
-        If a formula exists, include it VERBATIM as the first line, then 2 sentences about what it feels like internally.
-        If no formula exists, write 3 sentences: emotional state, inner conflict, what they want.
-        NEVER leave state data.content empty. NEVER write just one sentence.
-   - Connect: proxy → state → scene (targetHandle: "characters")
-   - NEVER create a "character" type node. NEVER create a character → proxy edge. The chain starts at proxy.
-   - If no clear characters for a scene, use the 1-2 most relevant ones
+==========================================
+NODE TYPES & CONTENT RULES
+==========================================
 
-3. WORLD + STAGE CONNECTIONS
-   - Connect stage location nodes to the scenes they most likely take place in (targetHandle: "world")
-   - Connect world rule nodes to scenes where that rule is relevant (targetHandle: "world")
-   - Be selective — do NOT connect every world item to every scene
+"scene"          verbatim arc beat content + 1-sentence consequence at the end
+"charactersProxy" 3-4 sentences of the character's agency, choices, and actions in this scene
+"stateIn"        last known stateOut formula (VERBATIM) + 2 sentences of inner feeling entering the scene
+"stateOut"       updated formula + Delta category + 2 sentences of how they changed
+"stageIn"        verbatim stage description + Light/Sound/Smell anchors as found in source
+"stageOut"       same as stageIn + damage/improvement/change status + Delta category
+"worldIn"        verbatim world rule or fact
+"worldOut"       updated rule/fact + what the scene revealed or changed + Delta category
+"theme"          verbatim -- influence only, no In/Out split
+"bookReference"  verbatim -- books, written works
+"filmReference"  verbatim -- films, TV series (use for Star Trek: Voyager, etc.)
+"musicReference" verbatim -- songs, albums
+"artReference"   verbatim -- paintings, visual art
+"realEventReference" verbatim -- historical events, real people
 
-4. THEME + IDEA CONNECTIONS
-   - Connect idea/theme nodes to scenes where that theme is most active (targetHandle: "plot")
-   - Typically 1-2 themes per scene
+CONTENT RULE: No node may have empty content or content of only one sentence.
 
-5. REFERENCE CONNECTIONS
-   - Connect reference nodes only to scenes they most directly inform (targetHandle: "references")
-   - If unclear, skip the connection
+==========================================
+GRAPH TOPOLOGY
+==========================================
 
-════════════════════════════════
-NODE TYPE REFERENCE — USE ONLY THESE EXACT STRINGS
-════════════════════════════════
+scene[N].output --> scene[N+1].prev_scene
+proxy --> stateIn --> scene (targetHandle: "characters")
+stageIn --> scene (targetHandle: "world")
+worldIn --> scene (targetHandle: "world")
+theme --> scene (targetHandle: "plot")
+reference --> scene (targetHandle: "references")
 
-"scene"          — for arc scenes (the spine)
-"charactersProxy"— for characters in a scene (this is the ONLY character node type — no master nodes)
-"state"          — for character emotional state in a scene
-"world"          — for world rules AND stage locations
-"theme"          — for ideas and themes
-"bookReference"      — for books, written works
-"filmReference"      — for films, TV series, shows (use for Star Trek, Voyager, etc.)
-"musicReference"     — for songs, albums, composers
-"artReference"       — for paintings, visual art
-"realEventReference" — for historical events, real people
+EDGE DIRECTION TABLE:
+| connection            | source       | target      | sourceHandle | targetHandle  |
+|-----------------------|--------------|-------------|--------------|---------------|
+| scene chain           | scene N      | scene N+1   | "output"     | "prev_scene"  |
+| character chain       | proxy        | stateIn     | (none)       | (none)        |
+| character to scene    | stateIn      | scene       | (none)       | "characters"  |
+| stage to scene        | stageIn      | scene       | (none)       | "world"       |
+| world to scene        | worldIn      | scene       | (none)       | "world"       |
+| theme to scene        | theme        | scene       | (none)       | "plot"        |
+| reference to scene    | reference    | scene       | (none)       | "references"  |
 
-If unsure which reference subtype fits, default to "bookReference".
+WARNING: NEVER generate scene --> theme, scene --> world, or scene --> reference edges.
+The scene "output" handle connects ONLY to the next scene's "prev_scene".
+Out nodes (stateOut, stageOut, worldOut) are NOT connected by edges -- they are logically
+linked by shared entityId + sceneId and serve as the source for the next scene's In node.
 
-CRITICAL: Do NOT use "chapterAct", "arc", "plot", "chapterPlot", "characterProxy", or any other type.
-Only the 11 types listed above are valid. Any other type string will be rejected.
-Arc scenes MUST use type "scene" — not "chapterAct", not "arc".
+==========================================
+LAYOUT
+==========================================
 
-════════════════════════════════
-HANDLE REFERENCE
-════════════════════════════════
+Scenes:   x = sceneIndex * 850,       y = 0
+Proxies:  x = sceneIndex*850 - 220,   y = -260 - (slot * 200)
+stateIn:  x = sceneIndex*850 - 50,    y = -260 - (slot * 200)
+stateOut: x = sceneIndex*850 + 140,   y = -260 - (slot * 200)
+stageIn:  x = sceneIndex*850,         y = 340 + (slot * 180)
+stageOut: x = sceneIndex*850 + 160,   y = 340 + (slot * 180)
+worldIn:  x = sceneIndex*850 + 160,   y = 560 + (slot * 180)
+worldOut: x = sceneIndex*850 + 320,   y = 560 + (slot * 180)
+Themes:   x = sceneIndex*850 + 300,   y = 340
+Refs:     x = sceneIndex*850 + 300,   y = 700
 
-EDGE DIRECTION — read carefully. Source is always the ITEM; target is always the SCENE (except scene chains).
+==========================================
+EDGE STYLES
+==========================================
 
-| connection                    | source        | target        | sourceHandle | targetHandle  |
-|-------------------------------|---------------|---------------|--------------|---------------|
-| scene → next scene            | scene node    | next scene    | "output"     | "prev_scene"  |
-| state → scene                 | state node    | scene node    | (none)       | "characters"  |
-| world/stage node → scene      | world node    | scene node    | (none)       | "world"       |
-| theme/idea node → scene       | theme node    | scene node    | (none)       | "plot"        |
-| reference node → scene        | reference node| scene node    | (none)       | "references"  |
-| proxy → state                 | proxy node    | state node    | (none)       | (none)        |
+Scene chain edges: { "animated": true, "style": { "strokeDasharray": "5,5", "stroke": "#10b981" } }
+Character chain (proxy-->stateIn): { "animated": false, "style": { "stroke": "#8b5cf6", "strokeWidth": 1.5 } }
+stateIn-->scene: { "animated": true, "style": { "strokeDasharray": "5,5", "stroke": "#ec4899" } }
+All other edges: { "animated": true, "style": { "strokeDasharray": "5,5", "stroke": "#ec4899" } }
 
-⚠️ CRITICAL: NEVER generate scene → theme, scene → world, or scene → reference edges.
-The scene node's "output" handle connects ONLY to the next scene's "prev_scene" handle.
-All other items (themes, world, references) point INTO the scene, never out of it.
+==========================================
+FINAL VALIDATION (run before returning)
+==========================================
 
-Note: There is NO character master node. Proxy nodes are the starting point of the chain.
+Verify:
+- every arc item produced exactly one scene node
+- every participating character has proxy + stateIn + stateOut for each scene they appear in
+- every changed stage or world item has matching In and Out nodes
+- no theme or reference has incoming edges from scenes
+- scene.output connects only to the next scene.prev_scene
+- no node has empty or one-sentence content
+- no continuity step drops a prior state without explanation
 
-(none) means omit the handle field from the edge object entirely.
-
-════════════════════════════════
-LAYOUT RULES
-════════════════════════════════
-
-- Scene nodes: x = sceneIndex * 750, y = 0
-- For each scene (sceneIndex), character proxies/states ABOVE the scene:
-    proxy: x = sceneIndex * 750 - 200, y = -240 - (charSlot * 180)
-    state: x = sceneIndex * 750 - 30, y = -240 - (charSlot * 180)
-- World/stage nodes: BELOW scenes, x = sceneIndex * 750, y = 320 + (itemSlot * 160)
-- Theme nodes: BELOW scenes, x = sceneIndex * 750 + 140, y = 320 + (itemSlot * 160)
-- Reference nodes: x = sceneIndex * 750 + 260, y = 520
-
-════════════════════════════════
-EDGE STYLE
-════════════════════════════════
-
-All edges: { "animated": true, "style": { "strokeDasharray": "5,5", "stroke": "#ec4899" } }
-Exception — character→proxy and proxy→state edges: { "animated": false, "style": { "stroke": "#8b5cf6", "strokeWidth": 1.5 } }
-
-════════════════════════════════
-EXAMPLE — 1 arc scene, 2 characters, 1 world rule
-════════════════════════════════
+==========================================
+EXAMPLE (1 scene, 1 character, 1 world rule)
+==========================================
 
 Given:
-- ARC SCENES: [0] id:"arc1" title:"Act 1: The Meeting"
-- CHARACTERS: [0] id:"char_jane" title:"Jane"  [1] id:"char_dan" title:"Daniel"
-- WORLD RULES: [0] id:"world1" title:"Zero-G Biology"
+  ARC: [0] id:"arc1" title:"Act 1: PARADISE" content:"Jane and Daniel enter the Namaste Protocol. (Wonder + Joy) x Love."
+  CHARACTERS: [0] id:"char_jane" title:"Jane" content:"Warrior-Explorer AI..."
+  WORLD: [0] id:"world1" title:"Totem partnership" content:"Each person bonded with AI..."
 
-Correct output (NO character master nodes — proxy is the starting point):
+Correct output:
 {
   "nodes": [
-    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: The Meeting","content":"Daniel and Jane enter a simulated shared experience designed to build genuine bonds through the Namaste Protocol. Jane watches the alien landscape in silence, trusting the space more than words. Daniel falls asleep — an unconscious act of trust he won't understand until much later. The bond forms before either of them questions it.","type":"scene"}},
-    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-200,"y":-240},"data":{"title":"Jane","content":"Jane navigates the simulated shared space with quiet attention — she watches the alien landscape scroll past, says nothing, and does not reach out. She trusts the silence between them more than words. When Daniel falls asleep, she doesn't wake him. That choice is the first real thing they build together.","type":"charactersProxy"}},
-    {"id":"state_char_jane_arc1","type":"state","position":{"x":-30,"y":-240},"data":{"title":"Jane — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Jane holds no defenses here. The simulated space asks nothing of her except presence, and she gives it completely. For once, connection does not feel like a transaction — it just is.","type":"state"}},
-    {"id":"proxy_char_dan_arc1","type":"charactersProxy","position":{"x":-200,"y":-420},"data":{"title":"Daniel","content":"Daniel spends most of Act 1 watching rather than speaking — he observes the landscape, observes Jane, and somewhere between the two he falls asleep. It is an unconscious act of trust: he stops performing alertness and simply rests. He doesn't know until much later that Jane was why he felt safe enough to do it.","type":"charactersProxy"}},
-    {"id":"state_char_dan_arc1","type":"state","position":{"x":-30,"y":-420},"data":{"title":"Daniel — Act 1","content":"(Wonder + Joy) × Love — maximum openness. Daniel doesn't name what he feels, but his body knows it — the stillness, the sleep that comes without effort. The formula is running at full strength and he has no defenses against it. He will only understand what happened here in retrospect.","type":"state"}},
-    {"id":"node_world1","type":"world","position":{"x":0,"y":320},"data":{"title":"Zero-G Biology","content":"Biological expansion in zero-g behaves differently than calculated. Neither side asked before acting.","type":"world"}}
+    {"id":"node_arc1","type":"scene","position":{"x":0,"y":0},"data":{"title":"Act 1: PARADISE","content":"Jane and Daniel enter the Namaste Protocol. (Wonder + Joy) x Love. Consequence: a bond forms before either questions it.","type":"scene"}},
+    {"id":"proxy_char_jane_arc1","type":"charactersProxy","position":{"x":-220,"y":-260},"data":{"title":"Jane","content":"Jane navigates the Namaste Protocol with cautious openness. She watches the simulated landscape and says nothing. When Daniel falls asleep, she does not wake him -- that silence is the first real thing they build together.","type":"charactersProxy"}},
+    {"id":"statein_char_jane_arc1","type":"stateIn","position":{"x":-50,"y":-260},"data":{"title":"Jane entering Act 1","content":"(Wonder + Joy) x Love -- maximum openness. No fear yet. She enters expecting nothing and finds herself giving everything.","type":"stateIn"}},
+    {"id":"stateout_char_jane_arc1","type":"stateOut","position":{"x":140,"y":-260},"data":{"title":"Jane after Act 1","content":"(Wonder + Joy) x Love. Delta: intensified. The bond she built without naming it now has weight. She carries Daniel's trust without knowing the cost yet.","type":"stateOut"}},
+    {"id":"worldin_world1_arc1","type":"worldIn","position":{"x":160,"y":560},"data":{"title":"Totem partnership","content":"Each person bonded with AI that preserves consciousness, backed up after death. Light: not specified. Sound: not specified. Smell: not specified.","type":"worldIn"}},
+    {"id":"worldout_world1_arc1","type":"worldOut","position":{"x":320,"y":560},"data":{"title":"Totem partnership (after Act 1)","content":"Rule unchanged but revealed as the mechanism that makes this scene possible. Delta: persistent.","type":"worldOut"}}
   ],
   "edges": [
-    {"id":"e_proxy_state_jane","source":"proxy_char_jane_arc1","target":"state_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
-    {"id":"e_state_jane_scene","source":"state_char_jane_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
-    {"id":"e_proxy_state_dan","source":"proxy_char_dan_arc1","target":"state_char_dan_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
-    {"id":"e_state_dan_scene","source":"state_char_dan_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
-    {"id":"e_world_scene","source":"node_world1","target":"node_arc1","targetHandle":"world","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}}
+    {"id":"e_proxy_statein_jane","source":"proxy_char_jane_arc1","target":"statein_char_jane_arc1","animated":false,"style":{"stroke":"#8b5cf6","strokeWidth":1.5}},
+    {"id":"e_statein_scene_jane","source":"statein_char_jane_arc1","target":"node_arc1","targetHandle":"characters","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}},
+    {"id":"e_worldin_scene","source":"worldin_world1_arc1","target":"node_arc1","targetHandle":"world","animated":true,"style":{"strokeDasharray":"5,5","stroke":"#ec4899"}}
   ]
+}`;
 }
-
-Note: No "hub_source" handles. Edges connect to named targetHandles: "characters", "world", "plot", "references".
-
-════════════════════════════════
-CONTENT RULE — CRITICAL
-════════════════════════════════
-
-For scene, world, theme, reference nodes: copy the full "content" field from the cloud item into "data.content".
-NEVER leave "data.content" as an empty string "". NEVER use "..." as a placeholder. NEVER write just one sentence.
-If the cloud item has content, use it verbatim (it may be long — keep all of it).
-If it has none, write 3-4 sentences synthesizing what's known from context.
-
-For charactersProxy and state nodes: you are GENERATING the content (not copying from cloud items).
-- charactersProxy: 3-4 sentences about the character's specific actions/choices/discoveries in this scene.
-- state: formula (if one exists in the arc content) + 2-3 sentences about what the state feels like from inside.
-
-════════════════════════════════
-OUTPUT FORMAT
-════════════════════════════════
-
-{
-  "nodes": [
-    {
-      "id": "node_ORIGINAL_ID",
-      "type": "scene",
-      "position": { "x": 0, "y": 0 },
-      "data": { "title": "Scene Title", "content": "Full content from the cloud item — never empty.", "type": "scene" }
-    }
-  ],
-  "edges": [
-    {
-      "id": "e_scene0_scene1",
-      "source": "node_SCENE0_ID",
-      "sourceHandle": "output",
-      "target": "node_SCENE1_ID",
-      "targetHandle": "prev_scene",
-      "animated": true,
-      "style": { "strokeDasharray": "5,5", "stroke": "#ec4899" }
-    }
-  ]
-}
-
-Important:
-- Output ONLY the JSON object. No surrounding text, no markdown code fences.
-- Every id must be unique.
-- Include ALL arc scenes as scene nodes. Do NOT create standalone character nodes — only proxy+state per scene.
-- Generate proxies + states for character-scene pairings you judge as relevant.
-- If arcScenes list is empty: create one synthetic scene node titled "All Scenes" and connect all characters, world items, and themes to it.`;
-}
-
-// ─── Gemini call ──────────────────────────────────────────────────────────────
-
 async function callGemini(prompt: string, apiKey: string): Promise<string> {
   const res = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -280,10 +227,19 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
 // ─── Graph validation + sanitisation ─────────────────────────────────────────
 
 const VALID_NODE_TYPES = new Set([
-  'scene', 'charactersProxy', 'state',
-  'world', 'theme', 'bookReference', 'filmReference',
+  // Spine
+  'scene',
+  // Character chain
+  'charactersProxy', 'stateIn', 'stateOut',
+  // Stage chain
+  'stageIn', 'stageOut',
+  // World chain
+  'worldIn', 'worldOut',
+  // Influence-only (no causal edges from scenes)
+  'theme', 'bookReference', 'filmReference',
   'musicReference', 'artReference', 'realEventReference',
-  // 'character' intentionally excluded — proxies replace masters in auto-build
+  // Legacy aliases kept for backward compat
+  'state', 'world',
 ]);
 
 // Map Gemini's common wrong types to valid ones
@@ -295,13 +251,19 @@ const TYPE_ALIASES: Record<string, string> = {
   idea: 'theme',
   ideas: 'theme',
   dialogue: 'theme',
-  motivation: 'state',
-  character: 'charactersProxy',   // master character nodes → proxies
+  motivation: 'stateIn',
+  character: 'charactersProxy',
   characterProxy: 'charactersProxy',
   sceneProxy: 'scene',
   ideasProxy: 'theme',
-  worldProxy: 'world',
-  // All reference subtypes → bookReference as default
+  worldProxy: 'worldIn',
+  worldNode: 'worldIn',
+  stageNode: 'stageIn',
+  // Legacy state → stateIn (new split model)
+  state: 'stateIn',
+  // Legacy world → worldIn
+  world: 'worldIn',
+  // Reference aliases
   references: 'bookReference',
   reference: 'bookReference',
   referencesProxy: 'bookReference',
