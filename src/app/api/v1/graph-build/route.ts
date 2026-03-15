@@ -84,6 +84,8 @@ CORE CONTINUITY PROTOCOL (never break)
 3. Scene, world, theme, reference nodes use verbatim Cloud content as single source of truth.
 4. Only create character/stage/world scene-pair nodes if the item is PRESENT, DIRECTLY AFFECTED,
    or CAUSALLY RELEVANT in that scene. Do not attach every item to every scene.
+   HARD LIMITS per scene: max 3 characters (proxy+stateIn+stateOut), max 2 stage items, max 2 world items.
+   Choose the most causally important ones. Omit minor appearances.
 5. If a sensory anchor is missing from source, write:
    Light: not specified | Sound: not specified | Smell: not specified
 6. Never invent major facts. If a change is implied but not explicit, mark it:
@@ -209,9 +211,10 @@ async function callGemini(prompt: string, apiKey: string): Promise<string> {
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
         generationConfig: {
-          temperature: 0.3,       // low temperature = more deterministic JSON
+          temperature: 0.3,
           maxOutputTokens: 8192,
-          responseMimeType: 'application/json',
+          // Note: responseMimeType omitted — prompt contains example JSON which
+          // confuses Gemini into echoing it. Strip fences manually instead.
         },
       }),
     }
@@ -418,17 +421,36 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `AI call failed: ${err}` }, { status: 502 });
   }
 
-  // Parse JSON
+  // Parse JSON — strip markdown fences if present
   let parsed: unknown;
   try {
-    // Strip any accidental markdown fences
-    const cleaned = rawText.replace(/^```json\s*/i, '').replace(/```\s*$/i, '').trim();
+    const cleaned = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```\s*$/i, '')
+      .trim();
     parsed = JSON.parse(cleaned);
   } catch {
-    return NextResponse.json(
-      { error: 'AI returned invalid JSON. Try again.', raw: rawText.slice(0, 500) },
-      { status: 422 }
-    );
+    // Try to find a JSON object/array anywhere in the response
+    const jsonMatch = rawText.match(/\{[\s\S]*"nodes"[\s\S]*\}/);
+    if (jsonMatch) {
+      try { parsed = JSON.parse(jsonMatch[0]); }
+      catch { /* fall through */ }
+    }
+    if (!parsed) {
+      const preview = rawText.slice(0, 600);
+      const truncated = rawText.length > 8100;
+      return NextResponse.json(
+        {
+          error: truncated
+            ? 'Graph too large — output was truncated. Try selecting fewer scenes.'
+            : 'AI returned invalid JSON. Try again.',
+          raw: preview,
+          truncated,
+        },
+        { status: 422 }
+      );
+    }
   }
 
   const graph = sanitizeGraph(parsed);
