@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import { unzipSync, strFromU8 } from 'fflate';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -62,15 +63,100 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
     }
   };
 
+  // Extract text from a DOCX file client-side using fflate
+  const extractDocxText = useCallback(async (file: File): Promise<string> => {
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const unzipped = unzipSync(bytes);
+    const paragraphs: string[] = [];
+    const xmlSlots = [
+      'word/document.xml',
+      'word/header1.xml', 'word/header2.xml',
+      'word/footer1.xml', 'word/footer2.xml',
+    ];
+    for (const slot of xmlSlots) {
+      const xmlBytes = unzipped[slot];
+      if (!xmlBytes) continue;
+      const xml = strFromU8(xmlBytes);
+      const paraRx = /<w:p[ >][\s\S]*?<\/w:p>/g;
+      const runRx  = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
+      let pMatch: RegExpExecArray | null;
+      while ((pMatch = paraRx.exec(xml)) !== null) {
+        const runs: string[] = [];
+        let rMatch: RegExpExecArray | null;
+        while ((rMatch = runRx.exec(pMatch[0])) !== null) {
+          if (rMatch[1]) runs.push(rMatch[1]);
+        }
+        const line = runs.join('').trim();
+        if (line) paragraphs.push(line);
+      }
+    }
+    if (paragraphs.length > 0) return paragraphs.join('\n').slice(0, 50000);
+    // Fallback: strip XML tags from document.xml
+    const docXml = unzipped['word/document.xml'];
+    if (docXml) {
+      return strFromU8(docXml).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50000);
+    }
+    return '';
+  }, []);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const content = ev.target?.result as string;
-        setAttachments(prev => [...prev, { name: file.name, content }]);
-      };
-      reader.readAsText(file);
+
+    files.forEach(async (file) => {
+      const name = file.name.toLowerCase();
+
+      if (name.endsWith('.docx')) {
+        // Extract DOCX text client-side
+        try {
+          const text = await extractDocxText(file);
+          if (text) {
+            setAttachments(prev => [...prev, { name: file.name, content: text }]);
+          }
+        } catch {
+          // Fallback: read as text
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            setAttachments(prev => [...prev, { name: file.name, content: ev.target?.result as string }]);
+          };
+          reader.readAsText(file);
+        }
+      } else if (name.endsWith('.rtf')) {
+        // RTF: strip control words
+        const raw = await file.text();
+        const stripped = raw
+          .replace(/\{[^{}]*\}/g, ' ')
+          .replace(/\\[a-z]+\d*\s?/g, '')
+          .replace(/[{}\\]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        setAttachments(prev => [...prev, { name: file.name, content: stripped.slice(0, 50000) }]);
+      } else if (name.endsWith('.pdf') || name.endsWith('.epub')) {
+        // PDF/EPUB: upload to import endpoint for server-side extraction
+        const formData = new FormData();
+        formData.append('file', file);
+        try {
+          const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
+          const data = await res.json();
+          // Combine extracted items into readable text for the chat
+          if (data.items?.length > 0) {
+            const text = data.items.map((it: { cloud_type: string; title: string; content: string }) =>
+              `[${it.cloud_type}] ${it.title}\n${it.content}`
+            ).join('\n\n');
+            setAttachments(prev => [...prev, { name: file.name, content: text }]);
+          }
+        } catch {
+          // Can't extract PDF/EPUB client-side
+          setAttachments(prev => [...prev, { name: file.name, content: `[Could not extract text from ${file.name}]` }]);
+        }
+      } else {
+        // Plain text files
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          const content = ev.target?.result as string;
+          setAttachments(prev => [...prev, { name: file.name, content }]);
+        };
+        reader.readAsText(file);
+      }
     });
     // Reset input so same file can be re-attached
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -156,7 +242,7 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={streaming}
-            title="Attach a file (text, markdown, notes…)"
+            title="Attach a file (text, markdown, DOCX, PDF, EPUB, RTF)"
             className="shrink-0 p-2 rounded-lg text-muted hover:text-foreground hover:bg-gray-100 disabled:opacity-40 transition-colors"
           >
             {/* Paperclip icon */}
@@ -167,7 +253,7 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
           <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md,.markdown,.json,.csv"
+            accept=".txt,.md,.markdown,.json,.csv,.docx,.pdf,.epub,.rtf"
             multiple
             className="hidden"
             onChange={handleFileChange}
