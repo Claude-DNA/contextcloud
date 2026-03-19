@@ -13,6 +13,8 @@ export async function getGeminiKey(
   userEmail?: string | null
 ): Promise<string | null> {
   let resolvedEmail = userEmail;
+
+  // Try to get stored key and email
   try {
     const res = await query(
       'SELECT google_ai_key, email FROM users WHERE id = $1',
@@ -22,10 +24,16 @@ export async function getGeminiKey(
     if (stored && stored.trim().length > 0) return stored.trim();
     if (!resolvedEmail) resolvedEmail = res.rows[0]?.email as string | null;
   } catch {
-    // If column doesn't exist yet (pre-migration), fall through
+    // google_ai_key column might not exist yet — try email only
+    try {
+      const res = await query('SELECT email FROM users WHERE id = $1', [userId]);
+      if (!resolvedEmail) resolvedEmail = res.rows[0]?.email as string | null;
+    } catch {
+      // DB issue, fall through
+    }
   }
 
-  // Admin fallback
+  // Admin fallback — use server env key
   if (resolvedEmail === ADMIN_EMAIL || userId === ADMIN_EMAIL) {
     return process.env.GOOGLE_AI_API_KEY || null;
   }
