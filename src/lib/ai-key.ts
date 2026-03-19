@@ -12,19 +12,21 @@ export async function getGeminiKey(
   userId: string,
   userEmail?: string | null
 ): Promise<string | null> {
+  let resolvedEmail = userEmail;
   try {
     const res = await query(
-      'SELECT google_ai_key FROM users WHERE id = $1',
+      'SELECT google_ai_key, email FROM users WHERE id = $1',
       [userId]
     );
     const stored = res.rows[0]?.google_ai_key as string | null;
     if (stored && stored.trim().length > 0) return stored.trim();
+    if (!resolvedEmail) resolvedEmail = res.rows[0]?.email as string | null;
   } catch {
     // If column doesn't exist yet (pre-migration), fall through
   }
 
   // Admin fallback
-  if (userEmail === ADMIN_EMAIL || userId === ADMIN_EMAIL) {
+  if (resolvedEmail === ADMIN_EMAIL || userId === ADMIN_EMAIL) {
     return process.env.GOOGLE_AI_API_KEY || null;
   }
 
