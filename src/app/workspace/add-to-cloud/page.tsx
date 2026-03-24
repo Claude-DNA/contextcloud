@@ -28,6 +28,7 @@ export default function QuickCapturePage() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [toast, setToast] = useState('');
   const [savedCount, setSavedCount] = useState<number | null>(null);
+  const [provenance, setProvenance] = useState<{ source_type: string; pipeline_steps?: string[]; source_text_hash?: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -59,6 +60,7 @@ export default function QuickCapturePage() {
 
       setItems(data.items || []);
       setSelected(new Set((data.items || []).map((_: ExtractedItem, i: number) => i)));
+      setProvenance(data.provenance || null);
 
       if ((data.items || []).length === 0) {
         showToast('No items could be extracted');
@@ -90,6 +92,7 @@ export default function QuickCapturePage() {
             content: item.content || '',
             tags: item.tags || [],
           })),
+          ...(provenance ? { provenance } : {}),
         }),
       });
       const data = await res.json();

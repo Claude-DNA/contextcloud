@@ -107,7 +107,19 @@ ${text.slice(0, 30000)}`;
       }))
       .filter(item => VALID_TYPES.includes(item.cloud_type) && item.title?.trim());
 
-    return NextResponse.json({ items });
+    // Include provenance metadata for the batch save step
+    const textHash = Array.from(
+      new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text.slice(0, 30000))))
+    ).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16);
+
+    return NextResponse.json({
+      items,
+      provenance: {
+        source_type: 'ai_extraction',
+        pipeline_steps: ['gemini_extract', 'type_normalize', 'validate'],
+        source_text_hash: textHash,
+      },
+    });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Extraction failed';
     return NextResponse.json({ error: message }, { status: 500 });

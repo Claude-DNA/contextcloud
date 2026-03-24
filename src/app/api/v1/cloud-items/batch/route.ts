@@ -30,7 +30,12 @@ export async function POST(req: NextRequest) {
   await runMigrations();
 
   const body = await req.json();
-  const { items, source, project_id } = body as { items: BatchItem[]; source?: 'chat' | 'file' | 'direct' | 'voice'; project_id?: string };
+  const { items, source, project_id, provenance } = body as {
+    items: BatchItem[];
+    source?: 'chat' | 'file' | 'direct' | 'voice';
+    project_id?: string;
+    provenance?: { source_type: string; pipeline_steps?: string[]; source_text_hash?: string };
+  };
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'items array required' }, { status: 400 });
@@ -100,6 +105,28 @@ export async function POST(req: NextRequest) {
   `;
 
   const result = await query(insertSQL, values);
+
+  // Phase 0 — Engram provenance: create transformation records linking items to source
+  if (provenance?.source_type && result.rows.length > 0) {
+    const txnValues: unknown[] = [];
+    const txnPlaceholders: string[] = [];
+    let tp = 1;
+    for (const row of result.rows) {
+      txnPlaceholders.push(`($${tp++}, $${tp++}, $${tp++}, $${tp++}, $${tp++})`);
+      txnValues.push(
+        row.id,
+        provenance.source_type,
+        provenance.source_type,                          // text field = source_type label
+        provenance.pipeline_steps || [],
+        provenance.source_text_hash || null
+      );
+    }
+    await query(
+      `INSERT INTO cloud_item_transformations (cloud_item_id, source_type, text, pipeline_steps, source_text_hash)
+       VALUES ${txnPlaceholders.join(', ')}`,
+      txnValues
+    ).catch(err => console.error('Provenance insert failed (non-fatal):', err));
+  }
 
   return NextResponse.json(
     { saved: result.rows, count: result.rowCount, invalid },

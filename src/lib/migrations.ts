@@ -207,6 +207,11 @@ export async function runMigrations() {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_item_trans_item_id ON cloud_item_transformations (cloud_item_id)`);
 
+    // Provenance columns on transformations (Phase 0 — Engram Protocol alignment)
+    await query(`ALTER TABLE cloud_item_transformations ADD COLUMN IF NOT EXISTS source_type TEXT`);
+    await query(`ALTER TABLE cloud_item_transformations ADD COLUMN IF NOT EXISTS pipeline_steps TEXT[] DEFAULT '{}'`);
+    await query(`ALTER TABLE cloud_item_transformations ADD COLUMN IF NOT EXISTS source_text_hash TEXT`);
+
     // Arc scaffold — junction table linking cloud_items to arc scenes
     await query(`
       CREATE TABLE IF NOT EXISTS cloud_item_scenes (
@@ -236,6 +241,14 @@ export async function runMigrations() {
     // Add project_id to cloud_items
     await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS project_id UUID REFERENCES projects(id) ON DELETE SET NULL`);
     await query(`CREATE INDEX IF NOT EXISTS idx_cloud_items_project ON cloud_items(project_id)`);
+
+    // Engram Protocol — Phase 1 columns on cloud_items
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS confidence NUMERIC(4,3) DEFAULT 1.0`);
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS source_type TEXT`);
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS source_ref TEXT`);
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS formed_at TIMESTAMPTZ`);
+    await query(`ALTER TABLE cloud_items ADD COLUMN IF NOT EXISTS engram_type TEXT`);
+    // engram_type CHECK deferred — will add once enum is finalized in protocol spec
 
     // BYOT — user-stored Google AI key
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_ai_key TEXT`);

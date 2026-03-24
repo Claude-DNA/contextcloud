@@ -60,6 +60,10 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
             content: item.content,
             tags: item.tags,
           })),
+          provenance: {
+            source_type: 'chat_extraction',
+            pipeline_steps: ['chat_ai_generate', 'cloud_parse', 'user_review'],
+          },
         }),
       });
 
