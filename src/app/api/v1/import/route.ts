@@ -3,7 +3,7 @@ import { getAuthUserId } from '@/lib/api-auth';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 // Mutable per-invocation key - set at start of POST handler
 let GOOGLE_AI_API_KEY = '';
@@ -327,7 +327,7 @@ export async function POST(req: NextRequest) {
     if (!(await isDbAvailable())) {
       return NextResponse.json({ error: 'Database not available' }, { status: 503 });
     }
-    await runMigrations();
+    await ensureSchema().catch(() => {});
 
     // Deduplicate: skip items whose (cloud_type, lower(title)) already exist for this user
     const existingRes = await query(

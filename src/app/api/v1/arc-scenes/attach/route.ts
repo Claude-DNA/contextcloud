@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 // POST /api/v1/arc-scenes/attach — attach a cloud item to an arc scene (idempotent)
 export async function POST(req: NextRequest) {
@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const body = await req.json();
   const { cloud_item_id, arc_item_id } = body;
@@ -59,7 +59,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const body = await req.json();
   const { cloud_item_id, arc_item_id } = body;

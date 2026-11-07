@@ -1,7 +1,7 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -351,7 +351,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database temporarily unavailable' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const apiKey = await getGeminiKey(userId);
   if (!apiKey) return noKeyResponse();

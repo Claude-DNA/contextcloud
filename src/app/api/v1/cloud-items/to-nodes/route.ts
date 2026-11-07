@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 const CLOUD_TYPE_TO_NODE: Record<string, string> = {
   characters: 'character',
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ nodes: [], edges: [] });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const projectId = req.nextUrl.searchParams.get('project_id');
   let sql = 'SELECT * FROM cloud_items WHERE user_id = $1';

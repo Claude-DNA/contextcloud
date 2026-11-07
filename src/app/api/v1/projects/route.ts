@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 // GET /api/v1/projects — all projects for the logged-in user with item counts
 export async function GET(req: NextRequest) {
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Database temporarily unavailable', projects: [] }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const res = await query(
     `SELECT p.id, p.title, p.description, p.created_at,
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const body = await req.json();
   const { title, description = '' } = body;

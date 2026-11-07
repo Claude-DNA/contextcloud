@@ -1,12 +1,65 @@
 import { query, isDbAvailable } from '@/lib/db';
 
-export async function runMigrations() {
+/** Bump when runMigrations() gains new statements, so every instance applies them once. */
+const SCHEMA_VERSION = 1;
+
+/**
+ * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
+ * so a fresh database is ready before the first sign-up.
+ */
+let ready: Promise<void> | null = null;
+
+export function ensureSchema(): Promise<void> {
+  // One check per server instance; a failed check is retried on the next call.
+  ready ??= checkSchema().catch((e) => {
+    ready = null;
+    throw e;
+  });
+  return ready;
+}
+
+async function checkSchema(): Promise<void> {
+  try {
+    await query(`CREATE TABLE IF NOT EXISTS schema_meta (id INT PRIMARY KEY DEFAULT 1, version INT NOT NULL)`);
+    const current = await query('SELECT version FROM schema_meta WHERE id = 1');
+    if ((current.rows[0]?.version ?? 0) >= SCHEMA_VERSION) return;
+    if (await runMigrations()) {
+      await query(
+        `INSERT INTO schema_meta (id, version) VALUES (1, $1)
+         ON CONFLICT (id) DO UPDATE SET version = EXCLUDED.version`,
+        [SCHEMA_VERSION]
+      );
+    } else {
+      throw new Error('migrations did not complete');
+    }
+  } catch (e) {
+    console.error('[schema] ensureSchema failed:', e);
+    throw e;
+  }
+}
+
+export async function runMigrations(): Promise<boolean> {
   if (!(await isDbAvailable())) {
     console.error('Database not available — skipping migrations');
-    return;
+    return false;
   }
 
   try {
+    // Accounts. Context Cloud used to share this table with the old ContextTube; it now owns it.
+    await query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id             TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        email          TEXT NOT NULL UNIQUE,
+        name           TEXT,
+        image          TEXT,
+        password_hash  TEXT NOT NULL,
+        role           TEXT NOT NULL DEFAULT 'user',
+        email_verified BOOLEAN NOT NULL DEFAULT FALSE,
+        google_ai_key  TEXT,
+        created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
     await query(`
       CREATE TABLE IF NOT EXISTS cloud_drafts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -270,7 +323,9 @@ export async function runMigrations() {
     await query(`CREATE INDEX IF NOT EXISTS idx_api_keys_hash   ON user_api_keys (key_hash)`);
 
     console.log('Migrations complete');
+    return true;
   } catch (e) {
     console.error('Migration error:', e);
+    return false;
   }
 }

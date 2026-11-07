@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 export async function GET(req: NextRequest) {
   const userId = await getAuthUserId(req);
@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const res = await query(
     'SELECT google_ai_key FROM users WHERE id = $1',
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const { googleAiKey } = await req.json();
   const key = (googleAiKey || '').trim();

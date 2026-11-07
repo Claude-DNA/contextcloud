@@ -1,7 +1,7 @@
 import { NextResponse , NextRequest } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 // POST /api/v1/arc-scenes/migrate-legacy
 // One-time migration: copies arcs/chapters from legacy tables → cloud_items (cloud_type='arc')
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
   const _localUserId = userId;
 
   // 1. Fetch all arcs for this user

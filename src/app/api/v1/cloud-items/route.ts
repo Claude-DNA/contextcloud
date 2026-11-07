@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
 type CloudType = typeof VALID_TYPES[number];
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Database temporarily unavailable — please retry in a moment', items: [] }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const projectId = req.nextUrl.searchParams.get('project_id');
   let sql = 'SELECT * FROM cloud_items WHERE user_id = $1 AND cloud_type = $2';
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const body = await req.json();
   const { cloud_type, title, content = '', tags = [], metadata = {}, project_id } = body;
@@ -87,7 +87,7 @@ export async function DELETE(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const cloudType = req.nextUrl.searchParams.get('type') as CloudType | null;
   if (!cloudType || !VALID_TYPES.includes(cloudType)) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 // PATCH /api/v1/projects/[id] — update project
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -14,7 +14,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const { id } = await params;
   const body = await req.json();
@@ -64,7 +64,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const { id } = await params;
 

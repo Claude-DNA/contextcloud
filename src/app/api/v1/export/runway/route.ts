@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
 interface CloudItem {
@@ -35,7 +35,7 @@ export async function buildManifest(userId: string, userEmail?: string | null, p
     return { error: 'Database not available', status: 503 };
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const res = await query(
     'SELECT * FROM cloud_items WHERE user_id = $1 ORDER BY cloud_type, sort_order ASC, created_at ASC',

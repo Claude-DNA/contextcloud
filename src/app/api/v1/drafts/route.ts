@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 let migrated = false;
 
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (!migrated) {
-    await runMigrations();
+    await ensureSchema().catch(() => {});
     migrated = true;
   }
 
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (!migrated) {
-    await runMigrations();
+    await ensureSchema().catch(() => {});
     migrated = true;
   }
 

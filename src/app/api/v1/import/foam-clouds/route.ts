@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 
@@ -392,7 +392,7 @@ export async function POST(req: NextRequest) {
   if (!(await isDbAvailable())) {
     return NextResponse.json({ error: 'Database not available' }, { status: 503 });
   }
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   // Resolve BYOT key (DB is awake now, query will succeed)
   const resolvedKey = await getGeminiKey(userId);

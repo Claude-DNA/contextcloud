@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
-import { runMigrations } from '@/lib/migrations';
+import { ensureSchema } from '@/lib/migrations';
 
 // GET /api/v1/arc-scenes — all arc items for the logged-in user, with attached_count
 export async function GET(req: NextRequest) {
@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Database temporarily unavailable', scenes: [] }, { status: 503 });
   }
 
-  await runMigrations();
+  await ensureSchema().catch(() => {});
 
   const projectId = req.nextUrl.searchParams.get('project_id');
   let where = `ci.user_id = $1 AND ci.cloud_type = 'arc'`;
