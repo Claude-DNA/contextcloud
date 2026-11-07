@@ -363,6 +363,11 @@ export default function VisualCanvas() {
   const sceneId = searchParams.get('scene') || null;
   const sceneNameParam = searchParams.get('sceneName') || null;
   const [sceneName, setSceneName] = useState<string | null>(sceneNameParam);
+
+  // ?upload=1 (from the "Start a new flow" page) opens the upload wizard straight away.
+  useEffect(() => {
+    if (searchParams.get('upload') === '1') setShowWizard(true);
+  }, [searchParams]);
   const sceneLoaded = useRef(false);
   const pendingSyncRef = useRef<Record<string, { title?: string; content?: string }>>({});
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);

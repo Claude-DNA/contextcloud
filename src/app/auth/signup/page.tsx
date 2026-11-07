@@ -3,6 +3,7 @@
 import { signIn, getProviders } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { nextPath, nextQuery } from '@/lib/next-path';
 
 export default function SignUpPage() {
   // Show only the sign-in methods this server has configured.
@@ -12,6 +13,8 @@ export default function SignUpPage() {
   }, []);
   const hasGoogle = Boolean(providers?.google);
   const hasApple = Boolean(providers?.apple);
+  const [query, setQuery] = useState('');
+  useEffect(() => setQuery(nextQuery()), []);
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -45,7 +48,7 @@ export default function SignUpPage() {
       if (signInRes?.error) {
         setError('Account created. Please sign in.');
       } else {
-        window.location.href = '/';
+        window.location.href = nextPath();
       }
     } catch {
       setError('Something went wrong');
@@ -71,7 +74,7 @@ export default function SignUpPage() {
           <div className="space-y-3 mb-6">
             {hasGoogle && (
               <button
-                onClick={() => signIn('google', { callbackUrl: '/' })}
+                onClick={() => signIn('google', { callbackUrl: nextPath() })}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -87,7 +90,7 @@ export default function SignUpPage() {
             {hasApple && (
   
               <button
-                onClick={() => signIn('apple', { callbackUrl: '/' })}
+                onClick={() => signIn('apple', { callbackUrl: nextPath() })}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -157,7 +160,7 @@ export default function SignUpPage() {
 
         <p className="text-center text-sm text-muted mt-4">
           Already have an account?{' '}
-          <Link href="/auth/signin" className="text-accent hover:underline">
+          <Link href={`/auth/signin${query}`} className="text-accent hover:underline">
             Sign in
           </Link>
         </p>

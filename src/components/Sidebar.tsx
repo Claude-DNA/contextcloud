@@ -72,6 +72,18 @@ export default function Sidebar() {
         </Link>
       </div>
 
+      <div className="px-3 pt-3">
+        <Link
+          href="/new"
+          className={`flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+            isActive('/new') ? 'bg-accent-hover text-white' : 'bg-accent text-white hover:bg-accent-hover'
+          }`}
+        >
+          <span aria-hidden className="text-base leading-none">+</span>
+          New flow
+        </Link>
+      </div>
+
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
         {/* Arc Cloud â€” primary entry point */}
         <div className="pt-2 pb-1">

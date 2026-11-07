@@ -3,6 +3,7 @@
 import { signIn, getProviders } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { nextPath, nextQuery } from '@/lib/next-path';
 
 export default function SignInPage() {
   // Show only the sign-in methods this server has configured.
@@ -12,6 +13,8 @@ export default function SignInPage() {
   }, []);
   const hasGoogle = Boolean(providers?.google);
   const hasApple = Boolean(providers?.apple);
+  const [query, setQuery] = useState('');
+  useEffect(() => setQuery(nextQuery()), []);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,7 +34,7 @@ export default function SignInPage() {
       if (res?.error) {
         setError('Invalid email or password');
       } else {
-        window.location.href = '/';
+        window.location.href = nextPath();
       }
     } catch {
       setError('Something went wrong');
@@ -57,7 +60,7 @@ export default function SignInPage() {
           <div className="space-y-3 mb-6">
             {hasGoogle && (
               <button
-                onClick={() => signIn('google', { callbackUrl: '/' })}
+                onClick={() => signIn('google', { callbackUrl: nextPath() })}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
@@ -85,7 +88,7 @@ export default function SignInPage() {
             {hasApple && (
   
               <button
-                onClick={() => signIn('apple', { callbackUrl: '/' })}
+                onClick={() => signIn('apple', { callbackUrl: nextPath() })}
                 className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-border rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
@@ -144,7 +147,7 @@ export default function SignInPage() {
 
         <p className="text-center text-sm text-muted mt-4">
           Don&apos;t have an account?{' '}
-          <Link href="/auth/signup" className="text-accent hover:underline">
+          <Link href={`/auth/signup${query}`} className="text-accent hover:underline">
             Sign up
           </Link>
         </p>
