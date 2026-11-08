@@ -59,6 +59,18 @@ Authorization: Bearer cc_live_...
 # Publishing the same project again updates the same page. Add "dry_run": true to see the payload first.
 # An item's picture: metadata.image = { "url": "https://…", "alt": "…", "credit": "…", "source": "https://…" }
 
+# Illustrations (uses the image provider chosen in Settings → Illustrations: Google, OpenAI or OpenRouter)
+PUT  /api/v1/projects/<id>/illustration-style   { "style": "Black-and-white etching with fine crosshatching" }
+POST /api/v1/projects/<id>/illustration-style   ← { "suggestions": [three styles for this work] }
+POST /api/v1/cloud-items/<item_id>/illustrate   { "mode": "auto" }   # or "generate"
+# auto: a public-domain artwork (The Met, Art Institute of Chicago, NASA) if one shows this element, otherwise
+# drawn in the project's style; characters' portraits are reused in scenes (Google). Illustrate characters first.
+← { "image": { "url", "alt", "credit", "source"?, "kind": "public_domain" | "generated" }, "visual", "reason"? }
+POST /api/v1/cloud-items/<item_id>/illustrate/candidates   ← { "candidates": [...] }   # to choose yourself
+POST /api/v1/cloud-items/<item_id>/illustrate/pick   { "candidate": <one of them> }
+DELETE /api/v1/cloud-items/<item_id>/illustrate
+# Pictures are served at /api/v1/images/<id> and travel with publish-cloud.
+
 # Optionally publish a five-layer flow to ContextTube
 POST /api/v1/publish
 Authorization: Bearer cc_live_...

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import ItemIllustration, { type ItemImage } from '@/components/ItemIllustration';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import CloudItemTransformationsModal from './CloudItemTransformationsModal';
@@ -546,6 +547,18 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                       </div>
                     ) : (
                       <div className="p-4">
+                        {config.type !== 'references' && (
+                          <div className="mb-3 max-w-xs">
+                            <ItemIllustration
+                              itemId={item.id}
+                              title={item.title}
+                              image={(item.metadata as Record<string, unknown> | null)?.image as ItemImage | undefined}
+                              onChange={(img) => setItems((prev) => prev.map((it) => it.id === item.id
+                                ? { ...it, metadata: (() => { const m = { ...(it.metadata || {}) } as Record<string, unknown>; if (img) m.image = img; else delete m.image; return m as typeof it.metadata; })() }
+                                : it))}
+                            />
+                          </div>
+                        )}
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <h3 className="font-semibold text-foreground">{item.title}</h3>

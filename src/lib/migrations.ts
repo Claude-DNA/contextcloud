@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -364,6 +364,31 @@ export async function runMigrations(): Promise<boolean> {
     // v6: a project can be published as a ConteXtube cloud; remember where, so publishing again updates it.
     await query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS cloud_slug TEXT`);
     await query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS cloud_published_at TIMESTAMPTZ`);
+
+    // v7: illustrations. Files live in images (served at /api/v1/images/<id>); an item's picture is
+    // metadata.image. Users pick an image provider and model; projects keep one illustration style.
+    await query(`
+      CREATE TABLE IF NOT EXISTS images (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id     UUID NOT NULL,
+        project_id  UUID,
+        item_id     UUID,
+        kind        TEXT NOT NULL CHECK (kind IN ('generated', 'public_domain', 'upload')),
+        mime        TEXT NOT NULL,
+        bytes       BYTEA NOT NULL,
+        width       INTEGER,
+        height      INTEGER,
+        prompt      TEXT,
+        model       TEXT,
+        source_url  TEXT,
+        credit      TEXT,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS images_item_idx ON images (item_id)`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS image_provider TEXT`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS image_model TEXT`);
+    await query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS illustration_style TEXT`);
 
     // API keys — programmatic access for AI agents and integrations
     await query(`

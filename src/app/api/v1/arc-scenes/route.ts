@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
 
   const res = await query(
     `SELECT ci.id, ci.title, ci.content, ci.sort_order,
-            ci.metadata->>'act' AS act, ci.metadata->>'when' AS when_told,
+            ci.metadata->>'act' AS act, ci.metadata->>'when' AS when_told, ci.metadata->'image' AS image,
             COALESCE(att.attached_count, 0)::int AS attached_count
      FROM cloud_items ci
      LEFT JOIN (

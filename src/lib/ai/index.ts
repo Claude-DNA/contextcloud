@@ -50,7 +50,7 @@ export const PROVIDER_INFO: Record<Provider, { label: string; keyUrl: string; ke
 };
 
 /** API bases; tests point these at local stand-ins. */
-const BASE = {
+export const BASE = {
   google: (process.env.GEMINI_API_BASE || 'https://generativelanguage.googleapis.com/v1beta').replace(/\/$/, ''),
   anthropic: (process.env.ANTHROPIC_API_BASE || 'https://api.anthropic.com').replace(/\/$/, ''),
   openai: (process.env.OPENAI_API_BASE || 'https://api.openai.com/v1').replace(/\/$/, ''),
@@ -173,7 +173,9 @@ function anthropicContent(prompt: string | Part[]) {
   return partsOf(prompt).map((p) =>
     'text' in p
       ? { type: 'text', text: p.text }
-      : { type: 'document', source: { type: 'base64', media_type: p.file.mimeType, data: p.file.data } }
+      : p.file.mimeType.startsWith('image/')
+        ? { type: 'image', source: { type: 'base64', media_type: p.file.mimeType, data: p.file.data } }
+        : { type: 'document', source: { type: 'base64', media_type: p.file.mimeType, data: p.file.data } }
   );
 }
 
@@ -219,7 +221,9 @@ function chatContent(prompt: string | Part[]) {
   return parts.map((p) =>
     'text' in p
       ? { type: 'text', text: p.text }
-      : { type: 'file', file: { filename: p.file.name || 'document.pdf', file_data: `data:${p.file.mimeType};base64,${p.file.data}` } }
+      : p.file.mimeType.startsWith('image/')
+        ? { type: 'image_url', image_url: { url: `data:${p.file.mimeType};base64,${p.file.data}` } }
+        : { type: 'file', file: { filename: p.file.name || 'document.pdf', file_data: `data:${p.file.mimeType};base64,${p.file.data}` } }
   );
 }
 

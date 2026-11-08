@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import AiSettings from '@/components/settings/AiSettings';
+import ImageSettings from '@/components/settings/ImageSettings';
 
 interface ApiKey {
   id: string;
@@ -75,6 +76,8 @@ export default function SettingsPage() {
       </div>
 
       <AiSettings />
+
+      <ImageSettings />
 
       {/* ── API Access Keys ────────────────────────────────────────────────── */}
       <div className="border border-border rounded-xl p-6 bg-card-bg space-y-5">

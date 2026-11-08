@@ -53,7 +53,7 @@ export default function PublishCloud() {
     <div className="relative">
       <div className="flex items-center gap-3">
         {published && !open && (
-          <a href={published} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline">View on ConteXtube</a>
+          <a href={published} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline whitespace-nowrap">View on ConteXtube</a>
         )}
         <button type="button" onClick={open ? () => setOpen(false) : start}
           className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"

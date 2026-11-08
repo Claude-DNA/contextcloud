@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PublishCloud from '@/components/PublishCloud';
+import ProjectIllustrations from '@/components/ProjectIllustrations';
+import ItemIllustration, { type ItemImage } from '@/components/ItemIllustration';
 import { useProject } from '@/context/ProjectContext';
 
 interface CloudItem {
@@ -22,6 +24,7 @@ interface ArcScene {
   attached_count: number;
   act?: string | null;
   when_told?: string | null;
+  image?: ItemImage | null;
 }
 
 interface AttachedItem {
@@ -302,14 +305,15 @@ export default function ArcCloudPage() {
           <div className="max-w-3xl mx-auto">
 
             {/* Title bar */}
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div>
                 <h1 className="text-xl font-semibold text-foreground">
                   Story Structure
                 </h1>
                 <p className="text-sm text-muted mt-0.5">Build your arc. Each scene is a turning point.</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center justify-end gap-3 [&_button]:whitespace-nowrap">
+              <ProjectIllustrations onDone={fetchScenes} />
               <PublishCloud />
               <button
                 onClick={() => { setAdding(true); setEditingId(null); setFormTitle(''); setFormContent(''); }}
@@ -502,6 +506,15 @@ export default function ArcCloudPage() {
                         {/* Expanded: attached items grouped by type */}
                         {expandedId === scene.id && (
                           <div className="border-t border-border px-4 py-3 bg-gray-50/30">
+                            <div className="mb-3 max-w-md">
+                              <ItemIllustration
+                                itemId={scene.id}
+                                title={scene.title}
+                                image={scene.image}
+                                compact
+                                onChange={(img) => setScenes((prev) => prev.map((s) => (s.id === scene.id ? { ...s, image: img } : s)))}
+                              />
+                            </div>
                             {attachedLoading === scene.id ? (
                               <p className="text-xs text-muted py-2">Loading attached items...</p>
                             ) : !attachedItems[scene.id] || attachedItems[scene.id].length === 0 ? (

@@ -2,6 +2,7 @@ import { query } from '@/lib/db';
 import { open } from '@/lib/secret-box';
 import { isAdmin } from '@/lib/admin';
 import { PROVIDERS, PROVIDER_INFO, type AiConfig, type Provider } from '@/lib/ai';
+import { IMAGE_PROVIDERS, IMAGE_DEFAULTS, type ImageConfig, type ImageProvider } from '@/lib/ai/images';
 
 /** Server keys, used only for the admin account (never for other users). */
 const SERVER_KEYS: Record<Provider, string | undefined> = {
@@ -12,6 +13,8 @@ const SERVER_KEYS: Record<Provider, string | undefined> = {
 };
 
 interface UserAiRow {
+  image_provider?: string | null;
+  image_model?: string | null;
   ai_provider: string | null;
   ai_model: string | null;
   ai_model_light: string | null;
@@ -24,7 +27,8 @@ interface UserAiRow {
 
 export async function loadAiRow(userId: string): Promise<UserAiRow | null> {
   const res = await query(
-    `SELECT ai_provider, ai_model, ai_model_light, ai_keys, google_ai_key, email, role, email_verified
+    `SELECT ai_provider, ai_model, ai_model_light, ai_keys, google_ai_key, email, role, email_verified,
+            image_provider, image_model
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -91,4 +95,32 @@ export function aiErrorResponse(e: unknown, what = 'The AI request failed') {
           ? 'The provider is rate-limiting this key. Wait a minute and try again.'
           : undefined;
   return Response.json({ error: what, message: hint, details }, { status: 502 });
+}
+
+/** The image provider in use: the one chosen, else the first image-capable provider with a key. */
+export function imageProviderFor(row: UserAiRow): ImageProvider | null {
+  if (row.image_provider && (IMAGE_PROVIDERS as string[]).includes(row.image_provider)) return row.image_provider as ImageProvider;
+  return IMAGE_PROVIDERS.find((p) => keyFor(row, p)) ?? null;
+}
+
+/** Provider, key and model for illustrations; null without a key for an image-capable provider or a model. */
+export async function getImageConfig(userId: string): Promise<ImageConfig | null> {
+  const row = await loadAiRow(userId).catch(() => null);
+  if (!row) return null;
+  const provider = imageProviderFor(row);
+  if (!provider) return null;
+  const apiKey = keyFor(row, provider);
+  const model = row.image_model || IMAGE_DEFAULTS[provider];
+  return apiKey && model ? { provider, apiKey, model } : null;
+}
+
+export function noImageKeyResponse() {
+  return Response.json(
+    {
+      error: 'Image model required',
+      message: 'Illustrations need an image model: add a Google, OpenAI or OpenRouter key and choose a model under Settings → Illustrations.',
+      code: 'IMAGE_KEY_REQUIRED',
+    },
+    { status: 402 }
+  );
 }

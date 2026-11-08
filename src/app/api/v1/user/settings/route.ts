@@ -4,7 +4,8 @@ import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 import { seal, open } from '@/lib/secret-box';
 import { PROVIDERS, PROVIDER_INFO, type Provider } from '@/lib/ai';
-import { loadAiRow, keyFor, providerFor } from '@/lib/ai-key';
+import { loadAiRow, keyFor, providerFor, imageProviderFor } from '@/lib/ai-key';
+import { IMAGE_PROVIDERS, IMAGE_DEFAULTS, type ImageProvider } from '@/lib/ai/images';
 
 const mask = (key: string) => '••••' + key.slice(-4);
 
@@ -30,7 +31,10 @@ export async function GET(req: NextRequest) {
     if (!own && keyFor(row, p)) serverKeys.push(p); // admin only
   }
   const info = PROVIDER_INFO[provider];
+  const imageProvider = imageProviderFor(row);
   return NextResponse.json({
+    image_provider: imageProvider,
+    image_model: row.image_model || (imageProvider ? IMAGE_DEFAULTS[imageProvider] : null) || null,
     provider,
     model: row.ai_model || info.defaultModel || null,
     light_model: row.ai_model_light || info.defaultLight || null,
@@ -60,6 +64,8 @@ export async function POST(req: NextRequest) {
     light_model?: string | null;
     key?: { provider?: string; value?: string };
     googleAiKey?: string;
+    image_provider?: string;
+    image_model?: string | null;
   };
   const isProvider = (p?: string): p is Provider => !!p && (PROVIDERS as string[]).includes(p);
 
@@ -85,6 +91,16 @@ export async function POST(req: NextRequest) {
     } else {
       await query(`UPDATE users SET ai_provider = $1 WHERE id = $2`, [body.provider, userId]);
     }
+  }
+  if (body.image_provider !== undefined) {
+    if (!(IMAGE_PROVIDERS as string[]).includes(body.image_provider)) return NextResponse.json({ error: 'Unknown image provider' }, { status: 400 });
+    const row = await loadAiRow(userId);
+    // Models belong to a provider: switching clears the model unless the request sets one.
+    const changed = row && imageProviderFor(row) !== (body.image_provider as ImageProvider);
+    await query(`UPDATE users SET image_provider = $1${changed ? ', image_model = NULL' : ''} WHERE id = $2`, [body.image_provider, userId]);
+  }
+  if (body.image_model !== undefined) {
+    await query(`UPDATE users SET image_model = $1 WHERE id = $2`, [body.image_model ? String(body.image_model).trim().slice(0, 200) : null, userId]);
   }
   const clean = (m?: string | null) => (m ? String(m).trim().slice(0, 200) || null : null);
   if (body.model !== undefined) await query(`UPDATE users SET ai_model = $1 WHERE id = $2`, [clean(body.model), userId]);
