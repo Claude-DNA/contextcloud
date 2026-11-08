@@ -8,7 +8,7 @@ import type { AiConfig } from '@/lib/ai';
 import type { ImageConfig } from '@/lib/ai/images';
 
 /** Shared setup for the illustration routes: the signed-in user, their item, project style and models. */
-export async function illustrationContext(req: NextRequest, itemId: string): Promise<
+export async function illustrationContext(req: NextRequest, itemId: string, opts: { requireAi?: boolean } = {}): Promise<
   | { ok: false; res: Response }
   | { ok: true; userId: string; item: Item; ai: AiConfig; image: ImageConfig | null; style: string; work: string; origin: string }
 > {
@@ -24,10 +24,12 @@ export async function illustrationContext(req: NextRequest, itemId: string): Pro
   const row = r.rows[0];
   if (!row) return { ok: false, res: NextResponse.json({ error: 'Item not found' }, { status: 404 }) };
   const ai = await getAiConfig(userId);
-  if (!ai) return { ok: false, res: noKeyResponse() };
+  // Removing a picture needs no model; everything else does.
+  if (!ai && opts.requireAi !== false) return { ok: false, res: noKeyResponse() };
   const image = await getImageConfig(userId);
   return {
-    ok: true, userId, ai, image,
+    ok: true, userId, image,
+    ai: ai as AiConfig, // null only when the caller passed requireAi: false and does not use it
     item: row as Item,
     style: (row.illustration_style as string | null)?.trim() || DEFAULT_STYLE,
     work: (row.project_title as string | null) || 'Untitled',

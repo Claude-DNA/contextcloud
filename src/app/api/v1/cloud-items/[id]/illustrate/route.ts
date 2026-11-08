@@ -28,7 +28,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const ctx = await illustrationContext(req, (await params).id);
+  const ctx = await illustrationContext(req, (await params).id, { requireAi: false });
   if (!ctx.ok) return ctx.res;
   await query(`UPDATE cloud_items SET metadata = metadata - 'image', updated_at = NOW() WHERE id = $1`, [ctx.item.id]);
   return NextResponse.json({ removed: true });
