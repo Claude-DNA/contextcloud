@@ -12,6 +12,9 @@ interface Project {
 
 interface ProjectContextValue {
   activeProjectId: string | null;
+  /** True once the saved selection has been read. Pages that load per-project data wait for it,
+   *  so they don't first load "no project" and race the real request. */
+  projectReady: boolean;
   setActiveProjectId: (id: string | null) => void;
   projects: Project[];
   refreshProjects: () => Promise<void>;
@@ -19,6 +22,7 @@ interface ProjectContextValue {
 
 const ProjectContext = createContext<ProjectContextValue>({
   activeProjectId: null,
+  projectReady: false,
   setActiveProjectId: () => {},
   projects: [],
   refreshProjects: async () => {},
@@ -29,6 +33,7 @@ const LS_KEY = 'cc_active_project_id';
 export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [projectReady, setProjectReady] = useState(false);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -36,6 +41,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       const stored = localStorage.getItem(LS_KEY);
       if (stored) setActiveProjectIdState(stored);
     } catch { /* ignore */ }
+    setProjectReady(true);
   }, []);
 
   const setActiveProjectId = useCallback((id: string | null) => {
@@ -65,7 +71,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   }, [refreshProjects]);
 
   return (
-    <ProjectContext.Provider value={{ activeProjectId, setActiveProjectId, projects, refreshProjects }}>
+    <ProjectContext.Provider value={{ activeProjectId, projectReady, setActiveProjectId, projects, refreshProjects }}>
       {children}
     </ProjectContext.Provider>
   );

@@ -35,7 +35,7 @@ export default function IdeasCloudPage() {
   const [fsModalIdea, setFsModalIdea] = useState<Idea | null>(null);
 
   // The ideas of the selected project; all ideas when no project is selected.
-  const { activeProjectId } = useProject();
+  const { activeProjectId, projectReady } = useProject();
   const projectQs = activeProjectId ? `?project_id=${activeProjectId}` : '';
 
   const fetchIdeas = useCallback(async () => {
@@ -67,8 +67,8 @@ export default function IdeasCloudPage() {
   }, [projectQs]);
 
   useEffect(() => {
-    fetchIdeas();
-  }, [fetchIdeas]);
+    if (projectReady) fetchIdeas();
+  }, [fetchIdeas, projectReady]);
 
   // --- Actions ---
 

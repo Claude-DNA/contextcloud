@@ -1,6 +1,6 @@
 'use client';
 
-import React, { Fragment, useState, useEffect, useCallback } from 'react';
+import React, { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -44,7 +44,7 @@ const inputCls = 'w-full border border-border rounded-lg px-3 py-2 text-sm text-
 
 export default function ArcCloudPage() {
   const router = useRouter();
-  const { activeProjectId } = useProject();
+  const { activeProjectId, projectReady } = useProject();
   const [scenes, setScenes] = useState<ArcScene[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -77,18 +77,22 @@ export default function ArcCloudPage() {
   const [formTitle, setFormTitle] = useState('');
   const [formContent, setFormContent] = useState('');
 
+  const latestScenes = useRef(0);
   const fetchScenes = useCallback(async () => {
+    if (!projectReady) return;
+    const call = ++latestScenes.current;
     setLoading(true);
     try {
       // Each project is its own story: show its beats, or the beats in no project.
       const res = await fetch(`/api/v1/arc-scenes?project_id=${activeProjectId ?? 'unassigned'}`);
       const data = await res.json();
+      if (call !== latestScenes.current) return; // a newer request (another project) is in flight
       setScenes(data.scenes || []);
     } catch (err) {
       console.error('Failed to fetch scenes:', err);
     }
-    setLoading(false);
-  }, [activeProjectId]);
+    if (call === latestScenes.current) setLoading(false);
+  }, [activeProjectId, projectReady]);
 
   useEffect(() => {
     fetch('/api/v1/ping').catch(() => {});

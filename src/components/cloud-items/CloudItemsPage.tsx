@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import CloudItemTransformationsModal from './CloudItemTransformationsModal';
@@ -250,7 +250,8 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
 
 export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) {
   const config = CLOUD_CONFIGS[cloudType];
-  const { activeProjectId } = useProject();
+  const { activeProjectId, projectReady } = useProject();
+  const latestFetch = useRef(0);
   const [items, setItems] = useState<CloudItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
@@ -273,6 +274,8 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   };
 
   const fetchItems = useCallback(async () => {
+    if (!projectReady) return;
+    const call = ++latestFetch.current;
     setLoading(true);
     setFetchError(null);
     try {
@@ -286,6 +289,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
         return;
       }
       const fetched: CloudItem[] = data.items || [];
+      if (call !== latestFetch.current) return; // a newer request (another project) is in flight
       setItems(fetched);
 
       // Fetch transformation counts for characters
@@ -308,7 +312,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
       setFetchError(err instanceof Error ? err.message : 'Failed to load items — check connection');
     }
     setLoading(false);
-  }, [cloudType, activeProjectId]);
+  }, [cloudType, activeProjectId, projectReady]);
 
   // Warm Neon on mount before fetching — reduces cold-start blank flashes
   useEffect(() => {

@@ -35,7 +35,7 @@ function FlowEditorInner() {
   const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { projects, activeProjectId } = useProject();
+  const { projects, activeProjectId, projectReady } = useProject();
 
   const draftId = searchParams.get('id');
   // ?from_project=<id> drafts from that project on arrival; 'none' means items without a project.
@@ -50,6 +50,10 @@ function FlowEditorInner() {
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(draftId);
   const [projectChoice, setProjectChoice] = useState<string>(fromProject ?? activeProjectId ?? '');
   const [projectInfo, setProjectInfo] = useState<{ items: number; has_source: boolean } | null>(null);
+  // The saved project selection loads after the first render; default the draft panel to it then.
+  useEffect(() => {
+    if (projectReady && !fromProject && activeProjectId) setProjectChoice((c) => c || activeProjectId);
+  }, [projectReady, activeProjectId, fromProject]);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [drafting, setDrafting] = useState(false);
