@@ -37,7 +37,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!(await isDbAvailable())) return null;
 
-        const res = await query('SELECT * FROM users WHERE email = $1', [email]);
+        const res = await query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
         const user = res.rows[0];
         if (!user) return null;
 
@@ -51,6 +51,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           image: user.image,
           role: user.role || 'user',
           emailVerified: user.email_verified || false,
+          authEpoch: user.auth_epoch ?? 0,
         };
       },
     }),
@@ -65,7 +66,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           try {
             if (await isDbAvailable()) {
               const existing = await query(
-                'SELECT id, role, email_verified FROM users WHERE email = $1',
+                'SELECT id, role, email_verified, password_hash, auth_epoch FROM users WHERE LOWER(email) = LOWER($1)',
                 [user.email]
               );
               if (existing.rows.length === 0) {
@@ -77,10 +78,27 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
                 token.sub = userId;
                 token.role = 'user';
                 token.emailVerified = true;
+                token.authEpoch = 0;
               } else {
-                token.sub = existing.rows[0].id;
-                token.role = existing.rows[0].role || 'user';
-                token.emailVerified = existing.rows[0].email_verified ?? true;
+                const row = existing.rows[0];
+                let epoch = row.auth_epoch ?? 0;
+                if (!row.email_verified) {
+                  // The provider has just proved this person owns the address, but the existing account was
+                  // created with a password nobody verified. It may have been registered by someone else to
+                  // squat on this email, so the verified owner takes it over: the old password stops working,
+                  // every existing session and API key is cancelled, and the email is marked verified.
+                  const claimed = await query(
+                    `UPDATE users SET password_hash = $2, email_verified = TRUE, auth_epoch = auth_epoch + 1
+                     WHERE id = $1 RETURNING auth_epoch`,
+                    [row.id, 'oauth-' + account.provider]
+                  );
+                  await query('UPDATE user_api_keys SET is_active = FALSE WHERE user_id = $1', [row.id]);
+                  epoch = claimed.rows[0]?.auth_epoch ?? epoch + 1;
+                }
+                token.sub = row.id;
+                token.role = row.role || 'user';
+                token.emailVerified = true;
+                token.authEpoch = epoch;
               }
             }
           } catch (e) {
@@ -90,6 +108,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.sub = user.id;
           token.role = (user as unknown as Record<string, unknown>).role || 'user';
           token.emailVerified = (user as unknown as Record<string, unknown>).emailVerified || false;
+          token.authEpoch = ((user as unknown as Record<string, unknown>).authEpoch as number) ?? 0;
         }
         token.provider = account.provider;
       }
@@ -98,9 +117,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         try {
           if (await isDbAvailable()) {
             const userRefresh = await query(
-              'SELECT role, email_verified FROM users WHERE id = $1',
+              'SELECT role, email_verified, auth_epoch FROM users WHERE id = $1',
               [token.sub]
             );
+            // Account deleted, or its sessions were cancelled after this token was issued: sign out.
+            if (userRefresh.rows.length === 0) return null;
+            if ((userRefresh.rows[0].auth_epoch ?? 0) !== ((token.authEpoch as number) ?? 0)) return null;
             if (userRefresh.rows.length > 0) {
               token.role = userRefresh.rows[0].role || 'user';
               token.emailVerified = userRefresh.rows[0].email_verified ?? false;

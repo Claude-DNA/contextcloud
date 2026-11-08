@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { isDbAvailable } from '@/lib/db';
+import { generate } from '@/lib/gemini';
 
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 // Normalize Gemini's sometimes-wrong cloud_type names
 const TYPE_ALIASES: Record<string, string> = {
@@ -72,26 +72,12 @@ Text:
 ${text.slice(0, 30000)}`;
 
   try {
-    const res = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 8192,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      return NextResponse.json({ error: `AI service error: ${res.status}`, details: err }, { status: 502 });
+    let responseText: string;
+    try {
+      responseText = await generate({ apiKey, prompt, temperature: 0.7, maxOutputTokens: 8192, json: true });
+    } catch (e) {
+      return NextResponse.json({ error: 'AI service error', details: e instanceof Error ? e.message : String(e) }, { status: 502 });
     }
-
-    const data = await res.json();
-    const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 
     const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     const parsed = JSON.parse(cleaned);

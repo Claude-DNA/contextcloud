@@ -234,7 +234,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
     const aiNodeInGraph = nodes.find(n => (n.data?.type as string) === 'aiNode' && (n.data?.apiKey as string));
     if (aiNodeInGraph) {
       aiNodeConfig = {
-        model: (aiNodeInGraph.data?.model as string) || 'gemini-2.0-flash',
+        model: (aiNodeInGraph.data?.model as string) || 'gemini-3.8-flash',
         apiKey: (aiNodeInGraph.data?.apiKey as string) || '',
         systemPrompt: (aiNodeInGraph.data?.systemPrompt as string) || undefined,
         temperature: (aiNodeInGraph.data?.temperature as number) ?? 0.7,

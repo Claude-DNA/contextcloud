@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
+/** Removes AI provider keys from saved graphs (older clients stored them on AI nodes). */
+function stripKeys(canvas: unknown): unknown {
+  if (!canvas || typeof canvas !== 'object') return canvas;
+  const c = canvas as { nodes?: { data?: Record<string, unknown> }[] };
+  for (const n of c.nodes ?? []) if (n?.data && 'apiKey' in n.data) delete n.data.apiKey;
+  return canvas;
+}
+
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 
@@ -60,7 +68,7 @@ export async function POST(req: NextRequest) {
       description || '',
       type || 'cloud',
       JSON.stringify(layers || []),
-      canvas ? JSON.stringify(canvas) : null,
+      canvas ? JSON.stringify(stripKeys(canvas)) : null,
     ]
   );
 
@@ -106,7 +114,7 @@ export async function PUT(req: NextRequest) {
   }
   if (canvas !== undefined) {
     sets.push(`canvas_json = $${i++}::jsonb`);
-    vals.push(JSON.stringify(canvas));
+    vals.push(JSON.stringify(stripKeys(canvas)));
   }
   sets.push('updated_at = NOW()');
 

@@ -4,13 +4,10 @@ import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { generate, parseJson } from '@/lib/gemini';
 
 export const maxDuration = 60; // seconds — 4 parallel Gemini calls need headroom
 
-// Mutable per-invocation key — set at start of POST handler (serverless: one req per instance)
-let GOOGLE_AI_API_KEY = '';
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 // ── Text extraction ────────────────────────────────────────────────────────
 async function extractText(file: File): Promise<string> {
@@ -76,28 +73,9 @@ interface ExtractedData {
 }
 
 // ── Single Gemini call ────────────────────────────────────────────────────
-async function geminiCall(prompt: string): Promise<unknown> {
-  const res = await fetch(`${GEMINI_URL}?key=${GOOGLE_AI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: {
-        temperature: 0.1,
-        maxOutputTokens: 8192,
-        // NOTE: no responseMimeType — JSON mode forces empty [] on complex schemas
-        // Instead we rely on prompt instruction + manual cleanup below
-      },
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini error ${res.status}: ${err.slice(0, 200)}`);
-  }
-  const data = await res.json();
-  const raw: string = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-  const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  return JSON.parse(cleaned);
+async function geminiCall(prompt: string, apiKey: string): Promise<unknown> {
+  // No JSON mode: on complex schemas it tends to return an empty []; parseJson cleans up instead.
+  return parseJson(await generate({ apiKey, prompt, temperature: 0.1, maxOutputTokens: 8192 }));
 }
 
 const SECTION_HEADER = `
@@ -178,7 +156,7 @@ function parseArcFromText(text: string): {
 }
 
 // ── Pass 1: Arc wrapper ───────────────────────────────────────────────────
-async function extractArc(text: string) {
+async function extractArc(text: string, apiKey: string) {
   const parsed = parseArcFromText(text);
 
   // If parser found chapters, use them directly
@@ -195,14 +173,14 @@ ${SECTION_HEADER}
 DOCUMENT: ${text.slice(0, 80_000)}`;
 
   try {
-    return await geminiCall(prompt) as typeof parsed;
+    return await geminiCall(prompt, apiKey) as typeof parsed;
   } catch {
     return parsed;
   }
 }
 
 // ── Pass 2: Characters ────────────────────────────────────────────────────
-async function extractCharacters(text: string) {
+async function extractCharacters(text: string, apiKey: string) {
   const prompt = `Extract ALL named characters from this story document.
 RETURN ONLY valid JSON array — no markdown, no explanation.
 
@@ -222,13 +200,13 @@ ${SECTION_HEADER}
 DOCUMENT:
 ${text.slice(0, 80_000)}`;
 
-  return await geminiCall(prompt) as Array<{
+  return await geminiCall(prompt, apiKey) as Array<{
     title: string; content: string; role: string; arc: string; tags: string[];
   }>;
 }
 
 // ── Pass 3: Stages + World ────────────────────────────────────────────────
-async function extractStagesAndWorld(text: string) {
+async function extractStagesAndWorld(text: string, apiKey: string) {
   const prompt = `Extract all STAGES and WORLD concepts from this story document.
 RETURN ONLY valid JSON — no markdown, no explanation.
 
@@ -256,14 +234,14 @@ ${SECTION_HEADER}
 DOCUMENT:
 ${text.slice(0, 80_000)}`;
 
-  return await geminiCall(prompt) as {
+  return await geminiCall(prompt, apiKey) as {
     stages: Array<{ title: string; content: string; act: string; tags: string[] }>;
     world: Array<{ title: string; content: string; category: string; tags: string[] }>;
   };
 }
 
 // ── Pass 4: References ────────────────────────────────────────────────────
-async function extractReferences(text: string) {
+async function extractReferences(text: string, apiKey: string) {
   const prompt = `Extract ALL film, music, art, and book references from this story document.
 RETURN ONLY valid JSON array — no markdown, no explanation.
 
@@ -285,13 +263,13 @@ ${SECTION_HEADER}
 DOCUMENT:
 ${text.slice(0, 80_000)}`;
 
-  return await geminiCall(prompt) as Array<{
+  return await geminiCall(prompt, apiKey) as Array<{
     title: string; content: string; refType: 'film' | 'music' | 'art' | 'book'; chapter: string;
   }>;
 }
 
 // ── Pass 5: Ideas (themes + associations) ────────────────────────────────
-async function extractIdeas(text: string): Promise<string[]> {
+async function extractIdeas(text: string, apiKey: string): Promise<string[]> {
   const prompt = `Extract the key thematic ideas, associations, and insights from this story document.
 RETURN ONLY a valid JSON array of strings — no markdown, no explanation.
 
@@ -311,20 +289,19 @@ ${SECTION_HEADER}
 DOCUMENT:
 ${text.slice(0, 80_000)}`;
 
-  const data = await geminiCall(prompt) as string[];
+  const data = await geminiCall(prompt, apiKey) as string[];
   return Array.isArray(data) ? data : [];
 }
 
 // ── Orchestrate all passes ────────────────────────────────────────────────
-async function extractWithGemini(text: string): Promise<ExtractedData & { ideas: string[] }> {
-  if (!GOOGLE_AI_API_KEY) throw new Error('No API key configured — add your Google AI key in Settings');
+async function extractWithGemini(text: string, apiKey: string): Promise<ExtractedData & { ideas: string[] }> {
 
   const [arcResult, charsResult, stagesWorldResult, refsResult, ideasResult] = await Promise.allSettled([
-    extractArc(text),
-    extractCharacters(text),
-    extractStagesAndWorld(text),
-    extractReferences(text),
-    extractIdeas(text),
+    extractArc(text, apiKey),
+    extractCharacters(text, apiKey),
+    extractStagesAndWorld(text, apiKey),
+    extractReferences(text, apiKey),
+    extractIdeas(text, apiKey),
   ]);
 
   // Log failures so Vercel logs reveal the root cause
@@ -397,7 +374,6 @@ export async function POST(req: NextRequest) {
   // Resolve BYOT key (DB is awake now, query will succeed)
   const resolvedKey = await getGeminiKey(userId);
   if (!resolvedKey) return noKeyResponse();
-  GOOGLE_AI_API_KEY = resolvedKey;
 
   let file: File | null = null;
   try {
@@ -427,7 +403,7 @@ export async function POST(req: NextRequest) {
   // Parse with Gemini
   let extracted: ExtractedData;
   try {
-    extracted = await extractWithGemini(text);
+    extracted = await extractWithGemini(text, resolvedKey);
   } catch (e) {
     return NextResponse.json({ error: `AI extraction failed: ${(e as Error).message}` }, { status: 500 });
   }

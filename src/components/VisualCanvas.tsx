@@ -1080,7 +1080,7 @@ export default function VisualCanvas() {
       if (n.data.duration) clean.duration = n.data.duration;
       if (n.data.resolution) clean.resolution = n.data.resolution;
       if (n.data.model) clean.model = n.data.model;
-      if (n.data.apiKey) clean.apiKey = n.data.apiKey;
+      // AI provider keys are never saved with the graph; they stay in this browser session only.
       if (n.data.systemPrompt) clean.systemPrompt = n.data.systemPrompt;
       if (n.data.temperature !== undefined) clean.temperature = n.data.temperature;
       if (n.data.instructions) clean.instructions = n.data.instructions;

@@ -197,14 +197,14 @@ export const OUTPUT_HANDLES: Record<string, TypedHandle[]> = {
 
 export const AI_NODE_CONFIG = {
   availableModels: [
-    { id: 'claude-sonnet-4-5', label: 'Claude Sonnet', provider: 'Anthropic' },
-    { id: 'claude-opus-4-5', label: 'Claude Opus', provider: 'Anthropic' },
+    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'Anthropic' },
+    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'Anthropic' },
     { id: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI' },
     { id: 'gpt-4', label: 'GPT-4', provider: 'OpenAI' },
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash', provider: 'Google' },
-    { id: 'gemini-pro', label: 'Gemini Pro', provider: 'Google' },
+    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', provider: 'Google' },
+    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', provider: 'Google' },
   ],
-  defaultModel: 'gemini-2.0-flash',
+  defaultModel: 'gemini-3.8-flash',
   providerUrls: {
     Anthropic: 'https://console.anthropic.com/settings/keys',
     OpenAI: 'https://platform.openai.com/api-keys',

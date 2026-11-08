@@ -3,6 +3,7 @@ import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { generate, GEMINI_MODEL } from '@/lib/gemini';
 
 interface CloudItem {
   id: string;
@@ -14,20 +15,7 @@ interface CloudItem {
 }
 
 async function callGemini(prompt: string, apiKey: string): Promise<string> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7, maxOutputTokens: 4096 },
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`Gemini API error: ${await res.text()}`);
-  const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  return generate({ apiKey, prompt, model: GEMINI_MODEL, temperature: 0.7, maxOutputTokens: 4096 });
 }
 
 export async function buildManifest(userId: string, userEmail?: string | null, projectTitleOverride?: string) {

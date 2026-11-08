@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { generate, resolveGeminiModel, GEMINI_MODEL } from '@/lib/gemini';
 
 interface SuggestBody {
   nodeType: string;
@@ -101,20 +102,7 @@ function parseSuggestions(text: string): string[] {
 }
 
 async function callGemini(prompt: string, apiKey: string, model: string, temperature: number): Promise<string> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature, maxOutputTokens: 1024 },
-      }),
-    }
-  );
-  if (!res.ok) throw new Error(`Gemini API error: ${await res.text()}`);
-  const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+  return (await generate({ apiKey, prompt, model: resolveGeminiModel(model), temperature, maxOutputTokens: 1024 })) || '[]';
 }
 
 async function callAnthropic(prompt: string, apiKey: string, model: string, temperature: number, systemPrompt?: string): Promise<string> {
@@ -181,7 +169,7 @@ export async function POST(req: NextRequest) {
     } else {
       const apiKey = await getGeminiKey(userId);
       if (!apiKey) return noKeyResponse();
-      text = await callGemini(prompt, apiKey, 'gemini-2.0-flash', 0.9);
+      text = await callGemini(prompt, apiKey, GEMINI_MODEL, 0.9);
     }
 
     const suggestions = parseSuggestions(text);

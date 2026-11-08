@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { generate, GEMINI_MODEL_LITE } from '@/lib/gemini';
 
 const TAG_INSTRUCTIONS: Record<string, string> = {
   characters: `Generate tags that capture this character's psychology, role, and dramatic function.
@@ -66,21 +67,7 @@ Generate 4–7 short, specific tags. Rules:
 Return ONLY a JSON array of lowercase strings. Example: ["guilt-driven", "arc-complete", "protector-role"]`;
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: { temperature: 0.7, maxOutputTokens: 256 },
-        }),
-      }
-    );
-
-    if (!res.ok) throw new Error(`Gemini error: ${await res.text()}`);
-    const data = await res.json();
-    const raw = data?.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
+    const raw = await generate({ apiKey, prompt, model: GEMINI_MODEL_LITE, temperature: 0.7, maxOutputTokens: 256, json: true });
     const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
     const tags: string[] = JSON.parse(cleaned);
     return NextResponse.json({ tags: Array.isArray(tags) ? tags : [] });

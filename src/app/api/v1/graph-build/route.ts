@@ -3,6 +3,7 @@ import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { generate } from '@/lib/gemini';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -203,28 +204,8 @@ Correct output:
 }`;
 }
 async function callGemini(prompt: string, apiKey: string): Promise<string> {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.3,
-          maxOutputTokens: 8192,
-          // Note: responseMimeType omitted — prompt contains example JSON which
-          // confuses Gemini into echoing it. Strip fences manually instead.
-        },
-      }),
-    }
-  );
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini error: ${err}`);
-  }
-  const data = await res.json();
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+  // No JSON mode: the prompt's example JSON makes Gemini echo it. Fences are stripped by the caller.
+  return (await generate({ apiKey, prompt, temperature: 0.3, maxOutputTokens: 8192 })) || '{}';
 }
 
 // ─── Graph validation + sanitisation ─────────────────────────────────────────

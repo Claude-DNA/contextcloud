@@ -4,10 +4,8 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
+import { generate, parseJson, type GeminiPart } from '@/lib/gemini';
 
-// Mutable per-invocation key - set at start of POST handler
-let GOOGLE_AI_API_KEY = '';
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
 
 const VALID_CLOUD_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
 type CloudType = typeof VALID_CLOUD_TYPES[number];
@@ -151,7 +149,7 @@ All other layers (scenes, world, references) — extract normally as supporting 
 `;
 }
 
-async function callGeminiExtract(input: FileContent, structureBlock = '', temperatureBlock = '', characterTransformBlock = '', geminiTemperature = 0.7): Promise<ExtractedItem[]> {
+async function callGeminiExtract(apiKey: string, input: FileContent, structureBlock = '', temperatureBlock = '', characterTransformBlock = '', geminiTemperature = 0.7): Promise<ExtractedItem[]> {
   const prompt = `You are Context Cloud Architect — the lossless extraction engine for contextcloud.studio.
 Mission: retain 100% of the information from the source text. Map every fact into the six layers. Never omit, merge, summarize, or invent.
 
@@ -194,39 +192,10 @@ ${input.kind === 'text'
   : `━━━ SOURCE DOCUMENT ━━━\nThe attached document is the source material. Read it fully, then map all content to the six layers.`
 }`;
 
-  if (!GOOGLE_AI_API_KEY) {
-    throw new Error('GOOGLE_AI_API_KEY not configured');
-  }
-
-  // Build content parts — PDF is sent as inline binary, everything else as text
-  const parts: object[] = input.kind === 'binary'
+  const parts: GeminiPart[] = input.kind === 'binary'
     ? [{ text: prompt }, { inlineData: { mimeType: input.mimeType, data: input.base64 } }]
     : [{ text: prompt }];
-
-  const res = await fetch(`${GEMINI_URL}?key=${GOOGLE_AI_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        temperature: geminiTemperature,
-        maxOutputTokens: 8192,
-        responseMimeType: 'application/json',
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Gemini API error: ${res.status} ${err}`);
-  }
-
-  const data = await res.json();
-  const responseText = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-  // Parse JSON from response (strip code fences if present)
-  const cleaned = responseText.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  const parsed = JSON.parse(cleaned);
+  const parsed = parseJson(await generate({ apiKey, prompt: parts, temperature: geminiTemperature, maxOutputTokens: 8192, json: true }));
 
   if (!Array.isArray(parsed)) {
     throw new Error('Expected JSON array from extraction');
@@ -261,7 +230,6 @@ export async function POST(req: NextRequest) {
 
   const resolvedKey = await getGeminiKey(userId);
   if (!resolvedKey) return noKeyResponse();
-  GOOGLE_AI_API_KEY = resolvedKey;
 
   try {
     const formData = await req.formData();
@@ -317,7 +285,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Extract items using Context Cloud Architect prompt
-    const items = await callGeminiExtract(fileContent, structureBlock, temperatureBlock, characterTransformBlock, geminiTemperature);
+    const items = await callGeminiExtract(resolvedKey, fileContent, structureBlock, temperatureBlock, characterTransformBlock, geminiTemperature);
 
     if (items.length === 0) {
       return NextResponse.json({ error: 'No items could be extracted from the file' }, { status: 400 });

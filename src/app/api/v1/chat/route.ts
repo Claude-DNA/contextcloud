@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { isDbAvailable } from '@/lib/db';
+import { modelUrl, GEMINI_MODEL } from '@/lib/gemini';
 
 const SYSTEM_PROMPT = `You are Upload Wizard — the narratologist and structural architect for contextcloud.studio.
 Your mission: turn any raw story files (novel, screenplay, treatment, notes) into a production-ready Context Cloud while initializing universal narrative physics for consistency and generative power.
@@ -260,7 +261,7 @@ export async function POST(req: NextRequest) {
     parts: [{ text: m.content }],
   }));
 
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:streamGenerateContent?alt=sse&key=${apiKey}`;
+  const geminiUrl = modelUrl(GEMINI_MODEL, 'streamGenerateContent', apiKey);
 
   const geminiRes = await fetch(geminiUrl, {
     method: 'POST',

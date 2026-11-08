@@ -1,44 +1,38 @@
 import { query } from '@/lib/db';
-
-const ADMIN_EMAIL = 'baldnewguy@gmail.com';
+import { open } from '@/lib/secret-box';
+import { isAdmin } from '@/lib/admin';
 
 /**
  * Resolves the Gemini API key for a given user.
- * - User has a stored key → use it
- * - User is admin → fall back to env var
+ * - User has a stored key → use it (decrypted)
+ * - User is the admin with a verified email, or has the admin role → fall back to the server key
  * - Otherwise → null (BYOT required)
  */
 export async function getGeminiKey(
   userId: string,
   userEmail?: string | null
 ): Promise<string | null> {
-  let resolvedEmail = userEmail;
-
-  // Try to get stored key and email
   try {
     const res = await query(
-      'SELECT google_ai_key, email FROM users WHERE id = $1',
+      'SELECT google_ai_key, email, role, email_verified FROM users WHERE id = $1',
       [userId]
     );
-    const stored = res.rows[0]?.google_ai_key as string | null;
-    if (stored && stored.trim().length > 0) return stored.trim();
-    if (!resolvedEmail) resolvedEmail = res.rows[0]?.email as string | null;
-  } catch {
-    // google_ai_key column might not exist yet — try email only
-    try {
-      const res = await query('SELECT email FROM users WHERE id = $1', [userId]);
-      if (!resolvedEmail) resolvedEmail = res.rows[0]?.email as string | null;
-    } catch {
-      // DB issue, fall through
+    const row = res.rows[0];
+    if (!row) return null;
+    const stored = (row.google_ai_key as string | null)?.trim();
+    if (stored) {
+      const key = open(stored);
+      if (key) return key;
     }
+    const admin = isAdmin({
+      email: (row.email as string) ?? userEmail ?? null,
+      role: row.role as string,
+      emailVerified: row.email_verified as boolean,
+    });
+    return admin ? process.env.GOOGLE_AI_API_KEY || null : null;
+  } catch {
+    return null;
   }
-
-  // Admin fallback — use server env key
-  if (resolvedEmail === ADMIN_EMAIL || userId === ADMIN_EMAIL) {
-    return process.env.GOOGLE_AI_API_KEY || null;
-  }
-
-  return null;
 }
 
 export function noKeyResponse() {

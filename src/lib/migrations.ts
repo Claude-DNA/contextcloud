@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -305,6 +305,14 @@ export async function runMigrations(): Promise<boolean> {
 
     // BYOT — user-stored Google AI key
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS google_ai_key TEXT`);
+
+    // The visual editor saves drafts as type 'graph' (v2).
+    await query(`ALTER TABLE cloud_drafts DROP CONSTRAINT IF EXISTS cloud_drafts_type_check`);
+    await query(`ALTER TABLE cloud_drafts ADD CONSTRAINT cloud_drafts_type_check CHECK (type IN ('cloud', 'flow', 'graph'))`);
+
+    // Sessions are tied to an epoch; bumping it signs the account out everywhere (v2).
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_epoch INTEGER NOT NULL DEFAULT 0`);
+    await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email))`);
 
     // API keys — programmatic access for AI agents and integrations
     await query(`
