@@ -1175,7 +1175,7 @@ export default function VisualCanvas() {
       const data = await res.json() as {
         nodes?: BuildNode[];
         edges?: BuildEdge[];
-        meta?: { itemsUsed: number; nodesGenerated: number; edgesGenerated: number };
+        meta?: { itemsUsed: number; nodesGenerated: number; edgesGenerated: number; scenes?: number; scenesBuilt?: number; scenesFailed?: number; partial?: boolean };
         error?: string;
       };
 
@@ -1209,7 +1209,9 @@ export default function VisualCanvas() {
       setTimeout(() => reactFlowInstance.fitView({ duration: 600, padding: 0.15 }), 200);
 
       showToast(
-        `✨ Graph built: ${incomingNodes.length} nodes, ${incomingEdges.length} edges${data.meta ? ` from ${data.meta.itemsUsed} cloud items` : ''}`
+        data.meta?.partial || data.meta?.scenesFailed
+          ? `⚠️ Graph built for ${data.meta.scenesBuilt} of ${data.meta.scenes} scenes${data.meta.partial ? ' (time limit reached; select fewer scenes to build the rest)' : ''}${data.meta.scenesFailed ? `, ${data.meta.scenesFailed} failed` : ''}`
+          : `✨ Graph built: ${data.meta?.scenes ?? ''} scenes, ${incomingNodes.length} nodes, ${incomingEdges.length} edges${data.meta ? ` from ${data.meta.itemsUsed} cloud items` : ''}`
       );
     } catch (err) {
       showToast(`Auto-build error: ${err}`);
