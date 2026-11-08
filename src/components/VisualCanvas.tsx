@@ -1123,22 +1123,16 @@ export default function VisualCanvas() {
   }, [session, draftId, title, nodes, edges, showToast, cleanNodesForSave, flushSync]);
 
   // ── Publish ─────────────────────────────────────────────────────────────────
+  // A graph isn't published as is: "Make a flow" saves it, then drafts a ConteXtube flow from the project.
   const publish = useCallback(async () => {
     if (!session) return;
     setPublishing(true);
     try {
       await save();
-      const res = await fetch('/api/v1/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ draftId, title, type: 'graph' }),
-      });
-      const data = await res.json();
-      if (!res.ok) showToast(data.error || 'Publish failed');
-      else showToast(`Published! ${data.published?.url || ''}`);
-    } catch { showToast('Publish failed'); }
+    } catch { /* the flow editor still works from the saved clouds */ }
     setPublishing(false);
-  }, [session, draftId, title, save, showToast]);
+    window.location.href = `/workspace/traditional?type=flow&from_project=${activeProjectId ?? 'none'}`;
+  }, [session, save, activeProjectId]);
 
   // ── Copy for AI ─────────────────────────────────────────────────────────────
   const copyForAI = useCallback(() => {
@@ -1503,7 +1497,7 @@ export default function VisualCanvas() {
                     disabled={publishing}
                     className="px-3 py-1.5 text-xs font-medium bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 rounded-lg text-white transition-colors"
                   >
-                    {publishing ? 'Publishing...' : 'Publish'}
+                    {publishing ? 'Saving...' : 'Make a flow'}
                   </button>
 
                   {/* Runway export */}

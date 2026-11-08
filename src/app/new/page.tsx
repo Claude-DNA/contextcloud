@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: 'Start a new flow · Context Cloud' }
 const WAYS = [
   {
     title: 'Upload a text',
-    body: 'Drop in a story, essay or chapter. Context Cloud reads it and builds your characters, world, scenes and ideas.',
+    body: 'Drop in a story, essay or chapter. Context Cloud builds its clouds, then Make a flow drafts all five layers from them.',
     href: '/workspace/visual?upload=1',
     ai: true,
   },
@@ -28,7 +28,7 @@ const WAYS = [
   },
   {
     title: 'Write it yourself',
-    body: 'Fill in each layer by hand, from the core idea outward, and publish when it is ready.',
+    body: 'Open the flow editor and fill in the five layers yourself, or have the AI draft them from one of your projects.',
     href: '/workspace/traditional?type=flow',
     ai: false,
   },

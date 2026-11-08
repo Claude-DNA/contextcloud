@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -313,6 +313,22 @@ export async function runMigrations(): Promise<boolean> {
     // Sessions are tied to an epoch; bumping it signs the account out everywhere (v2).
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_epoch INTEGER NOT NULL DEFAULT 0`);
     await query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email))`);
+
+    // Flow settings on drafts: source work, rights, purchase link, project (v3).
+    await query(`ALTER TABLE cloud_drafts ADD COLUMN IF NOT EXISTS meta_json JSONB NOT NULL DEFAULT '{}'::jsonb`);
+
+    // The text a project was built from, kept for quote checks and as L5 source text (v3).
+    await query(`
+      CREATE TABLE IF NOT EXISTS project_sources (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id     TEXT NOT NULL,
+        project_id  UUID REFERENCES projects(id) ON DELETE CASCADE,
+        filename    TEXT NOT NULL DEFAULT '',
+        text        TEXT NOT NULL,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_project_sources_project ON project_sources (user_id, project_id)`);
 
     // API keys — programmatic access for AI agents and integrations
     await query(`

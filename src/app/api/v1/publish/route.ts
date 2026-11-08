@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
+import { ensureSchema } from '@/lib/migrations';
+import { passages, toFlowChunks, validateFlow, type FlowChunk, type FlowMeta } from '@/lib/flow';
 
 /**
- * Publishes a cloud draft to ConteXtube (POST {CONTEXTUBE_URL}/api/v1/publish).
+ * Publishes a flow to ConteXtube (POST {CONTEXTUBE_URL}/api/v1/publish).
  * ConteXtube needs a publish key: CONTEXTUBE_PUBLISH_KEY must match a `studio:<secret>` entry in its PUBLISH_KEYS.
+ *
+ * Body: { draftId?, title?, description?, tags?, chunks?, meta? }. Anything missing is read from the saved draft.
+ * Chunks are ConteXtube layers (1–5); older drafts with free-form layer types are converted.
  */
-
-type StudioLayer = { name?: string; type?: string; content?: string };
-
-// Each Studio layer type goes to the ConteXtube layer that holds that kind of material.
-// No type maps to L2, because ConteXtube requires every L2 idea to carry a source quote.
-const LAYER_FOR_TYPE: Record<string, number> = {
-  core: 1, // the essence
-  cultural: 3, // connections to culture
-  bridge: 3, // connections to other works
-  context: 4, // interpretation
-  reference: 5, // notes on sources
-};
 
 function slugify(s: string): string {
   return s
@@ -32,58 +25,61 @@ function slugify(s: string): string {
 export async function POST(req: NextRequest) {
   try {
     const userId = await getAuthUserId(req);
-    if (!userId) {
-      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
-    }
+    if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
 
     const publishKey = process.env.CONTEXTUBE_PUBLISH_KEY;
     if (!publishKey) {
       return NextResponse.json({ error: 'Publishing to ConteXtube is not set up on this server yet.' }, { status: 503 });
     }
-
-    if (!(await isDbAvailable())) {
-      return NextResponse.json({ error: 'Database not available' }, { status: 503 });
-    }
+    if (!(await isDbAvailable())) return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+    await ensureSchema().catch(() => {});
 
     const body = await req.json();
-    const { draftId, type } = body as { draftId?: string; type?: string };
-    let { title, description, layers } = body as { title?: string; description?: string; layers?: StudioLayer[] };
+    const draftId: string | undefined = body.draftId;
+    let title: string | undefined = body.title;
+    let description: string | undefined = body.description;
+    let rawChunks: unknown = body.chunks ?? body.layers;
+    let meta: FlowMeta = body.meta && typeof body.meta === 'object' ? body.meta : {};
 
-    // The visual editor sends only the draft id: read the layers from the saved draft.
-    if ((!layers || layers.length === 0) && draftId) {
-      const draft = await query(
-        'SELECT title, description, layers_json FROM cloud_drafts WHERE id = $1 AND user_id = $2',
+    if (draftId && (!rawChunks || (Array.isArray(rawChunks) && rawChunks.length === 0) || !title)) {
+      const d = await query(
+        'SELECT title, description, layers_json, meta_json FROM cloud_drafts WHERE id = $1 AND user_id = $2',
         [draftId, userId]
       );
-      layers = (draft.rows[0]?.layers_json as StudioLayer[]) ?? [];
-      title = title || (draft.rows[0]?.title as string);
-      description = description || (draft.rows[0]?.description as string);
+      const row = d.rows[0];
+      if (!row) return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+      title = title || row.title;
+      description = description || row.description;
+      if (!rawChunks || (Array.isArray(rawChunks) && rawChunks.length === 0)) rawChunks = row.layers_json;
+      if (!body.meta) meta = row.meta_json ?? {};
     }
 
-    const filled = (layers ?? []).filter((l) => typeof l?.content === 'string' && l.content.trim());
-    if (!title || filled.length === 0) {
-      return NextResponse.json(
-        { error: 'Add a title and write at least one layer before publishing.' },
-        { status: 400 }
+    const chunks: FlowChunk[] = toFlowChunks(rawChunks, () => crypto.randomUUID()).filter((c) => c.text.trim());
+
+    // The source text as L5 passages, when the author chose it and the rights allow it.
+    if (meta.include_source && meta.rights !== 'copyrighted' && !chunks.some((c) => c.layer === 5 && c.type === 'narrative')) {
+      const scope = meta.project_id ? 'project_id = $2' : 'project_id IS NULL';
+      const src = await query(
+        `SELECT text FROM project_sources WHERE user_id = $1 AND ${scope} ORDER BY created_at`,
+        meta.project_id ? [userId, meta.project_id] : [userId]
       );
+      for (const row of src.rows) {
+        for (const p of passages(row.text as string)) {
+          chunks.push({ id: crypto.randomUUID(), layer: 5, type: 'narrative', text: p, importance: 0.2 });
+        }
+      }
     }
 
-    const chunks = filled.map((l) => {
-      const layer = LAYER_FOR_TYPE[l.type ?? ''] ?? 4;
-      return {
-        layer,
-        type: layer === 5 ? 'meta' : 'idea',
-        text: l.content!.trim(),
-        importance: l.type === 'core' ? 0.9 : 0.5,
-        standalone: true,
-        metadata: { layerName: l.name ?? null, layerType: l.type ?? null, source: 'contextcloud.studio' },
-      };
-    });
+    const problems = validateFlow(title ?? '', chunks, meta);
+    if (problems.length) {
+      return NextResponse.json({ error: problems.map((p) => p.message).join(' '), problems }, { status: 400 });
+    }
 
     const author = await query('SELECT name, email FROM users WHERE id = $1', [userId]);
     const authorName = (author.rows[0]?.name as string) || (author.rows[0]?.email as string)?.split('@')[0] || 'Context Cloud';
 
     const base = (process.env.CONTEXTUBE_URL ?? 'https://contextube.ai').replace(/\/$/, '');
+    const tags: string[] = Array.isArray(body.tags) ? body.tags.map(String).filter(Boolean) : [];
     const tubeResponse = await fetch(`${base}/api/v1/publish`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${publishKey}` },
@@ -94,10 +90,23 @@ export async function POST(req: NextRequest) {
         title,
         description: description || '',
         language: 'en',
-        rights: 'own',
-        tags: [type || 'cloud'],
+        rights: meta.rights ?? 'own',
+        ...(meta.source_title ? { source_title: meta.source_title } : {}),
+        ...(meta.source_author ? { source_author: meta.source_author } : {}),
+        ...(meta.rights === 'copyrighted' && meta.purchase_url ? { purchase_url: meta.purchase_url } : {}),
+        tags: tags.length ? tags : ['flow'],
         domains: [],
-        chunks,
+        chunks: chunks.map((c) => ({
+          layer: c.layer,
+          type: c.type,
+          ...(c.extract ? { extract: c.extract } : {}),
+          text: c.text.trim(),
+          ...(c.source_quote ? { source_quote: c.source_quote } : {}),
+          ...(c.links?.length ? { links: c.links } : {}),
+          ...(typeof c.importance === 'number' ? { importance: c.importance } : {}),
+          standalone: true,
+          metadata: { source: 'contextcloud.studio' },
+        })),
       }),
     });
 
@@ -122,6 +131,7 @@ export async function POST(req: NextRequest) {
         id: tubeData.content?.id,
         slug: tubeData.content?.slug,
         url: `${base}/content/${tubeData.content?.slug}`,
+        chunks: chunks.length,
       },
     });
   } catch (error) {

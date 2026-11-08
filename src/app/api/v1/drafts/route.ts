@@ -52,15 +52,15 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { title, description, type, layers, canvas } = body;
+  const { title, description, type, layers, canvas, meta } = body;
 
   if (!title) {
     return NextResponse.json({ error: 'Title is required' }, { status: 400 });
   }
 
   const res = await query(
-    `INSERT INTO cloud_drafts (user_id, title, description, type, layers_json, canvas_json)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb)
+    `INSERT INTO cloud_drafts (user_id, title, description, type, layers_json, canvas_json, meta_json)
+     VALUES ($1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb)
      RETURNING id, title, description, type, status, created_at, updated_at`,
     [
       userId,
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       type || 'cloud',
       JSON.stringify(layers || []),
       canvas ? JSON.stringify(stripKeys(canvas)) : null,
+      JSON.stringify(meta && typeof meta === 'object' ? meta : {}),
     ]
   );
 
@@ -86,7 +87,7 @@ export async function PUT(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { id, title, description, type, layers, canvas } = body;
+  const { id, title, description, type, layers, canvas, meta } = body;
 
   if (!id) {
     return NextResponse.json({ error: 'Draft ID is required' }, { status: 400 });
@@ -115,6 +116,10 @@ export async function PUT(req: NextRequest) {
   if (canvas !== undefined) {
     sets.push(`canvas_json = $${i++}::jsonb`);
     vals.push(JSON.stringify(stripKeys(canvas)));
+  }
+  if (meta !== undefined && meta && typeof meta === 'object') {
+    sets.push(`meta_json = $${i++}::jsonb`);
+    vals.push(JSON.stringify(meta));
   }
   sets.push('updated_at = NOW()');
 
