@@ -26,6 +26,8 @@ export const STYLE_PRESETS = [
 export const DEFAULT_STYLE = STYLE_PRESETS[1];
 
 const MET = (process.env.MET_API_BASE || 'https://collectionapi.metmuseum.org/public/collection/v1').replace(/\/$/, '');
+// The Met retired /v1/search on 2026-10-01; search now lives at /v1.1/search (paginated). Objects stay on /v1.
+const MET_SEARCH = process.env.MET_API_BASE ? MET : MET.replace(/\/v1$/, '/v1.1');
 const AIC = (process.env.AIC_API_BASE || 'https://api.artic.edu/api/v1').replace(/\/$/, '');
 const NASA = (process.env.NASA_API_BASE || 'https://images-api.nasa.gov').replace(/\/$/, '');
 
@@ -120,7 +122,7 @@ async function getJson(url: string, ms = 8000): Promise<unknown> {
 }
 
 async function searchMet(q: string, n: number): Promise<Candidate[]> {
-  const s = (await getJson(`${MET}/search?hasImages=true&isPublicDomain=true&q=${encodeURIComponent(q)}`)) as { objectIDs?: number[] | null };
+  const s = (await getJson(`${MET_SEARCH}/search?hasImages=true&isPublicDomain=true&limit=${n * 3}&q=${encodeURIComponent(q)}`)) as { objectIDs?: number[] | null };
   const ids = (s.objectIDs ?? []).slice(0, n * 2);
   const objs = await Promise.all(ids.map((id) => getJson(`${MET}/objects/${id}`).catch(() => null)));
   return (objs as ({ objectID: number; isPublicDomain?: boolean; primaryImageSmall?: string; primaryImage?: string; title?: string; artistDisplayName?: string; objectDate?: string; objectURL?: string } | null)[])
