@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
-import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { isDbAvailable } from '@/lib/db';
 import { extractCloudItems } from '@/lib/extraction';
 
 
-// Normalize Gemini's sometimes-wrong cloud_type names
+// Normalises cloud_type names a model sometimes gets wrong
 const TYPE_ALIASES: Record<string, string> = {
   stage: 'scenes', location: 'scenes', setting: 'scenes',
   themes: 'ideas', theme: 'ideas', concept: 'ideas',
@@ -14,6 +14,9 @@ const TYPE_ALIASES: Record<string, string> = {
   character: 'characters',
   worlds: 'world', universe: 'world', rule: 'world',
 };
+
+/** Quick Capture takes the author's notes, not finished prose. */
+const QUICK_CAPTURE = `NOTES: this is the author's own material: notes, fragments or a pasted passage. Treat every statement as the author's decision about the story and file it in the right cloud, even when it describes something not yet written. Keep their wording. A one-line note becomes a one-sentence item; do not expand it or add anything they did not write.`;
 
 const VALID_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'];
 
@@ -24,8 +27,8 @@ export async function POST(req: NextRequest) {
   }
 
   await isDbAvailable(); // wake Neon if needed
-  const apiKey = await getGeminiKey(userId);
-  if (!apiKey) return noKeyResponse();
+  const ai = await getAiConfig(userId);
+  if (!ai) return noKeyResponse();
 
   const body = await req.json();
   const { text } = body as { text: string };
@@ -38,7 +41,7 @@ export async function POST(req: NextRequest) {
     // Same engine as file uploads; a snippet is usually one part. Beats stay separate (no act grouping).
     const { items: merged, coverage } = await extractCloudItems(
       { kind: 'text', text },
-      { apiKey, temperature: 0.6, groupActs: false }
+      { ai, temperature: 0.4, groupActs: false, blocks: QUICK_CAPTURE }
     );
     if (coverage.parts_extracted === 0) {
       return NextResponse.json({ error: 'AI service error', details: 'The extraction request failed. Try again.' }, { status: 502 });

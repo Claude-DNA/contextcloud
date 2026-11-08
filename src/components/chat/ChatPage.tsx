@@ -163,8 +163,8 @@ export default function ChatPage() {
         const errMsg: ChatMessage = {
           role: 'assistant',
           content: err.code === 'BYOT_REQUIRED'
-            ? 'Please add your Google AI API key in Settings to use the chat feature.'
-            : `Error: ${err.error || 'Something went wrong'}`,
+            ? 'Add an AI key in Settings to use the chat: Google Gemini, Anthropic Claude, OpenAI or OpenRouter.'
+            : `Error: ${err.message || err.error || 'Something went wrong'}`,
         };
         setMessages(prev => [...prev, errMsg]);
         setStreaming(false);

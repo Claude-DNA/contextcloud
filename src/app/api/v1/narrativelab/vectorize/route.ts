@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
-import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { getAiConfig, noKeyResponse, aiErrorResponse } from '@/lib/ai-key';
 import { query } from '@/lib/db';
 import {
+  VECTOR_SYSTEM,
+  VECTOR_SCHEMA,
   buildVectorizationPrompt,
-  parseVectorFromGemini,
+  parseVector,
   NarrativeVector,
   NARRATIVE_AXES,
 } from '@/lib/narrative-vectors';
-import { generate, GEMINI_MODEL_LITE } from '@/lib/gemini';
+import { generate, type AiConfig } from '@/lib/ai';
 
-async function callGemini(prompt: string, apiKey: string): Promise<string> {
-  return generate({ apiKey, prompt, model: GEMINI_MODEL_LITE, temperature: 0.2, maxOutputTokens: 256 });
+async function score(prompt: string, ai: AiConfig): Promise<string> {
+  return generate({ ai, light: true, system: VECTOR_SYSTEM, prompt, schema: VECTOR_SCHEMA, temperature: 0.2, maxTokens: 256 });
 }
 
 function vectorToRow(v: NarrativeVector) {
@@ -62,17 +64,22 @@ export async function POST(req: NextRequest) {
     }
 
 
-    // Build vectorization prompt and call Gemini
-    const apiKey = await getGeminiKey(userId);
-    if (!apiKey) return noKeyResponse();
+    // Score the element with the user's light model
+    const ai = await getAiConfig(userId);
+    if (!ai) return noKeyResponse();
 
     const prompt = buildVectorizationPrompt(elementType, elementText);
-    const geminiResponse = await callGemini(prompt, apiKey);
-    const vector = parseVectorFromGemini(geminiResponse);
+    let raw: string;
+    try {
+      raw = await score(prompt, ai);
+    } catch (e) {
+      return aiErrorResponse(e, 'Scoring failed');
+    }
+    const vector = parseVector(raw);
 
     if (!vector) {
       return NextResponse.json(
-        { error: 'Failed to parse vector from Gemini', raw: geminiResponse },
+        { error: 'The model did not return scores in the expected form', raw },
         { status: 500 }
       );
     }

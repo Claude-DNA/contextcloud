@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -348,6 +348,17 @@ export async function runMigrations(): Promise<boolean> {
       FROM idea_transformations t
       WHERE EXISTS (SELECT 1 FROM cloud_items c WHERE c.id = t.idea_id)
         AND NOT EXISTS (SELECT 1 FROM cloud_item_transformations x WHERE x.id = t.id)
+    `);
+
+    // v5: each user picks an AI provider and model and brings their own key. Keys are sealed
+    // per provider in ai_keys ({ google: "enc:v1:…", anthropic: …}); an existing Google key moves there.
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_provider TEXT`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_model TEXT`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_model_light TEXT`);
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_keys JSONB NOT NULL DEFAULT '{}'::jsonb`);
+    await query(`
+      UPDATE users SET ai_keys = ai_keys || jsonb_build_object('google', google_ai_key)
+      WHERE google_ai_key IS NOT NULL AND google_ai_key <> '' AND NOT (ai_keys ? 'google')
     `);
 
     // API keys — programmatic access for AI agents and integrations

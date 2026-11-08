@@ -1,7 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { unzipSync, strFromU8 } from 'fflate';
-import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { getAiConfig, noKeyResponse } from '@/lib/ai-key';
+import { pdfToText } from '@/lib/pdf-text';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 import { extractCloudItems } from '@/lib/extraction';
@@ -10,7 +11,7 @@ import { extractCloudItems } from '@/lib/extraction';
 const VALID_CLOUD_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
 type CloudType = typeof VALID_CLOUD_TYPES[number];
 
-// Represents extracted file content — either plain text or raw bytes for Gemini inline
+// Extracted file content: plain text, or the raw bytes of a scanned PDF for the model to read itself
 /** Longest source we read: about a 150,000-word novel. */
 const MAX_SOURCE_CHARS = 1_000_000;
 
@@ -78,11 +79,13 @@ async function extractFileContent(file: File): Promise<FileContent> {
     }
   }
 
-  // ── PDF — send raw bytes to Gemini as inline document ───────────────────────
+  // ── PDF — its text layer, read part by part like any other text. A scanned PDF has no
+  //    text layer and goes to the model whole, as a document it reads itself.
   if (name.endsWith('.pdf')) {
     const bytes = new Uint8Array(await file.arrayBuffer());
-    const base64 = Buffer.from(bytes).toString('base64');
-    return { kind: 'binary', mimeType: 'application/pdf', base64 };
+    const text = await pdfToText(bytes.slice()).catch(() => '');
+    if (text.replace(/\s/g, '').length >= 500) return { kind: 'text', text: text.slice(0, MAX_SOURCE_CHARS) };
+    return { kind: 'binary', mimeType: 'application/pdf', base64: Buffer.from(bytes).toString('base64') };
   }
 
   // ── EPUB — chapters in reading order (the OPF spine), paragraphs kept ───────
@@ -139,27 +142,11 @@ async function extractFileContent(file: File): Promise<FileContent> {
 
 
 function buildCharacterTransformBlock(): string {
-  return `
-━━━ CHARACTER TRANSFORMATION MODE (overrides default arc organization) ━━━
-Your primary focus is HOW characters change across the story.
-
-CHARACTERS layer — for every character item, include:
-  1. BEFORE STATE: who they are at the story's opening (beliefs, fears, behavior patterns)
-  2. CATALYST: the event or relationship that forces change
-  3. RESISTANCE: what they cling to — why change is hard for this specific person
-  4. AFTER STATE: who they become (or fail to become) by the end
-  5. CENTRAL CONTRADICTION: what they want vs what they actually need
-  6. TRANSFORMATION AGENTS: which other characters or events drive the arc
-
-ARC layer — organize beats around CHARACTER TURNING POINTS, not plot events:
-  - Each beat title should name whose transformation it marks and how
-  - Example: "Daniel's First Betrayal of the Creed" not "Act 2 Rising Action"
-
-IDEAS layer — focus on themes that directly DRIVE or REFLECT character transformation.
-  Each idea item: the tension → how it lives inside a specific character → what it costs them.
-
-All other layers (scenes, world, references) — extract normally as supporting context.
-`;
+  return `CHARACTER TRANSFORMATION: the author wants to see how the characters change.
+- characters: in content, cover who they are when they appear, what pressures them in this part, what they cling to, how they change or refuse to change here, and the gap between what they want and what they need. Name the people and events that push them.
+- arc: make each beat a turning point for a character, and name whose turn it is and what turns, e.g. "Mara chooses the lie over her brother".
+- ideas: favour themes that drive or reflect a character's change: the tension, the character it lives in, and what it costs them.
+- scenes, world, references: extract as usual.`;
 }
 
 export const maxDuration = 300; // long texts: up to 40 parts, 5 at a time
@@ -174,8 +161,8 @@ export async function POST(req: NextRequest) {
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-  const apiKey = await getGeminiKey(userId);
-  if (!apiKey) return noKeyResponse();
+  const ai = await getAiConfig(userId);
+  if (!ai) return noKeyResponse();
 
   try {
     const formData = await req.formData();
@@ -213,18 +200,18 @@ export async function POST(req: NextRequest) {
     const mode           = modeRaw === 'character' ? 'character' : 'structure';
 
     // Strict Mirror (0.0) → 0.2, Co-Author (0.8) → 0.9; character mode runs slightly warmer.
-    const geminiTemperature = mode === 'character'
+    const modelTemperature = mode === 'character'
       ? Math.max(0.4, Math.min(1.0, temperature + 0.1))
       : Math.max(0.2, Math.min(1.0, temperature + 0.2));
 
     const beats: string[] = structureBeats ? JSON.parse(structureBeats) : [];
     const structureHint = mode === 'structure' && structureName && structureId !== 'custom'
-      ? `Follow the ${structureName} structure${beats.length ? `: ${beats.join(' / ')}` : ''}.`
+      ? `${structureName}${beats.length ? ` (${beats.join(' / ')})` : ''}`
       : '';
     const temperatureBlock = temperature >= 0.5
-      ? 'TEMPERATURE ' + temperature.toFixed(1) + ' (Co-Author): after extracting every fact you MAY add items the source implies. Tag those with "suggested" and leave their source_quote empty.'
-      : 'TEMPERATURE ' + temperature.toFixed(1) + ' (Strict Mirror): extract only. Add nothing that is not in the text.';
-    const blocks = [temperatureBlock, mode === 'character' ? buildCharacterTransformBlock() : ''].join('\n');
+      ? 'CO-AUTHOR: first extract everything in the text. Then you may add a few items the text clearly implies but does not state (a rule the world must have, a motive a character must hold). Tag each with "suggested", leave its source_quote empty, and never contradict the text.'
+      : 'STRICT MIRROR: extract only. Add nothing the text does not state.';
+    const blocks = [temperatureBlock, mode === 'character' ? buildCharacterTransformBlock() : ''].filter(Boolean).join('\n\n');
 
     const isEmpty = fileContent.kind === 'text'
       ? (!fileContent.text || fileContent.text.trim().length < 10)
@@ -234,10 +221,10 @@ export async function POST(req: NextRequest) {
     }
 
     const { items, coverage } = await extractCloudItems(fileContent, {
-      apiKey,
+      ai,
       blocks,
       structureHint,
-      temperature: geminiTemperature,
+      temperature: modelTemperature,
     });
 
     if (coverage.parts_extracted === 0) {
@@ -249,13 +236,14 @@ export async function POST(req: NextRequest) {
 
     // Keep the text: the flow editor checks quotes against it and can publish it as L5.
     if (fileContent.kind === 'text') {
-      // Uploading the same text again doesn't store (or later publish) it twice.
+      // Uploading the same text again, even in another format, doesn't store (or later publish) it twice.
       await query(
         `INSERT INTO project_sources (user_id, project_id, filename, text)
          SELECT $1, $2, $3, $4
          WHERE NOT EXISTS (
            SELECT 1 FROM project_sources
-           WHERE user_id = $1 AND project_id IS NOT DISTINCT FROM $2::uuid AND md5(text) = md5($4)
+           WHERE user_id = $1 AND project_id IS NOT DISTINCT FROM $2::uuid
+             AND md5(btrim(regexp_replace(text, '\\s+', ' ', 'g'))) = md5(btrim(regexp_replace($4, '\\s+', ' ', 'g')))
          )`,
         [userId, projectId, file.name, fileContent.text]
       );

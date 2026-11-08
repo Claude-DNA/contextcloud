@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
-import { getGeminiKey } from '@/lib/ai-key';
+import { getAiConfig, noKeyResponse, aiErrorResponse } from '@/lib/ai-key';
 import { query } from '@/lib/db';
 import {
   buildNarrativePrompt,
@@ -8,11 +8,7 @@ import {
   predictabilityToTemperature,
   NarrativeWeights,
 } from '@/lib/narrative-prompt';
-import { generate, GEMINI_MODEL } from '@/lib/gemini';
-
-async function callGemini(prompt: string, apiKey: string, temperature: number): Promise<string> {
-  return generate({ apiKey, prompt, model: GEMINI_MODEL, temperature: temperature, maxOutputTokens: 2048 });
-}
+import { generate, providerOfModel, type AiConfig } from '@/lib/ai';
 
 export async function POST(
   req: NextRequest,
@@ -26,7 +22,7 @@ export async function POST(
   const { id: plotId } = await params;
   const body = await req.json().catch(() => ({}));
   const { aiNode, dimensionOverrides, predictabilityOverride } = body as {
-    aiNode?: { model: string; apiKey: string; temperature?: number };
+    aiNode?: { model?: string; apiKey?: string; temperature?: number; systemPrompt?: string };
     dimensionOverrides?: Partial<NarrativeWeights['dimensions']>;
     predictabilityOverride?: number;
   };
@@ -125,22 +121,22 @@ export async function POST(
     const weightProfile = describeWeightProfile(weights);
     const temperature = predictabilityToTemperature(predictability);
 
-    // 7. Generate
+    // 7. Generate with the user's model (an AI node may choose its own model, or carry a key in older graphs)
+    let ai: AiConfig | null = await getAiConfig(userId);
+    if (aiNode?.apiKey && aiNode.model) ai = { provider: providerOfModel(aiNode.model) ?? 'google', apiKey: aiNode.apiKey, model: aiNode.model };
+    else if (ai && aiNode?.model) ai = { ...ai, model: aiNode.model };
+    if (!ai) return noKeyResponse();
     let content: string;
-    const apiKey = aiNode?.apiKey || await getGeminiKey(userId) || '';
-
-    if (aiNode?.apiKey && aiNode?.model && aiNode.model.startsWith('gemini')) {
-      const temp = aiNode.temperature ?? temperature;
-      content = await callGemini(prompt, aiNode.apiKey, temp);
-    } else {
-      if (!apiKey) {
-        return NextResponse.json({
-          error: 'Google AI API key required',
-          message: 'Add your key in Settings, or provide it via the AI node.',
-          code: 'BYOT_REQUIRED',
-        }, { status: 402 });
-      }
-      content = await callGemini(prompt, apiKey, temperature);
+    try {
+      content = await generate({
+        ai,
+        system: `You write prose for an author's story, one plot section at a time, following their directive exactly: the weights decide what drives the scene and what stays in the background. Write prose, not a summary or notes. ${aiNode?.systemPrompt ?? ''}`.trim(),
+        prompt,
+        temperature: aiNode?.temperature ?? temperature,
+        maxTokens: 4096,
+      });
+    } catch (e) {
+      return aiErrorResponse(e, 'Generation failed');
     }
 
     return NextResponse.json({ content, prompt, weightProfile });

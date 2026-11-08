@@ -140,6 +140,7 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
   const [tagsRaw, setTagsRaw] = useState((initial?.tags || []).join(', '));
   const [meta, setMeta] = useState<Record<string, string>>(initial?.metadata || {});
   const [generatingTags, setGeneratingTags] = useState(false);
+  const { activeProjectId: tagProjectId } = useProject();
 
   const handleGenerateTags = async () => {
     if (!title.trim() && !content.trim()) return;
@@ -148,7 +149,7 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
       const res = await fetch('/api/v1/cloud-items/generate-tags', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cloudType: config.type, title, content }),
+        body: JSON.stringify({ cloudType: config.type, title, content, project_id: tagProjectId || undefined }),
       });
       const data = await res.json();
       if (data.tags?.length) {
@@ -381,7 +382,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
       const res = await fetch('/api/v1/export/runway', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_title: projectTitle }),
+        body: JSON.stringify({ project_title: projectTitle, project_id: activeProjectId || undefined }),
       });
       if (!res.ok) {
         const data = await res.json();

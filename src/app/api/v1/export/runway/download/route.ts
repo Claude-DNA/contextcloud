@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  const result = await buildManifest(userId);
+  const result = await buildManifest(userId, { projectId: req.nextUrl.searchParams.get('project_id') });
 
   if ('error' in result) {
     if (result.error === 'BYOT_REQUIRED') return noKeyResponse();

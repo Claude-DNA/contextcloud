@@ -2,7 +2,7 @@
 
 import { useCallback, useState, useContext, useMemo, useEffect, useRef } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
-import { NODE_TYPE_MAP, TYPED_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
+import { NODE_TYPE_MAP, TYPED_HANDLES } from './nodeTypes';
 import type { StateFormula } from './nodeTypes';
 import StatePanel from './StatePanel';
 import { GraphContext } from './GraphContext';
@@ -229,13 +229,12 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
     }).filter(Boolean) as Array<{ type: string; elements: string[] }>;
 
     // Check for connected aiNode in the graph
-    let aiNodeConfig: { model: string; apiKey: string; systemPrompt?: string; temperature?: number } | undefined;
-    // Look for any aiNode connected to this node (directly or anywhere in the graph)
-    const aiNodeInGraph = nodes.find(n => (n.data?.type as string) === 'aiNode' && (n.data?.apiKey as string));
+    // An AI node in the graph sets the model, instructions and temperature; the key comes from Settings.
+    let aiNodeConfig: { model?: string; systemPrompt?: string; temperature?: number } | undefined;
+    const aiNodeInGraph = nodes.find(n => (n.data?.type as string) === 'aiNode');
     if (aiNodeInGraph) {
       aiNodeConfig = {
-        model: (aiNodeInGraph.data?.model as string) || 'gemini-3.8-flash',
-        apiKey: (aiNodeInGraph.data?.apiKey as string) || '',
+        model: (aiNodeInGraph.data?.model as string) || undefined,
         systemPrompt: (aiNodeInGraph.data?.systemPrompt as string) || undefined,
         temperature: (aiNodeInGraph.data?.temperature as number) ?? 0.7,
       };
@@ -424,47 +423,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {/* AI Node settings */}
                 {nodeType === 'aiNode' && (
                   <div className="space-y-4">
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block font-medium">Model</label>
-                      <select
-                        value={(d?.model as string) || AI_NODE_CONFIG.defaultModel}
-                        onChange={(e) => handleFieldChange('model', e.target.value)}
-                        className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-                      >
-                        {(['Anthropic', 'OpenAI', 'Google'] as const).map(provider => (
-                          <optgroup key={provider} label={provider}>
-                            {AI_NODE_CONFIG.availableModels
-                              .filter(m => m.provider === provider)
-                              .map(m => (
-                                <option key={m.id} value={m.id}>{m.label}</option>
-                              ))}
-                          </optgroup>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">API Key (BYOT)</label>
-                      <input
-                        type="password"
-                        value={(d?.apiKey as string) || ''}
-                        onChange={(e) => handleFieldChange('apiKey', e.target.value)}
-                        placeholder="Enter your API key..."
-                        className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 border border-gray-200"
-                      />
-                      {(() => {
-                        const selectedModel = (d?.model as string) || AI_NODE_CONFIG.defaultModel;
-                        const modelInfo = AI_NODE_CONFIG.availableModels.find(m => m.id === selectedModel);
-                        const providerUrl = modelInfo ? AI_NODE_CONFIG.providerUrls[modelInfo.provider] : null;
-                        return providerUrl ? (
-                          <a
-                            href={providerUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[10px] text-indigo-500 hover:text-indigo-700 mt-1 inline-block"
-                          >Get API key &rarr;</a>
-                        ) : null;
-                      })()}
-                    </div>
+                    <AiModelPicker value={(d?.model as string) || ''} onChange={(v) => handleFieldChange('model', v)} />
                     <div>
                       <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">System Prompt</label>
                       <textarea
@@ -1082,6 +1041,46 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Model choice for an AI node: the Settings default, or another model from the same provider. */
+function AiModelPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [state, setState] = useState<{ provider?: string; model?: string; models: { id: string; name: string }[]; error?: string }>({ models: [] });
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      try {
+        const settings = await fetch('/api/v1/user/settings').then((r) => r.json());
+        const list = await fetch(`/api/v1/user/models?provider=${settings.provider}`).then((r) => r.json());
+        if (live) setState({ provider: settings.provider, model: settings.model, models: list.models ?? [], error: list.error });
+      } catch {
+        if (live) setState({ models: [], error: 'Could not load models.' });
+      }
+    })();
+    return () => { live = false; };
+  }, []);
+  return (
+    <div>
+      <label htmlFor="ai-node-model" className="text-xs text-gray-500 mb-1.5 block font-medium">Model</label>
+      <select
+        id="ai-node-model"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+      >
+        <option value="">Default from Settings{state.model ? ` (${state.model})` : ''}</option>
+        {value && !state.models.some((m) => m.id === value) && <option value={value}>{value}</option>}
+        {state.models.map((m) => (
+          <option key={m.id} value={m.id}>{m.name === m.id ? m.id : `${m.name} (${m.id})`}</option>
+        ))}
+      </select>
+      <p className="text-[11px] text-gray-500 mt-1">
+        {state.error
+          ? <>No models: {state.error} <a href="/workspace/settings" className="text-indigo-600 hover:underline">Open Settings</a></>
+          : <>Uses the provider and key from <a href="/workspace/settings" className="text-indigo-600 hover:underline">Settings</a>.</>}
+      </p>
     </div>
   );
 }

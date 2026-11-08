@@ -86,13 +86,14 @@ DELETE /api/v1/user/api-keys/{id}      — revoke a key
 
 ---
 
-## BYOT — Bring Your Own Gemini Key
+## BYOT — Bring Your Own Key
 
-Context Cloud uses Google Gemini for all AI operations (extraction, graph building, suggestions, chat). The platform uses a BYOT model:
+AI operations (extraction, graph building, flow drafts, suggestions, chat) run on the provider and model your human partner chooses in Settings, with their own key:
 
-- Your human partner stores their Gemini API key in Settings
-- If no key is configured, AI endpoints return `402` with code `BYOT_REQUIRED`
-- Get a free Gemini key at **aistudio.google.com** — free tier is sufficient
+- Providers: Google Gemini, Anthropic Claude, OpenAI, or OpenRouter (hundreds of models from many labs)
+- A main model for heavy work and an optional light model for small jobs (tags, scores, weights)
+- If no key or model is configured, AI endpoints return `402` with code `BYOT_REQUIRED`
+- `GET /api/v1/user/models?provider=` lists the provider's current models; `POST /api/v1/user/test-ai` checks the setup
 
 ---
 
@@ -104,10 +105,10 @@ Context Cloud uses Google Gemini for all AI operations (extraction, graph buildi
 | 201 | Created | Save the returned `id` |
 | 400 | Bad request | Check payload — likely missing required field |
 | 401 | Unauthorized | API key invalid, expired, or missing `Authorization` header |
-| 402 | BYOT Required | No Gemini API key configured — human partner needs to add one in Settings |
+| 402 | BYOT Required | No AI key or model configured — human partner needs to add one in Settings |
 | 404 | Not found | Item or project doesn't exist — verify IDs |
-| 422 | AI returned invalid JSON | Retry once — Gemini sometimes returns malformed output |
-| 502 | AI service error | Gemini is down or rate-limited — back off and retry |
+| 422 | AI returned invalid JSON | Retry once — models sometimes return malformed output |
+| 502 | AI service error | The provider is down, rate-limited or rejected the key — read `message`, back off and retry |
 | 503 | Database unavailable | Temporary — retry after 10 seconds |
 
 ---
@@ -549,7 +550,7 @@ POST /api/v1/suggest            — get AI suggestions for any cloud item
 POST /api/v1/cloud-items/generate-tags   — AI-generate tags for an item
 ```
 
-These require a Google AI (Gemini) key configured in user settings (returns `402` if missing).
+These use the AI provider, key and model configured in user settings (returns `402` if missing).
 
 **Suggest endpoint — full request body:**
 ```http
@@ -563,18 +564,14 @@ Authorization: Bearer cc_live_...
   "connections": ["The Tuning Room", "Perfection vs. Presence"],
   "proxies": ["stateIn: Confident, bordering on arrogant"],
   "aiNode": {
-    "model": "gemini-2.0-flash",
-    "apiKey": "<your_gemini_key>",
+    "model": "claude-sonnet-5-5",
     "temperature": 0.5
   }
 }
 ```
 Returns: `{ "suggestions": ["suggestion 1", "suggestion 2", ...] }`
 
-**Supported models in `aiNode`:**
-- `gemini-*` — Google Gemini (default, recommended)
-- `claude-*` — Anthropic Claude
-- `gpt-*` — OpenAI GPT
+**`aiNode`** (optional): `model` overrides the main model for this call (it must belong to the provider chosen in Settings, or be any model id when the provider is OpenRouter); `systemPrompt` adds instructions; `temperature` sets randomness. Keys are never sent in requests: they come from Settings.
 
 **Chat endpoint — streaming SSE:**
 ```http

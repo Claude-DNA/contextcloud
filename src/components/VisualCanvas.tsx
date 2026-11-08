@@ -1521,7 +1521,7 @@ export default function VisualCanvas() {
                         const res = await fetch('/api/v1/export/runway', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ project_title: projectTitle }),
+                          body: JSON.stringify({ project_title: projectTitle, project_id: activeProjectId || undefined }),
                         });
                         if (!res.ok) throw new Error('Export failed');
                         const manifest = await res.json();

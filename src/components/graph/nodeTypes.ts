@@ -195,21 +195,12 @@ export const OUTPUT_HANDLES: Record<string, TypedHandle[]> = {
   ],
 };
 
+/**
+ * AI nodes use the provider, key and model chosen in Settings. A node may pick another model from
+ * that provider's list; an empty model means "the default from Settings".
+ */
 export const AI_NODE_CONFIG = {
-  availableModels: [
-    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', provider: 'Anthropic' },
-    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5', provider: 'Anthropic' },
-    { id: 'gpt-4o', label: 'GPT-4o', provider: 'OpenAI' },
-    { id: 'gpt-4', label: 'GPT-4', provider: 'OpenAI' },
-    { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash', provider: 'Google' },
-    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', provider: 'Google' },
-  ],
-  defaultModel: 'gemini-3.8-flash',
-  providerUrls: {
-    Anthropic: 'https://console.anthropic.com/settings/keys',
-    OpenAI: 'https://platform.openai.com/api-keys',
-    Google: 'https://aistudio.google.com/apikey',
-  } as Record<string, string>,
+  defaultLabel: 'Default model',
 };
 
 // --- States Model ---

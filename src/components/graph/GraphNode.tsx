@@ -485,10 +485,7 @@ function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeDa
 function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { color, onDelete, handleSide } = data;
   const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
-  const model = (data.model as string) || AI_NODE_CONFIG.defaultModel;
-  const hasApiKey = !!(data.apiKey as string);
-  const modelInfo = AI_NODE_CONFIG.availableModels.find(m => m.id === model);
-  const shortLabel = modelInfo?.label || model;
+  const shortLabel = (data.model as string) || AI_NODE_CONFIG.defaultLabel;
 
   return (
     <div
@@ -515,7 +512,7 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
       {!handleSide && <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />}
 
       <div className="relative shrink-0">
-        {hasApiKey && (
+        {(
           <div
             className="absolute inset-0 rounded"
             style={{

@@ -79,7 +79,7 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
   const phaseLabel: Record<Phase, string> = {
     idle: '',
     reading: 'Reading file…',
-    extracting: 'Gemini is analyzing the document — extracting characters, stages, world, references, arc…',
+    extracting: 'The AI is reading the document: characters, stages, world, references, arc…',
     saving: 'Saving to your clouds…',
     done: 'Done!',
     error: '',
@@ -151,7 +151,7 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
               </div>
               <div className="space-y-2">
                 <StepRow label="Reading file" active={phase === 'reading'} done={phase !== 'reading'} />
-                <StepRow label="Gemini extraction — characters, stages, world, references, arc" active={phase === 'extracting'} done={phase === 'saving'} />
+                <StepRow label="AI extraction: characters, stages, world, references, arc" active={phase === 'extracting'} done={phase === 'saving'} />
                 <StepRow label="Saving to clouds" active={phase === 'saving'} done={false} />
               </div>
               <p className="text-xs text-muted italic">{phaseLabel[phase]}</p>

@@ -74,9 +74,8 @@ export default async function NewFlowPage({ searchParams }: Props) {
           </ul>
 
           <p className="mt-6 text-sm text-muted">
-            The AI options need a Google AI key. Add yours in{' '}
-            <Link href="/workspace/settings" className="text-accent hover:underline">Settings</Link>; a free one takes a minute at{' '}
-            <a href="https://aistudio.google.com/app/apikey" className="text-accent hover:underline" rel="noopener">Google AI Studio</a>.
+            The AI options use your own API key from Google, Anthropic, OpenAI or OpenRouter, and the model you choose.
+            Add it in <Link href="/workspace/settings" className="text-accent hover:underline">Settings</Link>.
           </p>
         </div>
       </main>
