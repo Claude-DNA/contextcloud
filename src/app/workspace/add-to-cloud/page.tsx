@@ -3,12 +3,14 @@
 import { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import { useProject } from '@/context/ProjectContext';
 
 interface ExtractedItem {
   cloud_type: string;
   title: string;
   content: string;
   tags: string[];
+  metadata?: Record<string, unknown>;
 }
 
 const LAYER_CONFIG: Record<string, { emoji: string; color: string; label: string }> = {
@@ -21,6 +23,7 @@ const LAYER_CONFIG: Record<string, { emoji: string; color: string; label: string
 };
 
 export default function QuickCapturePage() {
+  const { activeProjectId } = useProject();
   const [text, setText] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -86,11 +89,13 @@ export default function QuickCapturePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source: 'direct',
+          ...(activeProjectId ? { project_id: activeProjectId } : {}),
           items: toSave.map(item => ({
             cloud_type: item.cloud_type,
             title: item.title,
             content: item.content || '',
             tags: item.tags || [],
+            ...(item.metadata ? { metadata: item.metadata } : {}),
           })),
           ...(provenance ? { provenance } : {}),
         }),

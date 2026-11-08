@@ -1234,6 +1234,7 @@ export default function VisualCanvas() {
     setShowWizard(false);
     let totalSaved = 0;
     let totalSkipped = 0;
+    const gaps: string[] = [];
     try {
       for (const file of files) {
         const formData = new FormData();
@@ -1243,15 +1244,20 @@ export default function VisualCanvas() {
         formData.append('structureBeats', JSON.stringify(structure.beats));
         formData.append('temperature', String(temperature));
         formData.append('mode', mode);
+        if (activeProjectId) formData.append('project_id', activeProjectId);
         const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
         const data = await res.json();
         if (!res.ok) { showToast(data.error || 'Import failed'); setImporting(false); return; }
         totalSaved   += data.saved   ?? 0;
         totalSkipped += data.skipped ?? 0;
+        const c = data.coverage as { parts_total: number; parts_extracted: number; parts_failed: number; truncated: boolean } | undefined;
+        if (c?.truncated) gaps.push(`${file.name}: only the first ${c.parts_extracted} of ${c.parts_total} parts were read (the text is very long)`);
+        else if (c?.parts_failed) gaps.push(`${file.name}: ${c.parts_failed} of ${c.parts_total} parts failed; upload it again to retry`);
       }
+      if (gaps.length) showToast(`⚠️ ${gaps.join('. ')}`);
       if (totalSaved > 0) {
         const skipped = totalSkipped > 0 ? ` (${totalSkipped} already existed)` : '';
-        showToast(`✅ ${totalSaved} new items saved${skipped} — building graph...`);
+        if (!gaps.length) showToast(`✅ ${totalSaved} new items saved${skipped} — building graph...`);
         setImporting(false);
         handleAutoBuild();
         return;
@@ -1265,7 +1271,7 @@ export default function VisualCanvas() {
       }
     } catch { showToast('Import failed'); }
     setImporting(false);
-  }, [showToast, handleAutoBuild]);
+  }, [showToast, handleAutoBuild, activeProjectId]);
 
   // Legacy direct-file handler (kept for drag-drop fallback)
   const handleFileImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {

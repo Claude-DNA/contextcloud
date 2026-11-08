@@ -4,13 +4,16 @@ import { unzipSync, strFromU8 } from 'fflate';
 import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
-import { generate, parseJson, type GeminiPart } from '@/lib/gemini';
+import { extractCloudItems } from '@/lib/extraction';
 
 
 const VALID_CLOUD_TYPES = ['characters', 'references', 'scenes', 'world', 'ideas', 'arc'] as const;
 type CloudType = typeof VALID_CLOUD_TYPES[number];
 
 // Represents extracted file content — either plain text or raw bytes for Gemini inline
+/** Longest source we read: about a 150,000-word novel. */
+const MAX_SOURCE_CHARS = 1_000_000;
+
 type FileContent =
   | { kind: 'text'; text: string }
   | { kind: 'binary'; mimeType: string; base64: string };
@@ -58,20 +61,20 @@ async function extractFileContent(file: File): Promise<FileContent> {
       }
 
       if (paragraphs.length > 0) {
-        return { kind: 'text', text: paragraphs.join('\n').slice(0, 50000) };
+        return { kind: 'text', text: paragraphs.join('\n\n').slice(0, MAX_SOURCE_CHARS) };
       }
 
       // Fallback: strip all XML tags from document.xml
       const docXml = unzipped['word/document.xml'];
       if (docXml) {
         const raw = strFromU8(docXml).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        return { kind: 'text', text: raw.slice(0, 50000) };
+        return { kind: 'text', text: raw.slice(0, MAX_SOURCE_CHARS) };
       }
       throw new Error('No readable content found in DOCX');
     } catch {
       // Last resort: decode raw bytes and strip XML
       const raw = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-      return { kind: 'text', text: raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 50000) };
+      return { kind: 'text', text: raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, MAX_SOURCE_CHARS) };
     }
   }
 
@@ -82,21 +85,37 @@ async function extractFileContent(file: File): Promise<FileContent> {
     return { kind: 'binary', mimeType: 'application/pdf', base64 };
   }
 
-  // ── EPUB — unzip and extract OPS/content HTML files ────────────────────────
+  // ── EPUB — chapters in reading order (the OPF spine), paragraphs kept ───────
   if (name.endsWith('.epub')) {
     const bytes = new Uint8Array(await file.arrayBuffer());
     try {
       const unzipped = unzipSync(bytes);
-      const textParts: string[] = [];
-      for (const [path, data] of Object.entries(unzipped)) {
-        if (/(\.xhtml|\.html|\.htm)$/i.test(path)) {
-          const html = strFromU8(data as Uint8Array);
-          const stripped = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-          if (stripped.length > 100) textParts.push(stripped);
+      const htmlToText = (html: string) =>
+        html
+          .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+          .replace(/<\/(p|div|h[1-6]|li|blockquote)>|<br\s*\/?>/gi, '\n\n')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'")
+          .replace(/[ \t]+/g, ' ')
+          .replace(/\n\s*\n\s*/g, '\n\n')
+          .trim();
+      const opfPath = Object.keys(unzipped).find((k) => k.toLowerCase().endsWith('.opf'));
+      let ordered: string[] = [];
+      if (opfPath) {
+        const opf = strFromU8(unzipped[opfPath]);
+        const dir = opfPath.includes('/') ? opfPath.slice(0, opfPath.lastIndexOf('/') + 1) : '';
+        const hrefById = new Map<string, string>();
+        for (const m of opf.matchAll(/<item\b[^>]*>/g)) {
+          const id = /\bid="([^"]+)"/.exec(m[0])?.[1];
+          const href = /\bhref="([^"]+)"/.exec(m[0])?.[1];
+          if (id && href) hrefById.set(id, dir + decodeURIComponent(href));
         }
+        ordered = [...opf.matchAll(/<itemref\b[^>]*idref="([^"]+)"/g)].map((m) => hrefById.get(m[1])).filter((h): h is string => !!h && !!unzipped[h]);
       }
+      if (ordered.length === 0) ordered = Object.keys(unzipped).filter((k) => /\.(xhtml|html|htm)$/i.test(k)).sort();
+      const textParts = ordered.map((k) => htmlToText(strFromU8(unzipped[k] as Uint8Array))).filter((t) => t.length > 100);
       if (textParts.length > 0) {
-        return { kind: 'text', text: textParts.join('\n\n').slice(0, 50000) };
+        return { kind: 'text', text: textParts.join('\n\n').slice(0, MAX_SOURCE_CHARS) };
       }
     } catch { /* fall through */ }
     return { kind: 'text', text: '' };
@@ -111,19 +130,13 @@ async function extractFileContent(file: File): Promise<FileContent> {
       .replace(/[{}\\]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
-    return { kind: 'text', text: stripped.slice(0, 50000) };
+    return { kind: 'text', text: stripped.slice(0, MAX_SOURCE_CHARS) };
   }
 
   // ── Unknown: try as text ────────────────────────────────────────────────────
-  return { kind: 'text', text: (await file.text()).slice(0, 50000) };
+  return { kind: 'text', text: (await file.text()).slice(0, MAX_SOURCE_CHARS) };
 }
 
-interface ExtractedItem {
-  cloud_type: string;
-  title: string;
-  content: string;
-  tags: string[];
-}
 
 function buildCharacterTransformBlock(): string {
   return `
@@ -149,100 +162,45 @@ All other layers (scenes, world, references) — extract normally as supporting 
 `;
 }
 
-async function callGeminiExtract(apiKey: string, input: FileContent, structureBlock = '', temperatureBlock = '', characterTransformBlock = '', geminiTemperature = 0.7): Promise<ExtractedItem[]> {
-  const prompt = `You are Context Cloud Architect — the lossless extraction engine for contextcloud.studio.
-Mission: retain 100% of the information from the source text. Map every fact into the six layers. Never omit, merge, summarize, or invent.
+export const maxDuration = 300; // long texts: up to 40 parts, 5 at a time
 
-━━━ STEP 0 — ATOMIC INVENTORY (internal reasoning only, do not output) ━━━
-Before mapping, enumerate every unique fact as atomic items in your thinking:
-• One item = one fact, detail, action, rule, or relationship.
-• If the text has 100 details, you must account for all 100.
-• Every paragraph or bullet from the source must produce at least one inventory item.
-• Preserve original wording whenever possible.
-
-━━━ STEP 1 — LAYER MAPPING ━━━
-Map each inventory item to exactly one cloud_type (use these exact strings):
-  "characters"  — identity, psychology, contradictions, relationships, arcs
-  "scenes"      — locations and settings with sensory anchors
-  "world"       — rules, history, systems, facts about how this universe works
-  "references"  — named influences, books, films, artworks, real events
-  "ideas"       — themes, philosophical tensions, abstract concepts
-  "arc"         — plot beats (grouped by act — see Arc rule below)
-
-━━━ CONTENT RULES (non-negotiable) ━━━
-• content must NEVER be empty or a single sentence. Minimum 3 sentences per item.
-• Characters: appearance (if known) + core contradiction + key relationships + what they want vs fear. Use original language from the source.
-• Scenes — Sensory Anchor Rule: ALWAYS include Light, Sound, and Smell. If the source does not specify one, write exactly: [Light: not specified] / [Sound: not specified] / [Smell: not specified]. Never invent sensory details.
-• World: state the actual rule or fact + its implications + how it shapes behavior or plot.
-• Ideas: the tension or theme + how it manifests in specific characters or scenes + what it asks of the reader.
-• References: what it is + why it appears here + its thematic connection to the story.
-• Arc: GROUP all beats for the same act into ONE item. Title = "Act 1" or "Act 1: [title]". Content = ALL events for that act as flowing prose, preserving original language and emotional register. NEVER one item per bullet — one item per act only.
-• Cross-references: if an item relates to another layer, note it in the content as [→ cross-ref: LayerName: Title].
-• When in doubt, include it. The author can delete; they cannot add what you didn't extract.
-
-━━━ OUTPUT ━━━
-Return ONLY a valid JSON array — no markdown, no code fences:
-[{ "cloud_type": "...", "title": "...", "content": "...", "tags": ["1-3 keywords"] }]
-
-${structureBlock}
-${temperatureBlock}
-${characterTransformBlock}
-${input.kind === 'text'
-  ? `━━━ SOURCE TEXT ━━━\n${input.text.slice(0, 30000)}`
-  : `━━━ SOURCE DOCUMENT ━━━\nThe attached document is the source material. Read it fully, then map all content to the six layers.`
-}`;
-
-  const parts: GeminiPart[] = input.kind === 'binary'
-    ? [{ text: prompt }, { inlineData: { mimeType: input.mimeType, data: input.base64 } }]
-    : [{ text: prompt }];
-  const parsed = parseJson(await generate({ apiKey, prompt: parts, temperature: geminiTemperature, maxOutputTokens: 8192, json: true }));
-
-  if (!Array.isArray(parsed)) {
-    throw new Error('Expected JSON array from extraction');
-  }
-
-  // Normalize cloud_type aliases (Gemini sometimes uses wrong names)
-  const TYPE_ALIASES: Record<string, string> = {
-    stage: 'scenes', location: 'scenes', setting: 'scenes',
-    themes: 'ideas', theme: 'ideas', concept: 'ideas',
-    arcs: 'arc', beats: 'arc', beat: 'arc', plot: 'arc', chapter: 'arc',
-    reference: 'references', source: 'references',
-    character: 'characters',
-    worlds: 'world', universe: 'world', rule: 'world',
-  };
-
-  // Validate and normalize cloud_types
-  return (parsed as ExtractedItem[])
-    .map(item => ({
-      ...item,
-      cloud_type: TYPE_ALIASES[item.cloud_type] ?? item.cloud_type,
-    }))
-    .filter(item =>
-      VALID_CLOUD_TYPES.includes(item.cloud_type as CloudType) && item.title?.trim()
-    );
-}
-
+/**
+ * POST multipart: file, project_id?, structure?, structureName?, structureBeats?, temperature?, mode?
+ * Extracts cloud items chapter by chapter, saves them to the project (skipping titles it already has),
+ * keeps the source text for quote checks and L5, and reports how much of the text was covered.
+ */
 export async function POST(req: NextRequest) {
   const userId = await getAuthUserId(req);
   if (!userId) {
     return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   }
-
-  const resolvedKey = await getGeminiKey(userId);
-  if (!resolvedKey) return noKeyResponse();
+  const apiKey = await getGeminiKey(userId);
+  if (!apiKey) return noKeyResponse();
 
   try {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-
     if (!file) {
       return NextResponse.json({ error: 'No file uploaded' }, { status: 400 });
     }
-
     const name = file.name.toLowerCase();
     const supported = ['.txt', '.md', '.docx', '.pdf', '.epub', '.rtf'];
     if (!supported.some(ext => name.endsWith(ext))) {
       return NextResponse.json({ error: 'Unsupported file type. Use TXT, MD, DOCX, PDF, EPUB, or RTF.' }, { status: 400 });
+    }
+
+    if (!(await isDbAvailable())) {
+      return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+    }
+    await ensureSchema().catch(() => {});
+
+    // The project the items go into; must belong to this user.
+    const requestedProject = (formData.get('project_id') as string | null) || null;
+    let projectId: string | null = null;
+    if (requestedProject) {
+      const owns = await query('SELECT id FROM projects WHERE id = $1 AND user_id = $2', [requestedProject, userId]);
+      if (!owns.rows.length) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+      projectId = requestedProject;
     }
 
     const fileContent = await extractFileContent(file);
@@ -254,28 +212,19 @@ export async function POST(req: NextRequest) {
     const temperature    = temperatureRaw ? parseFloat(temperatureRaw) : 0.5;
     const mode           = modeRaw === 'character' ? 'character' : 'structure';
 
-    // Map user temperature (0–1) to Gemini temperature
-    // Strict Mirror (0.0) → 0.2 (needs some variance for quality), Co-Author (0.8) → 0.9
+    // Strict Mirror (0.0) → 0.2, Co-Author (0.8) → 0.9; character mode runs slightly warmer.
     const geminiTemperature = mode === 'character'
-      ? Math.max(0.4, Math.min(1.0, temperature + 0.1))  // character mode: slightly warmer
-      : Math.max(0.2, Math.min(1.0, temperature + 0.2)); // structure mode: floor at 0.2
+      ? Math.max(0.4, Math.min(1.0, temperature + 0.1))
+      : Math.max(0.2, Math.min(1.0, temperature + 0.2));
 
     const beats: string[] = structureBeats ? JSON.parse(structureBeats) : [];
-    const structureBlock = mode === 'structure'
-      ? (structureName && structureId !== 'custom' && beats.length > 0)
-        ? 'STORY STRUCTURE: ' + structureName + '\n' +
-          'Organize the ARC items to follow this structure. Use these as arc item titles in order:\n' +
-          beats.map((b, i) => (i + 1) + '. ' + b).join('\n') + '\n'
-        : (structureName && structureId !== 'custom')
-        ? 'STORY STRUCTURE: ' + structureName + ' — use this structure to organize arc beats.\n'
-        : ''
+    const structureHint = mode === 'structure' && structureName && structureId !== 'custom'
+      ? `Follow the ${structureName} structure${beats.length ? `: ${beats.join(' / ')}` : ''}.`
       : '';
-
     const temperatureBlock = temperature >= 0.5
-      ? 'TEMPERATURE: ' + temperature.toFixed(1) + ' — Co-Author Mode. After extracting all facts, you MAY propose additional items implied by the source. Label suggested items with tags: ["suggested"].'
-      : 'TEMPERATURE: ' + temperature.toFixed(1) + ' — Strict Mirror. Extract only. Do not add, infer, or suggest anything not in the source text.';
-
-    const characterTransformBlock = mode === 'character' ? buildCharacterTransformBlock() : '';
+      ? 'TEMPERATURE ' + temperature.toFixed(1) + ' (Co-Author): after extracting every fact you MAY add items the source implies. Tag those with "suggested" and leave their source_quote empty.'
+      : 'TEMPERATURE ' + temperature.toFixed(1) + ' (Strict Mirror): extract only. Add nothing that is not in the text.';
+    const blocks = [temperatureBlock, mode === 'character' ? buildCharacterTransformBlock() : ''].join('\n');
 
     const isEmpty = fileContent.kind === 'text'
       ? (!fileContent.text || fileContent.text.trim().length < 10)
@@ -284,78 +233,84 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File appears to be empty or could not be read' }, { status: 400 });
     }
 
-    // Extract items using Context Cloud Architect prompt
-    const items = await callGeminiExtract(resolvedKey, fileContent, structureBlock, temperatureBlock, characterTransformBlock, geminiTemperature);
+    const { items, coverage } = await extractCloudItems(fileContent, {
+      apiKey,
+      blocks,
+      structureHint,
+      temperature: geminiTemperature,
+    });
 
+    if (coverage.parts_extracted === 0) {
+      return NextResponse.json({ error: 'The AI could not read this file. Try again, or upload it as TXT or DOCX.', coverage }, { status: 502 });
+    }
     if (items.length === 0) {
-      return NextResponse.json({ error: 'No items could be extracted from the file' }, { status: 400 });
+      return NextResponse.json({ error: 'No items could be extracted from the file', coverage }, { status: 400 });
     }
 
-    // Save to cloud_items using batch insert
-    if (!(await isDbAvailable())) {
-      return NextResponse.json({ error: 'Database not available' }, { status: 503 });
+    // Keep the text: the flow editor checks quotes against it and can publish it as L5.
+    if (fileContent.kind === 'text') {
+      // Uploading the same text again doesn't store (or later publish) it twice.
+      await query(
+        `INSERT INTO project_sources (user_id, project_id, filename, text)
+         SELECT $1, $2, $3, $4
+         WHERE NOT EXISTS (
+           SELECT 1 FROM project_sources
+           WHERE user_id = $1 AND project_id IS NOT DISTINCT FROM $2::uuid AND md5(text) = md5($4)
+         )`,
+        [userId, projectId, file.name, fileContent.text]
+      );
     }
-    await ensureSchema().catch(() => {});
 
-    // Deduplicate: skip items whose (cloud_type, lower(title)) already exist for this user
+    // Skip titles this project already has (other projects are separate stories).
+    const scope = projectId ? 'project_id = $2' : 'project_id IS NULL';
     const existingRes = await query(
-      `SELECT LOWER(title) AS ltitle, cloud_type FROM cloud_items WHERE user_id = $1`,
-      [userId]
+      `SELECT LOWER(title) AS ltitle, cloud_type FROM cloud_items WHERE user_id = $1 AND ${scope}`,
+      projectId ? [userId, projectId] : [userId]
     );
-    const existingSet = new Set(existingRes.rows.map(
-      (r: { ltitle: string; cloud_type: string }) => `${r.cloud_type}::${r.ltitle}`
-    ));
-    const newItems = items.filter(item =>
-      !existingSet.has(`${item.cloud_type}::${item.title.trim().toLowerCase()}`)
-    );
+    const existingSet = new Set(existingRes.rows.map((r: { ltitle: string; cloud_type: string }) => `${r.cloud_type}::${r.ltitle}`));
+    const newItems = items.filter(item => !existingSet.has(`${item.cloud_type}::${item.title.trim().toLowerCase()}`));
 
     if (newItems.length === 0) {
-      return NextResponse.json({ saved: 0, items: [], skipped: items.length, errors: [] });
+      return NextResponse.json({ saved: 0, items: [], skipped: items.length, coverage, errors: [] });
     }
 
-    // Get current max sort_order per type
-    const typeList = [...new Set(newItems.map(i => i.cloud_type))];
     const maxRes = await query(
       `SELECT cloud_type, COALESCE(MAX(sort_order), -1) + 1 AS next_order
-       FROM cloud_items
-       WHERE user_id = $1 AND cloud_type = ANY($2)
-       GROUP BY cloud_type`,
-      [userId, typeList]
+       FROM cloud_items WHERE user_id = $1 AND ${scope} GROUP BY cloud_type`,
+      projectId ? [userId, projectId] : [userId]
     );
-    const nextOrderMap: Record<string, number> = {};
-    for (const row of maxRes.rows) {
-      nextOrderMap[row.cloud_type] = parseInt(row.next_order, 10);
-    }
-    const typeCounters: Record<string, number> = {};
+    const nextOrder: Record<string, number> = {};
+    for (const row of maxRes.rows) nextOrder[row.cloud_type] = parseInt(row.next_order, 10);
 
-    // Build bulk insert
     const values: unknown[] = [];
     const placeholders: string[] = [];
     let p = 1;
-
     for (const item of newItems) {
-      const base = nextOrderMap[item.cloud_type] ?? 0;
-      const offset = typeCounters[item.cloud_type] ?? 0;
-      typeCounters[item.cloud_type] = offset + 1;
-      const sortOrder = base + offset;
-
-      const metadata = JSON.stringify({ source: 'file' });
-      placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
-      values.push(userId, item.cloud_type, item.title.trim(), item.content || '', item.tags || [], metadata, sortOrder);
+      const sortOrder = nextOrder[item.cloud_type] ?? 0;
+      nextOrder[item.cloud_type] = sortOrder + 1;
+      const metadata = JSON.stringify({
+        source: 'file',
+        filename: file.name,
+        source_quote: item.source_quotes[0] ?? '',
+        source_quotes: item.source_quotes,
+        aliases: item.aliases,
+        locations: item.locations,
+      });
+      placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, 'ai_extraction', $${p++})`);
+      values.push(userId, projectId, item.cloud_type, item.title.trim(), item.content || '', item.tags, metadata, sortOrder, file.name);
     }
-
-    const insertSQL = `
-      INSERT INTO cloud_items (user_id, cloud_type, title, content, tags, metadata, sort_order)
-      VALUES ${placeholders.join(', ')}
-      RETURNING id, cloud_type, title
-    `;
-
-    const result = await query(insertSQL, values);
+    const result = await query(
+      `INSERT INTO cloud_items (user_id, project_id, cloud_type, title, content, tags, metadata, sort_order, source_type, source_ref)
+       VALUES ${placeholders.join(', ')}
+       RETURNING id, cloud_type, title`,
+      values
+    );
 
     return NextResponse.json({
       saved: result.rowCount,
       items: result.rows,
       skipped: items.length - newItems.length,
+      coverage,
       errors: [],
     });
   } catch (err) {
