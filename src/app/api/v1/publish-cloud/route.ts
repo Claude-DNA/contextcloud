@@ -8,7 +8,7 @@ import { ensureSchema } from '@/lib/migrations';
  * (POST {CONTEXTUBE_URL}/api/v1/clouds, with CONTEXTUBE_PUBLISH_KEY as the "studio" writer).
  *
  * POST { project_id, title?, description?, genre?, rights?, source_title?, source_author?, purchase_url?,
- *        work?, cover?, dry_run? }
+ *        work?, cover?, slug?, dry_run? }   slug applies to the first publish only; later ones keep the page's address.
  *   → { published: { slug, url, element_count } }   (dry_run: { preview: <the payload> })
  *
  * Elements come from the project's cloud items, in their order: arc → plot, characters, scenes → stage,
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as {
     project_id?: string; title?: string; description?: string; genre?: string; rights?: string;
-    source_title?: string; source_author?: string; purchase_url?: string; work?: string; cover?: Img; dry_run?: boolean;
+    source_title?: string; source_author?: string; purchase_url?: string; work?: string; cover?: Img; slug?: string; dry_run?: boolean;
   };
   if (!body.project_id) return NextResponse.json({ error: 'project_id is required' }, { status: 400 });
   const proj = await query('SELECT id, title, description, cloud_slug FROM projects WHERE id = $1 AND user_id = $2', [body.project_id, userId]);
@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
   const title = (body.title ?? project.title ?? 'Untitled').trim().slice(0, 200);
   const rights = ['own', 'public_domain', 'copyrighted'].includes(body.rights ?? '') ? body.rights! : 'own';
   const payload = {
-    slug: project.cloud_slug || slugify(title) || undefined,
+    slug: project.cloud_slug || (body.slug && /^[a-z0-9-]{1,80}$/.test(body.slug) ? body.slug : slugify(title)) || undefined,
     title,
     description: (body.description ?? project.description ?? '').trim().slice(0, 1000),
     ...(body.genre?.trim() ? { genre: body.genre.trim().slice(0, 60) } : {}),
