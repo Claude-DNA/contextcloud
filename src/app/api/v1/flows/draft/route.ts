@@ -34,11 +34,25 @@ const SCHEMA = {
 };
 
 const LABEL: Record<string, string> = {
-  characters: 'CHARACTER', scenes: 'STAGE', world: 'WORLD', ideas: 'IDEA', references: 'REFERENCE', arc: 'ARC BEAT',
+  characters: 'CHARACTER', scenes: 'STAGE', world: 'WORLD', ideas: 'IDEA', references: 'REFERENCE', arc: 'BEAT',
 };
 
+const RIGHTS: Record<string, string> = {
+  own: "the author's own work",
+  public_domain: 'in the public domain',
+  copyrighted: 'under copyright: keep quotes short',
+};
+
+/** A first line that looks like a title (short, no closing full stop) names the work when the author hasn't. */
+function titleFromSource(text: string): string | undefined {
+  const first = text.split('\n').map((l) => l.trim()).find(Boolean);
+  if (!first || first.length > 120 || /[.!?…:;,]$/.test(first)) return undefined;
+  return first;
+}
+
 /**
- * POST { project_id?: string | null } → { title, description, chunks, has_source, unverified }
+ * POST { project_id?: string | null, work?: { title?, author?, rights? } }
+ *   → { title, source_title, source_author, description, chunks, has_source, unverified }
  * Drafts a ConteXtube flow (L1–L5) from a project's clouds. Nothing is saved; the editor shows the draft.
  */
 export async function POST(req: NextRequest) {
@@ -49,7 +63,10 @@ export async function POST(req: NextRequest) {
   const apiKey = await getGeminiKey(userId);
   if (!apiKey) return noKeyResponse();
 
-  const { project_id } = (await req.json().catch(() => ({}))) as { project_id?: string | null };
+  const { project_id, work = {} } = (await req.json().catch(() => ({}))) as {
+    project_id?: string | null;
+    work?: { title?: string; author?: string; rights?: string };
+  };
   const scope = project_id ? 'project_id = $2' : 'project_id IS NULL';
   const params = project_id ? [userId, project_id] : [userId];
 
@@ -62,6 +79,7 @@ export async function POST(req: NextRequest) {
     query(`SELECT filename, text FROM project_sources WHERE user_id = $1 AND ${scope} ORDER BY created_at`, params),
     project_id ? query('SELECT title FROM projects WHERE id = $1 AND user_id = $2', [project_id, userId]) : Promise.resolve({ rows: [] }),
   ]);
+  const projectTitle = (projectRes.rows[0] as { title?: string } | undefined)?.title;
 
   const items = itemsRes.rows as { cloud_type: string; title: string; content: string; metadata: Record<string, unknown> | null }[];
   if (items.length === 0) {
@@ -70,6 +88,15 @@ export async function POST(req: NextRequest) {
   const sources = sourcesRes.rows as { filename: string; text: string }[];
   const sourceText = sources.map((s) => s.text).join('\n\n');
 
+  // The work being read: what the author typed, else the source's title line and, for their own work, their name.
+  const rights = work.rights && RIGHTS[work.rights] ? work.rights : 'own';
+  const workTitle = work.title?.trim() || (sources[0] ? titleFromSource(sources[0].text) : undefined) || projectTitle || 'Untitled';
+  let workAuthor = work.author?.trim() || '';
+  if (!workAuthor && rights === 'own') {
+    const u = await query('SELECT name FROM users WHERE id = $1', [userId]);
+    workAuthor = ((u.rows[0] as { name?: string } | undefined)?.name ?? '').trim();
+  }
+
   const itemQuotes = items
     .map((i) => (typeof i.metadata?.source_quote === 'string' ? (i.metadata.source_quote as string) : ''))
     .filter(Boolean);
@@ -77,7 +104,10 @@ export async function POST(req: NextRequest) {
   const itemBlock = items
     .map((i) => {
       const quote = typeof i.metadata?.source_quote === 'string' && i.metadata.source_quote ? `\n  quote: "${i.metadata.source_quote}"` : '';
-      return `[${LABEL[i.cloud_type] ?? i.cloud_type}] ${i.title}\n  ${i.content.slice(0, 1200).replace(/\n+/g, ' ')}${quote}`;
+      const where = [i.metadata?.act, i.metadata?.when && i.metadata.when !== 'main' ? String(i.metadata.when).replace('_', '-') : '']
+        .filter((x) => typeof x === 'string' && x)
+        .join('; ');
+      return `[${LABEL[i.cloud_type] ?? i.cloud_type}] ${i.title}${where ? ` (${where})` : ''}\n  ${i.content.slice(0, 1200).replace(/\n+/g, ' ')}${quote}`;
     })
     .join('\n');
 
@@ -93,12 +123,14 @@ L4 Synthesis (1-2 chunks, up to ~500 tokens in total). The interpretation: what 
 L5 one chunk with "type": "meta": a short note on how this reading was drafted (from which kinds of cloud items), written so the author can finish it.
 Use "type": "idea" for every chunk except that L5 note. Also return a one-sentence "description" of the work.
 
-PROJECT: ${(projectRes.rows[0] as { title?: string } | undefined)?.title ?? 'Untitled'}
+WORK: ${workTitle}${workAuthor ? ` by ${workAuthor}` : ''}, ${RIGHTS[rights]}.
 
 CLOUD ITEMS
 ${itemBlock}
 
-${sourceText ? `SOURCE TEXT\n${sourceText.slice(0, 60000)}` : 'SOURCE TEXT\n(not stored; take quotes only from the item quotes above)'}`;
+${sourceText ? `SOURCE TEXT\n${sourceText.slice(0, 60000)}` : 'SOURCE TEXT\n(not stored; take quotes only from the item quotes above)'}
+
+Now return the JSON object: "description" (one sentence), and "chunks" for L1 to L5 as described at the top. Every L2 source_quote must be copied exactly from the text above, or left empty.`;
 
   let draft: { description?: string; chunks?: Partial<FlowChunk>[] };
   try {
@@ -131,7 +163,9 @@ ${sourceText ? `SOURCE TEXT\n${sourceText.slice(0, 60000)}` : 'SOURCE TEXT\n(not
     });
 
   return NextResponse.json({
-    title: (projectRes.rows[0] as { title?: string } | undefined)?.title ?? '',
+    title: workTitle,
+    source_title: workTitle,
+    source_author: workAuthor || undefined,
     description: draft.description ?? '',
     chunks,
     has_source: sources.length > 0,

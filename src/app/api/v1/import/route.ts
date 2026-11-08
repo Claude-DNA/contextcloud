@@ -295,6 +295,10 @@ export async function POST(req: NextRequest) {
         source_quotes: item.source_quotes,
         aliases: item.aliases,
         locations: item.locations,
+        ...(item.initial_state ? { initial_state: item.initial_state } : {}),
+        ...(item.cloud_type === 'arc'
+          ? { when: item.when ?? 'main', act: item.act ?? '', act_number: item.act_number ?? null, beat_number: item.beat_number ?? null }
+          : {}),
       });
       placeholders.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, $${p++}, 'ai_extraction', $${p++})`);
       values.push(userId, projectId, item.cloud_type, item.title.trim(), item.content || '', item.tags, metadata, sortOrder, file.name);

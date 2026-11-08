@@ -94,7 +94,10 @@ function FlowEditorInner() {
       const res = await fetch('/api/v1/flows/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ project_id: projectChoice || null }),
+        body: JSON.stringify({
+          project_id: projectChoice || null,
+          work: { title: meta.source_title || undefined, author: meta.source_author || undefined, rights: meta.rights ?? 'own' },
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -104,7 +107,13 @@ function FlowEditorInner() {
       setChunks(data.chunks);
       if (!title && data.title) setTitle(data.title);
       if (!description && data.description) setDescription(data.description);
-      setMeta((m) => ({ ...m, project_id: projectChoice || null, include_source: m.include_source ?? data.has_source }));
+      setMeta((m) => ({
+        ...m,
+        project_id: projectChoice || null,
+        include_source: m.include_source ?? data.has_source,
+        source_title: m.source_title || data.source_title || undefined,
+        source_author: m.source_author || data.source_author || undefined,
+      }));
       setMessage({
         type: data.unverified ? 'info' : 'success',
         text: data.unverified
@@ -116,7 +125,7 @@ function FlowEditorInner() {
     } finally {
       setDrafting(false);
     }
-  }, [projectChoice, title, description]);
+  }, [projectChoice, title, description, meta.source_title, meta.source_author, meta.rights]);
 
   // Arriving from "Make a flow" with ?from_project=: draft straight away (new flows only).
   useEffect(() => {

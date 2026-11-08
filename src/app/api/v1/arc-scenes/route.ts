@@ -3,7 +3,7 @@ import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 
-// GET /api/v1/arc-scenes — all arc items for the logged-in user, with attached_count
+// GET /api/v1/arc-scenes?project_id=<id>|unassigned — story beats in order, with their act and attached_count
 export async function GET(req: NextRequest) {
   const userId = await getAuthUserId(req);
   if (!userId) {
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest) {
 
   const res = await query(
     `SELECT ci.id, ci.title, ci.content, ci.sort_order,
+            ci.metadata->>'act' AS act, ci.metadata->>'when' AS when_told,
             COALESCE(att.attached_count, 0)::int AS attached_count
      FROM cloud_items ci
      LEFT JOIN (

@@ -181,6 +181,8 @@ interface SceneListItem {
   title: string;
   content: string;
   attached_count: number;
+  act?: string | null;
+  when_told?: string | null;
 }
 interface SceneItem {
   id: string;
@@ -699,6 +701,8 @@ export default function VisualCanvas() {
     const base = '/api/v1/cloud-items/to-nodes';
     return activeProjectId ? `${base}?project_id=${activeProjectId}` : base;
   }, [activeProjectId]);
+  // Story beats of the selected project (or of items in no project).
+  const arcScenesUrl = `/api/v1/arc-scenes?project_id=${activeProjectId ?? 'unassigned'}`;
 
   // ── Open cloud load modal ───────────────────────────────────────────────────
   // Default tab: scenes (primary import path). Cloud items loaded lazily when tab is opened.
@@ -714,24 +718,23 @@ export default function VisualCanvas() {
     // Immediately load scenes list
     setScenesListLoading(true);
     try {
-      const res = await fetch('/api/v1/arc-scenes');
+      const res = await fetch(arcScenesUrl);
       const data = await res.json();
       setScenesList(data.scenes || []);
     } catch { /* ignore */ }
     setScenesListLoading(false);
-  }, []);
+  }, [arcScenesUrl]);
 
   // ── Scenes tab: fetch scenes list ──────────────────────────────────────────
   const fetchScenesForModal = useCallback(async () => {
     setScenesListLoading(true);
     try {
-      // Arc scaffold is global — no project filter (NULL project_id scenes must always appear)
-      const res = await fetch('/api/v1/arc-scenes');
+      const res = await fetch(arcScenesUrl);
       const data = await res.json();
       setScenesList(data.scenes || []);
     } catch { /* ignore */ }
     setScenesListLoading(false);
-  }, []);
+  }, [arcScenesUrl]);
 
   const handleSwitchToScenesTab = useCallback(() => {
     setCloudLoadTab('scenes');
@@ -1145,7 +1148,7 @@ export default function VisualCanvas() {
     setShowBuildModal(true);
     setLoadingBuildScenes(true);
     try {
-      const res = await fetch('/api/v1/arc-scenes');
+      const res = await fetch(arcScenesUrl);
       const data = await res.json() as { scenes?: SceneListItem[] };
       const scenes = data.scenes || [];
       setBuildScenesList(scenes);
@@ -1154,7 +1157,7 @@ export default function VisualCanvas() {
       setBuildScenesList([]);
     }
     setLoadingBuildScenes(false);
-  }, []);
+  }, [arcScenesUrl]);
 
   // ── Auto-Build Graph ─────────────────────────────────────────────────────────
   // Calls /api/v1/graph-build, receives nodes+edges built by AI from cloud items,
@@ -1570,7 +1573,7 @@ export default function VisualCanvas() {
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title={sceneId ? 'Reload scene items' : 'Select scenes and build a connected graph with AI'}
                   >
-                    {autoBuilding ? '⏳ Building...' : importingCloud ? '☁️ Loading...' : sceneId ? '☁️ Reload Scene' : '✨ Load from Cloud'}
+                    {autoBuilding ? '⏳ Building…' : importingCloud ? '☁️ Loading…' : sceneId ? '☁️ Reload Scene' : '✨ Build graph'}
                   </button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
@@ -1609,9 +1612,9 @@ export default function VisualCanvas() {
                 <Panel position="top-center" className="!mt-16 !z-50">
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-96">
                     <div className="mb-4">
-                      <p className="text-sm font-semibold text-gray-800">Build Graph from Cloud</p>
+                      <p className="text-sm font-semibold text-gray-800">Build graph</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        AI reads your cloud items and builds a connected graph — scenes, characters with state nodes, world rules, references.
+                        The AI builds the graph one story beat at a time: what each beat changes for the characters, places and world rules in it, and which themes and references it touches.
                       </p>
                     </div>
 
@@ -1619,12 +1622,12 @@ export default function VisualCanvas() {
                       <div className="text-xs text-gray-400 py-4 text-center">Loading scenes...</div>
                     ) : buildScenesList.length === 0 ? (
                       <div className="text-xs text-gray-500 py-2 mb-4">
-                        No arc scenes found — all cloud items will be used to build the graph.
+                        This project has no story beats yet. Upload a text, or add beats on the Arc Cloud page, then build the graph.
                       </div>
                     ) : (
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-gray-600">Arc scenes to include ({buildScenesChecked.size}/{buildScenesList.length})</p>
+                          <p className="text-xs font-medium text-gray-600">Beats to include ({buildScenesChecked.size}/{buildScenesList.length})</p>
                           <button
                             onClick={() => setBuildScenesChecked(
                               buildScenesChecked.size === buildScenesList.length
@@ -1649,7 +1652,9 @@ export default function VisualCanvas() {
                                 })}
                                 className="rounded border-gray-300"
                               />
-                              <span className="text-xs text-gray-700 truncate">{scene.title}</span>
+                              <span className="text-xs text-gray-700 truncate">
+                                {scene.when_told === 'flashback' ? 'Flashback: ' : scene.when_told === 'flash_forward' ? 'Flash-forward: ' : ''}{scene.title}
+                              </span>
                             </label>
                           ))}
                         </div>
@@ -1669,10 +1674,10 @@ export default function VisualCanvas() {
                             ? [...buildScenesChecked]
                             : undefined
                         )}
-                        disabled={buildScenesList.length > 0 && buildScenesChecked.size === 0}
+                        disabled={buildScenesChecked.size === 0}
                         className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-40"
                       >
-                        ✨ Build Graph
+                        ✨ Build graph
                       </button>
                     </div>
                   </div>

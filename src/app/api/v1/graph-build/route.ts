@@ -13,6 +13,10 @@ import { generateJson } from '@/lib/gemini';
  * Now code owns the topology and layout; the AI is asked one scene at a time what happens to the
  * characters, places and rules in it, given each one's state after the previous scene. A character's
  * state entering scene N is, by construction, their state leaving scene N-1.
+ *
+ * Scenes are the arc beats, in the order the text tells them. Each entity starts from its state at first
+ * appearance (initial_state), never from its whole-story description, so early scenes are not told the
+ * ending. A flashback shows the past: its results are drawn but not carried into the next scene.
  */
 
 export const maxDuration = 300;
@@ -22,7 +26,19 @@ type Kind = 'character' | 'stage' | 'world';
 type Delta = 'unchanged' | 'intensified' | 'damaged' | 'improved' | 'transformed' | 'persistent';
 const DELTAS: Delta[] = ['unchanged', 'intensified', 'damaged', 'improved', 'transformed', 'persistent'];
 
-interface Item { id: string; cloud_type: string; title: string; content: string; tags: string[] | null }
+interface Item {
+  id: string;
+  cloud_type: string;
+  title: string;
+  content: string;
+  tags: string[] | null;
+  metadata: { initial_state?: string; aliases?: string[]; when?: string; act?: string } | null;
+}
+
+/** Above this many characters, places and rules, each scene gets only the ones it mentions or recently changed. */
+const FULL_CAST_LIMIT = 40;
+const RECENT_LIMIT = 12;
+const INFLUENCE_LIMIT = 30;
 interface BuildNode { id: string; type: string; position: { x: number; y: number }; data: { title: string; content: string; type: string } }
 interface BuildEdge { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string; animated?: boolean; style?: Record<string, unknown> }
 
@@ -72,6 +88,20 @@ function referenceType(item: Item): string {
   return 'bookReference';
 }
 
+const escapeRe = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** Whether the scene text names the entity: its title, an alias, or (for people) a first name. */
+function mentions(sceneText: string, e: Item): boolean {
+  const names = [e.title, ...(e.metadata?.aliases ?? [])]
+    .map((n) => n.replace(/^(the|a|an)\s+/i, '').trim())
+    .filter((n) => n.length > 2);
+  if (e.cloud_type === 'characters') {
+    const first = e.title.split(/\s+/)[0];
+    if (first && first.length > 2 && !/^(the|a|an)$/i.test(first)) names.push(first);
+  }
+  return names.some((n) => new RegExp(`\\b${escapeRe(n)}\\b`, 'i').test(sceneText));
+}
+
 function scenePrompt(
   scene: Item,
   index: number,
@@ -80,13 +110,20 @@ function scenePrompt(
   themes: Item[],
   references: Item[]
 ): string {
+  const when = scene.metadata?.when;
+  const timing =
+    when === 'flashback'
+      ? '\nThis scene is a FLASHBACK: it happened before the story\'s present. The states below are where things stand in the present; describe how this past event shaped them. Its results are not carried into the next scene.'
+      : when === 'flash_forward'
+        ? '\nThis scene is a FLASH-FORWARD: it happens later than the scenes around it. Its results are not carried into the next scene.'
+        : '';
   return `SCENE_STATES
-You track continuity in a story, one scene at a time. This is scene ${index + 1} of ${total}.
+You track continuity in a story, one scene at a time. This is scene ${index + 1} of ${total}.${timing}
 
-SCENE: ${scene.title}
+SCENE: ${scene.title}${scene.metadata?.act ? ` (${scene.metadata.act})` : ''}
 ${brief(scene.content, 3000)}
 
-ENTITIES (with their state entering this scene)
+ENTITIES (with their state entering this scene; the states describe them only up to this point)
 ${entities.map((e) => `- id:"${e.id}" kind:"${e.kind}" ${e.title}: ${brief(e.state, 400)}`).join('\n') || '(none)'}
 
 THEMES
@@ -101,7 +138,8 @@ For this scene only, return:
 - "stages": up to 2 places used in the scene. "delta" unchanged unless the scene changes the place; then give "state_out".
 - "worlds": up to 2 world rules the scene tests, reveals or changes, with "state_out" and "delta".
 - "themes" and "references": ids of up to 3 of each that bear on this scene.
-Use only the ids listed above. Never invent major facts; if a change is implied but not stated, say "(derived from scene outcome)".`;
+Use only the ids listed above. Never mention anything that happens after this scene. Never invent major facts; if a change is implied but not stated, say "(derived from scene outcome)".
+Return a JSON object with these fields.`;
 }
 
 export async function POST(req: NextRequest) {
@@ -116,7 +154,7 @@ export async function POST(req: NextRequest) {
   const { project_id, scene_ids } = (await req.json().catch(() => ({}))) as { project_id?: string; scene_ids?: string[] };
   const scope = project_id ? 'project_id = $2' : 'project_id IS NULL';
   const res = await query(
-    `SELECT id, cloud_type, title, content, tags FROM cloud_items WHERE user_id = $1 AND ${scope}
+    `SELECT id, cloud_type, title, content, tags, metadata FROM cloud_items WHERE user_id = $1 AND ${scope}
      ORDER BY cloud_type, sort_order, created_at`,
     project_id ? [userId, project_id] : [userId]
   );
@@ -135,9 +173,12 @@ export async function POST(req: NextRequest) {
   const references = of('references');
   const byId = new Map(items.map((i) => [i.id, i]));
 
-  // Each entity's current state; starts as its cloud description.
+  // Each entity's current state; starts as its state at first appearance. Items without one (made by
+  // hand, or extracted before initial states existed) start from their description.
   const state = new Map<string, string>();
-  for (const e of [...characters, ...stages, ...worlds]) state.set(e.id, e.content || e.title);
+  for (const e of [...characters, ...stages, ...worlds]) state.set(e.id, e.metadata?.initial_state?.trim() || e.content || e.title);
+  const lastActive = new Map<string, number>(); // entity id → index of the last scene that used it
+  const bigCast = characters.length + stages.length + worlds.length > FULL_CAST_LIMIT;
 
   const nodes: BuildNode[] = [];
   const edges: BuildEdge[] = [];
@@ -155,17 +196,37 @@ export async function POST(req: NextRequest) {
     const sx = i * 850;
     const sceneNodeId = `scene_${scene.id}`;
 
+    const flash = scene.metadata?.when === 'flashback' || scene.metadata?.when === 'flash_forward';
+    const carry = (id: string, value: string) => {
+      lastActive.set(id, i);
+      if (!flash) state.set(id, value); // a flashback's results are drawn but don't change the present
+    };
+
+    // Small casts: everyone. Large casts: who the scene names, plus whoever changed most recently.
+    const sceneText = `${scene.title} ${scene.content}`;
+    const pick = (pool: Item[]) => {
+      if (!bigCast) return pool;
+      const named = pool.filter((e) => mentions(sceneText, e));
+      const recent = pool
+        .filter((e) => !named.includes(e) && lastActive.has(e.id))
+        .sort((a, b) => lastActive.get(b.id)! - lastActive.get(a.id)!)
+        .slice(0, Math.max(0, RECENT_LIMIT - named.length));
+      return [...named, ...recent];
+    };
     const entities = [
-      ...characters.map((c) => ({ id: c.id, kind: 'character' as Kind, title: c.title, state: state.get(c.id) ?? '' })),
-      ...stages.map((s) => ({ id: s.id, kind: 'stage' as Kind, title: s.title, state: state.get(s.id) ?? '' })),
-      ...worlds.map((w) => ({ id: w.id, kind: 'world' as Kind, title: w.title, state: state.get(w.id) ?? '' })),
+      ...pick(characters).map((c) => ({ id: c.id, kind: 'character' as Kind, title: c.title, state: state.get(c.id) ?? '' })),
+      ...pick(stages).map((s) => ({ id: s.id, kind: 'stage' as Kind, title: s.title, state: state.get(s.id) ?? '' })),
+      ...pick(worlds).map((w) => ({ id: w.id, kind: 'world' as Kind, title: w.title, state: state.get(w.id) ?? '' })),
     ];
+    const offered = new Set(entities.map((e) => e.id));
+    const themeList = themes.slice(0, INFLUENCE_LIMIT);
+    const referenceList = references.slice(0, INFLUENCE_LIMIT);
 
     let r: SceneResult = {};
     try {
       r = await generateJson<SceneResult>({
         apiKey,
-        prompt: scenePrompt(scene, i, scenes.length, entities, themes, references),
+        prompt: scenePrompt(scene, i, scenes.length, entities, themeList, referenceList),
         schema: SCHEMA,
         temperature: 0.3,
         maxOutputTokens: 4096,
@@ -176,11 +237,12 @@ export async function POST(req: NextRequest) {
       console.error('[graph-build] scene failed:', scene.title, e instanceof Error ? e.message : e);
     }
 
-    node(sceneNodeId, 'scene', sx, 0, scene.title, `${scene.content}${r.consequence ? `\n\nConsequence: ${r.consequence}` : ''}`);
+    const label = scene.metadata?.when === 'flashback' ? 'Flashback: ' : scene.metadata?.when === 'flash_forward' ? 'Flash-forward: ' : '';
+    node(sceneNodeId, 'scene', sx, 0, `${label}${scene.title}`, `${scene.metadata?.act ? `${scene.metadata.act}\n\n` : ''}${scene.content}${r.consequence ? `\n\nConsequence: ${r.consequence}` : ''}`);
     if (i > 0) edge(`scene_${scenes[i - 1].id}`, sceneNodeId, EDGE.sceneChain, { sourceHandle: 'output', targetHandle: 'prev_scene' });
 
     const valid = <T extends { id: string }>(list: T[] | undefined, pool: Item[], max: number) =>
-      (list ?? []).filter((x) => pool.some((p) => p.id === x.id)).slice(0, max);
+      (list ?? []).filter((x) => offered.has(x.id) && pool.some((p) => p.id === x.id)).slice(0, max);
 
     valid(r.characters, characters, 3).forEach((c, slot) => {
       const item = byId.get(c.id)!;
@@ -192,7 +254,8 @@ export async function POST(req: NextRequest) {
       node(sout, 'stateOut', sx + 140, y, `${item.title} after`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`);
       edge(proxy, sin, EDGE.charChain);
       edge(sin, sceneNodeId, EDGE.influence, { targetHandle: 'characters' });
-      if (c.state_out) state.set(c.id, c.state_out); // the next scene's stateIn
+      if (c.state_out) carry(c.id, c.state_out); // the next scene's stateIn
+      else lastActive.set(c.id, i);
     });
 
     const placeAndRule = (list: { id: string; state_out?: string; delta?: string }[], pool: Item[], kind: 'stage' | 'world', baseY: number, dx: number) =>
@@ -205,15 +268,15 @@ export async function POST(req: NextRequest) {
         edge(inId, sceneNodeId, EDGE.influence, { targetHandle: 'world' });
         if (delta !== 'unchanged' && s.state_out) {
           node(`${kind}out_${s.id}_${scene.id}`, `${kind}Out`, sx + dx + 160, y, `${item.title} (after)`, `${s.state_out}\nDelta: ${delta}`);
-          state.set(s.id, s.state_out);
-        }
+          carry(s.id, s.state_out);
+        } else lastActive.set(s.id, i);
       });
     placeAndRule(r.stages ?? [], stages, 'stage', 340, 0);
     placeAndRule(r.worlds ?? [], worlds, 'world', 560, 160);
 
     // Themes and references: one node each (synced to its cloud item), linked to every scene it bears on.
     const influence = (ids: string[] | undefined, pool: Item[], handle: string, baseY: number) => {
-      for (const id of (ids ?? []).filter((x) => pool.some((p) => p.id === x)).slice(0, 3)) {
+      for (const id of (ids ?? []).filter((x) => pool.slice(0, INFLUENCE_LIMIT).some((p) => p.id === x)).slice(0, 3)) {
         const nodeId = `cloud_${id}`;
         if (!placedInfluence.has(id)) {
           const item = byId.get(id)!;

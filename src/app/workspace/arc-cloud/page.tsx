@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { Fragment, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -19,6 +19,8 @@ interface ArcScene {
   content: string;
   sort_order: number;
   attached_count: number;
+  act?: string | null;
+  when_told?: string | null;
 }
 
 interface AttachedItem {
@@ -78,9 +80,8 @@ export default function ArcCloudPage() {
   const fetchScenes = useCallback(async () => {
     setLoading(true);
     try {
-      // Arc scenes are the global scaffold — do NOT filter by project
-      // (scenes created before projects existed have project_id = NULL and must still appear)
-      const res = await fetch('/api/v1/arc-scenes');
+      // Each project is its own story: show its beats, or the beats in no project.
+      const res = await fetch(`/api/v1/arc-scenes?project_id=${activeProjectId ?? 'unassigned'}`);
       const data = await res.json();
       setScenes(data.scenes || []);
     } catch (err) {
@@ -397,9 +398,12 @@ export default function ArcCloudPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {scenes.map(scene => (
+                {scenes.map((scene, i) => (
+                  <Fragment key={scene.id}>
+                  {scene.act && scene.act !== scenes[i - 1]?.act && (
+                    <h2 className={`text-sm font-semibold text-foreground ${i > 0 ? 'pt-4' : ''}`}>{scene.act}</h2>
+                  )}
                   <div
-                    key={scene.id}
                     className="rounded-xl border border-border bg-card-bg overflow-hidden group"
                     style={{ borderLeftColor: '#ec4899', borderLeftWidth: 3 }}
                   >
@@ -438,14 +442,21 @@ export default function ArcCloudPage() {
                     ) : (
                       <div>
                         {/* Scene header — clickable to expand */}
-                        <button
+                        <div
                           onClick={() => handleExpand(scene.id)}
-                          className="w-full text-left p-4 hover:bg-gray-50/50 transition-colors"
+                          onKeyDown={e => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleExpand(scene.id); } }}
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={expandedId === scene.id}
+                          className="w-full text-left p-4 hover:bg-gray-50/50 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-foreground">{scene.title}</h3>
+                                {(scene.when_told === 'flashback' || scene.when_told === 'flash_forward') && (
+                                  <span className="text-xs text-muted">{scene.when_told === 'flashback' ? 'Flashback' : 'Flash-forward'}</span>
+                                )}
                                 {scene.attached_count > 0 && (
                                   <span
                                     className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
@@ -478,7 +489,7 @@ export default function ArcCloudPage() {
                               </svg>
                             </div>
                           </div>
-                        </button>
+                        </div>
 
                         {/* Expanded: attached items grouped by type */}
                         {expandedId === scene.id && (
@@ -552,6 +563,7 @@ export default function ArcCloudPage() {
                       </div>
                     )}
                   </div>
+                  </Fragment>
                 ))}
               </div>
             )}

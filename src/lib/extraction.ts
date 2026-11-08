@@ -1,10 +1,13 @@
 /**
  * Chapter-by-chapter extraction of cloud items from a long text.
  *
- *   1. split the text at chapter headings, packed into parts of about 20,000 characters
- *   2. extract each part separately, several at a time, keeping a verbatim quote and location per item
+ *   1. split the text at chapter headings, packed into parts of about 20,000 characters,
+ *      and number every paragraph ([¶1], [¶2]…) so items can say exactly where they come from
+ *   2. extract each part separately, several at a time, keeping a verbatim quote and location per item,
+ *      and each entity's state when it first appears (so the graph never starts from the ending)
  *   3. merge the same entity across parts (same title or alias; "Elias" + "Elias Varga")
- *   4. group the story beats from every part into acts in one small final call
+ *   4. label every story beat with its act in one small final call; beats stay separate items,
+ *      in the order the text tells them, marked when they are flashbacks
  *
  * The old pipeline sent one request with the text cut at 30,000 characters and an 8,000-token
  * answer, so most of a novel was silently dropped. Coverage is now reported to the user.
@@ -22,7 +25,12 @@ export interface RawItem {
   tags?: string[];
   source_quote?: string;
   location?: string;
+  initial_state?: string;
+  when?: string;
 }
+
+export type When = 'main' | 'flashback' | 'flash_forward';
+const WHENS: When[] = ['main', 'flashback', 'flash_forward'];
 
 export interface MergedItem {
   cloud_type: CloudType;
@@ -32,6 +40,13 @@ export interface MergedItem {
   aliases: string[];
   source_quotes: string[];
   locations: string[];
+  /** Characters, places, rules: their state when first seen. Never mentions later events. */
+  initial_state?: string;
+  /** Arc beats only: where the beat sits in time relative to the main line, its act and position. */
+  when?: When;
+  act?: string;
+  act_number?: number;
+  beat_number?: number;
 }
 
 export interface Coverage {
@@ -111,6 +126,26 @@ export function splitIntoParts(text: string, size = PART_SIZE): string[] {
   return parts.filter((p) => p.trim().length > 0);
 }
 
+/**
+ * Prefixes every paragraph with [¶n], counting across parts. Texts with single line breaks only
+ * (some DOCX and pasted text) are numbered by line instead.
+ */
+export function numberParagraphs(parts: string[]): string[] {
+  let n = 0;
+  return parts.map((part) => {
+    let paras = part.split(/\n\s*\n/);
+    if (paras.length < 3 && part.split('\n').length > 10) paras = part.split('\n');
+    return paras
+      .filter((x) => x.trim())
+      .map((x) => `[¶${++n}] ${x.trim()}`)
+      .join('\n\n');
+  });
+}
+
+const MARKER = /\s*\[¶\d+\]\s*/g;
+/** Quotes must match the stored source text, which has no paragraph markers. */
+const cleanQuote = (q?: string) => (q ?? '').replace(MARKER, ' ').replace(/\s+/g, ' ').trim();
+
 const ITEM_SCHEMA = {
   type: 'ARRAY',
   items: {
@@ -123,6 +158,8 @@ const ITEM_SCHEMA = {
       tags: { type: 'ARRAY', items: { type: 'STRING' } },
       source_quote: { type: 'STRING' },
       location: { type: 'STRING' },
+      initial_state: { type: 'STRING' },
+      when: { type: 'STRING', enum: WHENS },
     },
     required: ['cloud_type', 'title', 'content'],
   },
@@ -137,11 +174,14 @@ export interface ExtractOptions {
   temperature?: number;
 }
 
-function partPrompt(n: number, total: number, blocks: string, body: string | null): string {
+function partPrompt(n: number, total: number, blocks: string, body: string | null, numbered: boolean): string {
+  const scope = total === 1
+    ? 'This is the whole text.'
+    : `This is PART ${n} OF ${total} of a longer text. Extract everything in THIS part; the other parts are handled separately and merged later.`;
   return `EXTRACT_CHUNK
 You are Context Cloud Architect, the extraction engine for contextcloud.studio.
-This is CHUNK ${n} OF ${total} of a longer text. Extract everything in THIS part; other parts are handled separately and merged later.
-Map every fact, detail, action, rule and relationship to one of six cloud types. Never omit, merge across items, summarise away, or invent.
+${scope}
+Map every fact, detail, action, rule and relationship to one of six cloud types. Never omit, merge across items, summarise away, or invent.${numbered ? '\nParagraphs are numbered [¶1], [¶2]… Use the numbers for "location"; never copy the markers into quotes.' : ''}
 
 TYPES (use these exact strings)
   "characters"  identity, psychology, contradictions, relationships, what they want vs fear
@@ -149,17 +189,19 @@ TYPES (use these exact strings)
   "world"       rules, history, systems, facts about how this world works, and their consequences
   "references"  named influences: books, films, artworks, real people or events, and why they appear
   "ideas"       themes as specific tensions, how they live in particular characters or scenes
-  "arc"         story beats in this part, ONE ITEM PER BEAT, in the order they happen (acts are grouped later)
+  "arc"         story beats, ONE ITEM PER BEAT, in the order the TEXT TELLS them, which may differ from the order they happen
 
 RULES
-- content: at least 3 sentences, in the source's own language and register where possible.
+- content: everything the text says about the item, in as many sentences as it supports (one to six). Never pad: a character mentioned once gets one sentence. Use the source's own language and register where possible.
 - title: the name used in the text. List other names for the same entity in "aliases" (nicknames, surnames, "the keeper").
+- initial_state (characters, scenes, world): one or two sentences on the item when it FIRST appears in this part: who they are, what they want, know and feel, or how the place or rule stands. Nothing that happens after that point.
+- when (arc only): "main" for the story's present line, "flashback" for earlier events told out of order, "flash_forward" for later events told early. A cut to other characters or a later time that continues the story is "main".
 - source_quote: a short passage (up to 300 characters) copied EXACTLY, word for word, from this part, that best supports the item. Empty only for items you were explicitly allowed to suggest.
-- location: where in the part it appears, e.g. the chapter heading or "opening", "middle", "end".
+- location: ${numbered ? 'paragraph numbers, e.g. "¶12" or "¶12-14"' : 'where it appears, e.g. the page, chapter heading, "opening", "middle" or "end"'}.
 - When in doubt, include it. The author can delete; they cannot add what you didn't extract.
 ${blocks}
 Return a JSON array of items.
-${body === null ? '' : `\nPART ${n} OF ${total}\n${body}`}`;
+${body === null ? '' : `\n${total === 1 ? 'TEXT' : `PART ${n} OF ${total}`}\n${body}`}`;
 }
 
 /** Extracts one part. Returns null when the call fails, so one bad part doesn't sink the upload. */
@@ -193,7 +235,9 @@ export function mergeItems(raw: RawItem[]): MergedItem[] {
     if (!type || !title) continue;
     if (type === 'arc') {
       // Beats are kept in order and grouped into acts later; never merged by title.
-      merged.push({ cloud_type: 'arc', title, content: r.content ?? '', tags: r.tags ?? [], aliases: [], source_quotes: r.source_quote ? [r.source_quote] : [], locations: r.location ? [r.location] : [] });
+      const q = cleanQuote(r.source_quote);
+      const when = WHENS.includes(r.when as When) ? (r.when as When) : 'main';
+      merged.push({ cloud_type: 'arc', title, content: r.content ?? '', tags: r.tags ?? [], aliases: [], source_quotes: q ? [q] : [], locations: r.location ? [r.location] : [], when });
       continue;
     }
     const names = [title, ...(r.aliases ?? [])].map(norm).filter(Boolean);
@@ -224,7 +268,10 @@ export function mergeItems(raw: RawItem[]): MergedItem[] {
     }
     for (const t of r.tags ?? []) if (!target.tags.includes(t) && target.tags.length < 6) target.tags.push(t);
     for (const a of [title, ...(r.aliases ?? [])]) if (a && a !== target.title && !target.aliases.includes(a)) target.aliases.push(a);
-    if (r.source_quote && !target.source_quotes.includes(r.source_quote) && target.source_quotes.length < 5) target.source_quotes.push(r.source_quote);
+    const q = cleanQuote(r.source_quote);
+    if (q && !target.source_quotes.includes(q) && target.source_quotes.length < 5) target.source_quotes.push(q);
+    // Parts arrive in text order, so the first initial state is the earliest one.
+    if (!target.initial_state && r.initial_state?.trim()) target.initial_state = r.initial_state.trim();
     if (r.location && !target.locations.includes(r.location)) target.locations.push(r.location);
     for (const n of [target.title, ...target.aliases].map(norm)) index.set(`${type}::${n}`, target);
   }
@@ -242,18 +289,29 @@ const ACTS_SCHEMA = {
   },
 };
 
-/** Groups beats (in story order) into acts: one arc item per act, beats in order inside it. */
-export async function groupBeatsIntoActs(opts: ExtractOptions, beats: MergedItem[], structureHint: string): Promise<MergedItem[]> {
+/**
+ * Labels each beat (in the order the text tells them) with its act. Beats stay separate items so the
+ * graph can be built one beat at a time; the act is a label on each. When grouping fails, beats keep
+ * no act and nothing is lost.
+ */
+export async function assignActs(opts: ExtractOptions, beats: MergedItem[], structureHint: string): Promise<MergedItem[]> {
+  beats.forEach((b, i) => (b.beat_number = i + 1));
   if (beats.length <= 1) return beats;
+  const line = (b: MergedItem, i: number) => {
+    const text = b.content.replace(/\s+/g, ' ').trim();
+    const short = text.length > 220 ? `${text.slice(0, 220).replace(/\s+\S*$/, '')}…` : text;
+    return `${i}. ${b.when && b.when !== 'main' ? `[${b.when.replace('_', '-')}] ` : ''}${b.title}: ${short}`;
+  };
   let acts: { title: string; beats: number[] }[] | null = null;
   try {
     acts = await generateJson<{ title: string; beats: number[] }[]>({
       apiKey: opts.apiKey,
       prompt: `GROUP_ACTS
-Group these story beats, listed in the order they happen, into acts. Every beat belongs to exactly one act, acts keep the beats' order, and act titles look like "Act 1: The Promise".
+Group these story beats into acts. They are listed in the order the text tells them; flashbacks and flash-forwards are marked.
+Each act is a run of consecutive beats in this order, every beat belongs to exactly one act, and act titles look like "Act 1: The Promise".
 ${structureHint}
 BEATS
-${beats.map((b, i) => `${i}. ${b.title}: ${b.content.slice(0, 200).replace(/\n+/g, ' ')}`).join('\n')}
+${beats.map(line).join('\n')}
 Return a JSON array of { "title", "beats": [indexes] }.`,
       schema: ACTS_SCHEMA,
       temperature: 0.2,
@@ -263,30 +321,22 @@ Return a JSON array of { "title", "beats": [indexes] }.`,
     console.error('[extraction] grouping acts failed:', e instanceof Error ? e.message : e);
   }
 
-  const used = new Set<number>();
-  const out: MergedItem[] = [];
-  for (const act of Array.isArray(acts) ? acts : []) {
-    const idx = (act.beats ?? []).filter((i) => Number.isInteger(i) && i >= 0 && i < beats.length && !used.has(i)).sort((a, b) => a - b);
-    if (!idx.length) continue;
-    idx.forEach((i) => used.add(i));
-    out.push(actFrom(act.title || `Act ${out.length + 1}`, idx.map((i) => beats[i])));
+  (Array.isArray(acts) ? acts : []).forEach((act, a) => {
+    for (const i of act.beats ?? []) {
+      if (Number.isInteger(i) && i >= 0 && i < beats.length && !beats[i].act) {
+        beats[i].act = (act.title || `Act ${a + 1}`).trim();
+        beats[i].act_number = a + 1;
+      }
+    }
+  });
+  // A beat the model skipped joins the act of the beat before it.
+  for (let i = 1; i < beats.length; i++) {
+    if (!beats[i].act && beats[i - 1].act) {
+      beats[i].act = beats[i - 1].act;
+      beats[i].act_number = beats[i - 1].act_number;
+    }
   }
-  const leftover = beats.filter((_, i) => !used.has(i));
-  if (out.length === 0) return [actFrom('The story', beats)]; // grouping failed: keep every beat, in order
-  if (leftover.length) out.push(actFrom(`Act ${out.length + 1}`, leftover));
-  return out;
-}
-
-function actFrom(title: string, beats: MergedItem[]): MergedItem {
-  return {
-    cloud_type: 'arc',
-    title,
-    content: beats.map((b) => `${b.title}. ${b.content}`.trim()).join('\n\n'),
-    tags: [],
-    aliases: [],
-    source_quotes: beats.flatMap((b) => b.source_quotes).slice(0, 5),
-    locations: beats.flatMap((b) => b.locations),
-  };
+  return beats;
 }
 
 export type ExtractInput = { kind: 'text'; text: string } | { kind: 'binary'; mimeType: string; base64: string };
@@ -302,13 +352,13 @@ export async function extractCloudItems(
 
   if (input.kind === 'binary') {
     // PDFs go to Gemini whole; it reads the document natively. Long PDFs: DOCX or TXT give full coverage.
-    const parts: GeminiPart[] = [{ text: partPrompt(1, 1, blocks, null) }, { inlineData: { mimeType: input.mimeType, data: input.base64 } }];
+    const parts: GeminiPart[] = [{ text: partPrompt(1, 1, blocks, null, false) }, { inlineData: { mimeType: input.mimeType, data: input.base64 } }];
     raws = [await extractPart(opts, parts)];
     coverage = { parts_total: 1, parts_extracted: raws[0] ? 1 : 0, parts_failed: raws[0] ? 0 : 1, characters: 0, truncated: false };
   } else {
     const all = splitIntoParts(input.text);
-    const parts = all.slice(0, MAX_PARTS);
-    raws = await mapLimit(parts, CONCURRENCY, (body, i) => extractPart(opts, [{ text: partPrompt(i + 1, parts.length, blocks, body) }]));
+    const parts = numberParagraphs(all.slice(0, MAX_PARTS));
+    raws = await mapLimit(parts, CONCURRENCY, (body, i) => extractPart(opts, [{ text: partPrompt(i + 1, parts.length, blocks, body, true) }]));
     coverage = {
       parts_total: all.length,
       parts_extracted: raws.filter(Boolean).length,
@@ -321,6 +371,6 @@ export async function extractCloudItems(
   const merged = mergeItems(raws.flatMap((r) => r ?? []));
   const beats = merged.filter((m) => m.cloud_type === 'arc');
   const rest = merged.filter((m) => m.cloud_type !== 'arc');
-  const acts = opts.groupActs === false ? beats : await groupBeatsIntoActs(opts, beats, opts.structureHint ?? '');
-  return { items: [...rest, ...acts], coverage };
+  const labelled = opts.groupActs === false ? beats : await assignActs(opts, beats, opts.structureHint ?? '');
+  return { items: [...rest, ...labelled], coverage };
 }

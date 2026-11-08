@@ -49,7 +49,13 @@ export async function POST(req: NextRequest) {
       title: m.title,
       content: m.content,
       tags: m.tags,
-      metadata: { source_quote: m.source_quotes[0] ?? '', source_quotes: m.source_quotes, aliases: m.aliases },
+      metadata: {
+        source_quote: m.source_quotes[0] ?? '',
+        source_quotes: m.source_quotes,
+        aliases: m.aliases,
+        ...(m.initial_state ? { initial_state: m.initial_state } : {}),
+        ...(m.cloud_type === 'arc' ? { when: m.when ?? 'main' } : {}),
+      },
     }));
 
     // Provenance for the batch save step
