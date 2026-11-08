@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -360,6 +360,10 @@ export async function runMigrations(): Promise<boolean> {
       UPDATE users SET ai_keys = ai_keys || jsonb_build_object('google', google_ai_key)
       WHERE google_ai_key IS NOT NULL AND google_ai_key <> '' AND NOT (ai_keys ? 'google')
     `);
+
+    // v6: a project can be published as a ConteXtube cloud; remember where, so publishing again updates it.
+    await query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS cloud_slug TEXT`);
+    await query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS cloud_published_at TIMESTAMPTZ`);
 
     // API keys — programmatic access for AI agents and integrations
     await query(`

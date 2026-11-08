@@ -87,6 +87,7 @@ export async function POST(req: NextRequest) {
         flow: slugify(authorName) || 'context-cloud',
         flow_name: authorName,
         creator_name: authorName,
+        owner: `studio:${userId}`,
         title,
         description: description || '',
         language: 'en',

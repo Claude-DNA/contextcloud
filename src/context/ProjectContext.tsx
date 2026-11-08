@@ -8,6 +8,9 @@ interface Project {
   description: string;
   created_at: string;
   item_count: number;
+  /** Set once the project has been published as a ConteXtube cloud. */
+  cloud_slug?: string | null;
+  cloud_published_at?: string | null;
 }
 
 interface ProjectContextValue {

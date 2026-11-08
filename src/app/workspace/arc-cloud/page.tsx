@@ -4,6 +4,7 @@ import React, { Fragment, useState, useEffect, useCallback, useRef } from 'react
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
+import PublishCloud from '@/components/PublishCloud';
 import { useProject } from '@/context/ProjectContext';
 
 interface CloudItem {
@@ -308,6 +309,8 @@ export default function ArcCloudPage() {
                 </h1>
                 <p className="text-sm text-muted mt-0.5">Build your arc. Each scene is a turning point.</p>
               </div>
+              <div className="flex items-center gap-3">
+              <PublishCloud />
               <button
                 onClick={() => { setAdding(true); setEditingId(null); setFormTitle(''); setFormContent(''); }}
                 disabled={adding}
@@ -316,6 +319,7 @@ export default function ArcCloudPage() {
               >
                 + Add Scene
               </button>
+              </div>
             </div>
 
             {/* Legacy migration banner */}

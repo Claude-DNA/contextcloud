@@ -50,7 +50,16 @@ POST /api/v1/drafts
 Authorization: Bearer cc_live_...
 { "title": "Graph v1", "nodes": [...], "edges": [...] }
 
-# Optionally publish to ContextTube
+# Publish the cloud itself as a page on ConteXtube (contextube.ai/cloud/<slug>):
+# plot beats, characters, places, world, ideas and references, with quotes and images
+POST /api/v1/publish-cloud
+Authorization: Bearer cc_live_...
+{ "project_id": "<id>", "title": "...", "description": "...", "genre": "Science Fiction" }
+← { "published": { "slug": "...", "url": "https://contextube.ai/cloud/...", "element_count": 38 } }
+# Publishing the same project again updates the same page. Add "dry_run": true to see the payload first.
+# An item's picture: metadata.image = { "url": "https://…", "alt": "…", "credit": "…", "source": "https://…" }
+
+# Optionally publish a five-layer flow to ContextTube
 POST /api/v1/publish
 Authorization: Bearer cc_live_...
 { "draftId": "<draft_id>", "title": "...", "description": "..." }

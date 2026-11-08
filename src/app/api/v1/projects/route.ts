@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   await ensureSchema().catch(() => {});
 
   const res = await query(
-    `SELECT p.id, p.title, p.description, p.created_at,
+    `SELECT p.id, p.title, p.description, p.created_at, p.cloud_slug, p.cloud_published_at,
             COALESCE(c.item_count, 0)::int AS item_count
      FROM projects p
      LEFT JOIN (
