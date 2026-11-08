@@ -69,6 +69,9 @@ POST /api/v1/cloud-items/<item_id>/illustrate   { "mode": "auto" }   # or "gener
 POST /api/v1/cloud-items/<item_id>/illustrate/candidates   ← { "candidates": [...] }   # to choose yourself
 POST /api/v1/cloud-items/<item_id>/illustrate/pick   { "candidate": <one of them> }
 DELETE /api/v1/cloud-items/<item_id>/illustrate
+POST /api/v1/images/generate   { "prompt": "...", "references": ["<picture url>"] }   ← { "image": { "id", "url" } }
+#   One picture from your image model, for things that are not cloud items. References (up to 3, pictures on
+#   contextcloud.studio or contextube.ai) keep a character or style consistent with Google's image models.
 # Pictures are served at /api/v1/images/<id> and travel with publish-cloud.
 
 # Optionally publish a five-layer flow to ContextTube
