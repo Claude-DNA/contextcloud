@@ -35,6 +35,11 @@ Authorization: Bearer cc_live_...
   ]
 }
 
+# Store the work's text (lets flow drafts check quotes and include it as L5 full narrative)
+POST /api/v1/projects/<id>/sources
+Authorization: Bearer cc_live_...
+{ "filename": "my-story.txt", "text": "<the full text>" }
+
 # Auto-build the graph
 POST /api/v1/graph-build
 Authorization: Bearer cc_live_...
@@ -52,6 +57,23 @@ Authorization: Bearer cc_live_...
 ```
 
 You now have a project, populated clouds, a connected graph, a saved draft, and a published piece — all without a browser.
+
+---
+
+### Agents that read the work themselves
+
+You don't need your partner's AI key if you are the model doing the reading. Extract the clouds yourself, then save them with `/cloud-items/batch` and the text with `/projects/{id}/sources`. Use the same fields Studio's own upload writes, so graphs and flows work the same:
+
+| Field (in `metadata`) | Types | Meaning |
+|---|---|---|
+| `source_quote`, `source_quotes` | all | Exact passage(s) from the text that support the item |
+| `locations` | all | Where it appears, e.g. `["¶12-14"]` |
+| `aliases` | characters, scenes, world | Other names for the same entity |
+| `initial_state` | characters, scenes, world | The entity when it first appears, with nothing from later in the story; the graph starts from it |
+| `when` | arc | `main`, `flashback` or `flash_forward` |
+| `act`, `act_number`, `beat_number` | arc | The beat's act and position |
+
+Send one `arc` item per beat, in the order the text tells them. Scenes end their `content` with `[Light: …] [Sound: …] [Smell: …]`.
 
 ---
 
@@ -124,6 +146,8 @@ GET    /api/v1/projects/{id}           — get a single project
 PUT    /api/v1/projects/{id}           — update project title/description
 DELETE /api/v1/projects/{id}           — delete a project and all its items
 POST   /api/v1/projects/{id}/clear     — delete all cloud items in a project (keep project)
+GET    /api/v1/projects/{id}/sources   — list the texts stored for a project
+POST   /api/v1/projects/{id}/sources   — store a text the clouds were built from ({ filename, text })
 ```
 
 **Create a project:**

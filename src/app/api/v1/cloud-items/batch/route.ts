@@ -15,8 +15,9 @@ interface BatchItem {
 }
 
 // POST /api/v1/cloud-items/batch
-// Body: { items: BatchItem[] }
-// Saves all items in a single transaction — avoids N parallel DB connections.
+// Body: { items: BatchItem[], project_id?, source?, provenance? }
+// Saves all items in one insert. Items of each type keep the order given (sort_order), so send arc
+// beats in story order.
 export async function POST(req: NextRequest) {
   const userId = await getAuthUserId(req);
   if (!userId) {
@@ -39,6 +40,10 @@ export async function POST(req: NextRequest) {
 
   if (!Array.isArray(items) || items.length === 0) {
     return NextResponse.json({ error: 'items array required' }, { status: 400 });
+  }
+  if (project_id) {
+    const own = await query('SELECT id FROM projects WHERE id = $1 AND user_id = $2', [project_id, userId]);
+    if (own.rows.length === 0) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
   // Validate all items upfront
