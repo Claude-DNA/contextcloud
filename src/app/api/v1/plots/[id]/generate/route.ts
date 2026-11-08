@@ -83,8 +83,9 @@ export async function POST(
     if (ideaElemIds.length > 0) {
       const ids = ideaElemIds.map(e => e.id);
       const ideaRows = await query(
-        `SELECT id, text, final_state_manual FROM ideas WHERE id = ANY($1::uuid[])`,
-        [ids]
+        `SELECT id, COALESCE(NULLIF(content, ''), title) AS text, final_state_manual FROM cloud_items
+         WHERE id = ANY($1::uuid[]) AND user_id = $2 AND cloud_type = 'ideas'`,
+        [ids, userId]
       );
       for (const row of ideaRows.rows) {
         const elem = ideaElemIds.find((e) => e.id === row.id);

@@ -9,6 +9,7 @@ import WeightEditorModal from '@/components/ideas-cloud/WeightEditorModal';
 import TransformationsModal from '@/components/ideas-cloud/TransformationsModal';
 import FinalStateModal from '@/components/ideas-cloud/FinalStateModal';
 import NarrativeLab from '@/components/narrative-lab/NarrativeLab';
+import { useProject } from '@/context/ProjectContext';
 
 interface Idea {
   id: string;
@@ -33,9 +34,13 @@ export default function IdeasCloudPage() {
   const [transModalIdea, setTransModalIdea] = useState<Idea | null>(null);
   const [fsModalIdea, setFsModalIdea] = useState<Idea | null>(null);
 
+  // The ideas of the selected project; all ideas when no project is selected.
+  const { activeProjectId } = useProject();
+  const projectQs = activeProjectId ? `?project_id=${activeProjectId}` : '';
+
   const fetchIdeas = useCallback(async () => {
     try {
-      const res = await fetch('/api/v1/ideas');
+      const res = await fetch(`/api/v1/ideas${projectQs}`);
       const data = await res.json();
       const fetchedIdeas: Idea[] = data.ideas || [];
       setIdeas(fetchedIdeas);
@@ -59,7 +64,7 @@ export default function IdeasCloudPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [projectQs]);
 
   useEffect(() => {
     fetchIdeas();
@@ -79,7 +84,7 @@ export default function IdeasCloudPage() {
         const res = await fetch('/api/v1/ideas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: updated.text }),
+          body: JSON.stringify({ text: updated.text, project_id: activeProjectId }),
         });
         if (res.ok) {
           await fetchIdeas();
@@ -152,7 +157,7 @@ export default function IdeasCloudPage() {
         await fetch('/api/v1/ideas', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: line.trim() }),
+          body: JSON.stringify({ text: line.trim(), project_id: activeProjectId }),
         });
       }
       await fetchIdeas();
@@ -177,8 +182,8 @@ export default function IdeasCloudPage() {
               {ideas.length > 0 && (
                 <button
                   onClick={async () => {
-                    if (!confirm('Delete ALL ideas? This cannot be undone.')) return;
-                    await fetch('/api/v1/ideas?all=true', { method: 'DELETE' });
+                    if (!confirm(activeProjectId ? 'Delete all ideas in this project? This cannot be undone.' : 'Delete ALL ideas in every project? This cannot be undone.')) return;
+                    await fetch(`/api/v1/ideas?all=true${activeProjectId ? `&project_id=${activeProjectId}` : ''}`, { method: 'DELETE' });
                     setIdeas([]);
                   }}
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
+import { getGeminiKey, noKeyResponse } from '@/lib/ai-key';
+import { generate } from '@/lib/gemini';
 
 export async function GET(req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -64,10 +66,31 @@ export async function POST(
 
   if (mode === 'generate') {
     const item = itemRes.rows[0];
-    const role = item.metadata?.role || '';
-    const arc = item.metadata?.arc || '';
-    // Stub — replace with real AI generation when provider is wired
-    const generated = `[AI-generated final state for: "${item.title}"${role ? ` (${role})` : ''}]${arc ? ` Arc: ${arc}` : ''} — Placeholder. Connect an AI provider to generate real character final states.`;
+    const apiKey = await getGeminiKey(userId);
+    if (!apiKey) return noKeyResponse();
+    const trans = await query(
+      'SELECT text, weight, transform_type FROM cloud_item_transformations WHERE cloud_item_id = $1 ORDER BY created_at ASC',
+      [id]
+    );
+    const kind = item.cloud_type === 'ideas' ? 'idea' : item.cloud_type === 'characters' ? 'character' : 'element';
+    let generated: string;
+    try {
+      generated = (await generate({
+        apiKey,
+        temperature: 0.6,
+        maxOutputTokens: 1024,
+        prompt: `Describe where this story ${kind} ends up after everything that happens to it: its final state, in 3-5 sentences.
+Stay faithful to what is written; mark anything you infer as inferred.
+
+${kind.toUpperCase()}: ${item.title}
+${String(item.content || '').slice(0, 4000)}
+
+WHAT CHANGES IT (in order, with weights)
+${trans.rows.map((t: { text: string; weight: number; transform_type: string }) => `- (${t.transform_type}, weight ${t.weight}) ${t.text}`).join('\n') || '(no transformations recorded)'}`,
+      })).trim();
+    } catch (e) {
+      return NextResponse.json({ error: 'Generation failed', details: e instanceof Error ? e.message : String(e) }, { status: 502 });
+    }
 
     const res = await query(
       'UPDATE cloud_items SET final_state_generated = $1, updated_at = NOW() WHERE id = $2 RETURNING id, title, final_state_manual, final_state_generated',

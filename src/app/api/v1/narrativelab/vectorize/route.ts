@@ -35,11 +35,24 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Check if already vectorized (and not forcing refresh)
+    // The element's current text; it must belong to this user.
+    let elementText = '';
+    if (elementType === 'idea') {
+      const rows = await query(
+        `SELECT title, content FROM cloud_items WHERE id = $1 AND user_id = $2 AND cloud_type = 'ideas'`,
+        [elementId, userId]
+      );
+      if (!rows.rows.length) return NextResponse.json({ error: 'Idea not found' }, { status: 404 });
+      elementText = (rows.rows[0].content as string)?.trim() || (rows.rows[0].title as string);
+    } else if (elementType === 'character') {
+      return NextResponse.json({ error: 'Character vectorization coming in Character Cloud phase' }, { status: 400 });
+    }
+
+    // Reuse the stored vector only if the text hasn't changed since it was scored.
     if (!forceRefresh) {
       const existing = await query(
-        `SELECT * FROM narrative_vectors WHERE element_id = $1 AND element_type = $2`,
-        [elementId, elementType]
+        `SELECT * FROM narrative_vectors WHERE element_id = $1 AND element_type = $2 AND element_text = $3`,
+        [elementId, elementType, elementText]
       );
       if (existing.rows.length > 0) {
         const row = existing.rows[0];
@@ -48,16 +61,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Fetch element text
-    let elementText = '';
-    if (elementType === 'idea') {
-      const rows = await query(`SELECT text FROM ideas WHERE id = $1`, [elementId]);
-      if (!rows.rows.length) return NextResponse.json({ error: 'Idea not found' }, { status: 404 });
-      elementText = rows.rows[0].text;
-    } else if (elementType === 'character') {
-      // Character Cloud not yet built — placeholder
-      return NextResponse.json({ error: 'Character vectorization coming in Character Cloud phase' }, { status: 400 });
-    }
 
     // Build vectorization prompt and call Gemini
     const apiKey = await getGeminiKey(userId);

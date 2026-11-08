@@ -19,13 +19,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'orderedIds array is required' }, { status: 400 });
   }
 
-  // Update sort_order for each idea
-  for (let i = 0; i < orderedIds.length; i++) {
-    await query(
-      'UPDATE ideas SET sort_order = $1 WHERE id = $2 AND project_id = $3',
-      [i, orderedIds[i], userId]
-    );
-  }
+  // One statement: each id gets its position in the list.
+  await query(
+    `UPDATE cloud_items c SET sort_order = o.pos - 1
+     FROM unnest($1::uuid[]) WITH ORDINALITY AS o(id, pos)
+     WHERE c.id = o.id AND c.user_id = $2 AND c.cloud_type = 'ideas'`,
+    [orderedIds, userId]
+  );
 
   return NextResponse.json({ success: true });
 }

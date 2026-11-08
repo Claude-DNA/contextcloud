@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -329,6 +329,26 @@ export async function runMigrations(): Promise<boolean> {
       )
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_project_sources_project ON project_sources (user_id, project_id)`);
+
+    // v4: ideas live in cloud_items like every other cloud. Copy any rows from the old ideas
+    // table (whose project_id column held the user id) with the same ids, so narrative vectors,
+    // weights and transformations keep pointing at them. The old tables stay as an archive.
+    await query(`
+      INSERT INTO cloud_items (id, user_id, cloud_type, title, content, metadata, sort_order,
+                               final_state_manual, final_state_generated, created_at, updated_at)
+      SELECT i.id, i.project_id::text, 'ideas', left(split_part(i.text, E'\n', 1), 80), i.text,
+             jsonb_build_object('weight', i.weight, 'locked', i.locked, 'image_url', i.image_url, 'migrated_from', 'ideas'),
+             i.sort_order, i.final_state_manual, i.final_state_generated, i.created_at, i.updated_at
+      FROM ideas i
+      WHERE NOT EXISTS (SELECT 1 FROM cloud_items c WHERE c.id = i.id)
+    `);
+    await query(`
+      INSERT INTO cloud_item_transformations (id, cloud_item_id, source_node_id, source_node_level, text, weight, locked, transform_type, created_at)
+      SELECT t.id, t.idea_id, t.source_node_id, t.source_node_level, t.text, t.weight, t.locked, t.transform_type, t.created_at
+      FROM idea_transformations t
+      WHERE EXISTS (SELECT 1 FROM cloud_items c WHERE c.id = t.idea_id)
+        AND NOT EXISTS (SELECT 1 FROM cloud_item_transformations x WHERE x.id = t.id)
+    `);
 
     // API keys — programmatic access for AI agents and integrations
     await query(`
