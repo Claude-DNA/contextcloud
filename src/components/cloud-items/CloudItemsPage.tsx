@@ -48,13 +48,21 @@ export const CLOUD_CONFIGS: Record<CloudType, CloudTypeConfig> = {
     emoji: '📚',
     colorHex: '#f97316',
     titlePlaceholder: 'Reference title…',
-    contentPlaceholder: 'What does this reference contribute — themes, tone, structural parallel, contrast…',
+    contentPlaceholder: 'What it is, and the bridge to this work: a work the text names, or an association it sets off in readers (a film, series, myth, conspiracy, game, event)…',
     tagLabel: 'Tags',
     tagPlaceholder: 'parallel theme, contrast, influence…',
     fields: [
       {
         key: 'refType', label: 'Type', placeholder: 'Select type',
-        options: ['book', 'film', 'music', 'art', 'article', 'real event', 'other'],
+        options: ['book', 'film', 'series', 'game', 'music', 'art', 'article', 'myth', 'conspiracy theory', 'meme', 'historical event', 'idea', 'other'],
+      },
+      {
+        key: 'origin', label: 'Where it comes from', placeholder: 'Select',
+        options: ['text', 'association'],
+      },
+      {
+        key: 'link', label: 'Connection', placeholder: 'Select',
+        options: ['source', 'ancestor', 'echo', 'contrast', 'myth', 'history'],
       },
       { key: 'url', label: 'Link / Source', placeholder: 'https://…' },
     ],
@@ -322,6 +330,25 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
 
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
+  const [associating, setAssociating] = useState(false);
+  const [assocMessage, setAssocMessage] = useState<string | null>(null);
+  const suggestAssociations = async () => {
+    if (!activeProjectId) return;
+    setAssociating(true);
+    setAssocMessage(null);
+    try {
+      const res = await fetch(`/api/v1/projects/${activeProjectId}/associations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.message || d.error || 'Could not suggest associations');
+      setAssocMessage(d.saved ? `Added ${d.saved} associations. Delete any that don't ring true.` : 'No new associations found.');
+      await fetchItems();
+    } catch (e) {
+      setAssocMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAssociating(false);
+    }
+  };
+
   const handleCreate = async (data: Omit<CloudItem, 'id' | 'created_at'>) => {
     setSaving(true);
     try {
@@ -429,6 +456,16 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 {config.emoji} {config.label}
               </h1>
               <div className="flex gap-2">
+                {cloudType === 'references' && activeProjectId && (
+                  <button
+                    onClick={suggestAssociations}
+                    disabled={associating}
+                    title="References the work sets off in readers' minds: films, series, myths, conspiracy lore, games, history"
+                    className="px-3 py-2 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                  >
+                    {associating ? 'Thinking…' : 'Suggest associations'}
+                  </button>
+                )}
                 {items.length > 0 && (
                   <button
                     onClick={handleExportRunway}
@@ -462,6 +499,8 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                 </button>
               </div>
             </div>
+
+            {assocMessage && <p role="status" className="mb-4 text-sm text-muted">{assocMessage}</p>}
 
             {/* Search */}
             <div className="mb-4">

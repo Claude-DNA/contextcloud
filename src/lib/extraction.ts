@@ -182,7 +182,7 @@ TYPES
 characters  People and other agents, named or not ("the girl", "the Chairman"). Identity, psychology, contradictions, relationships, what they want and what they fear.
 scenes      Places where things happen. End the content with sensory anchors in this form: [Light: …] [Sound: …] [Smell: …]. Write "not specified" for any the text does not give; never invent one.
 world       How this world works: rules, history, institutions, technology, systems, and their consequences.
-references  Works, people and events from outside the story that the text names or quotes, and why they appear.
+references  Works, people and events from outside the story that the text names or quotes, and why they appear. (Associations the text only evokes are suggested in a separate step, so list only what the text itself names.)
 ideas       Themes stated as specific tensions ("faith without a witness"), with the characters and scenes they live in.
 arc         Story beats: one item per beat, a beat being one change in the situation, in the order the text tells them.
 
