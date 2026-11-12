@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import PublishCloud from '@/components/PublishCloud';
+import CloudFileButtons from '@/components/CloudFileButtons';
 import ProjectIllustrations from '@/components/ProjectIllustrations';
 import ItemIllustration, { type ItemImage } from '@/components/ItemIllustration';
 import { useProject } from '@/context/ProjectContext';
@@ -314,6 +315,7 @@ export default function ArcCloudPage() {
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3 [&_button]:whitespace-nowrap">
               <ProjectIllustrations onDone={fetchScenes} />
+              <CloudFileButtons />
               <PublishCloud />
               <button
                 onClick={() => { setAdding(true); setEditingId(null); setFormTitle(''); setFormContent(''); }}

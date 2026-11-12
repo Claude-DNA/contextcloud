@@ -57,6 +57,14 @@ Authorization: Bearer cc_live_...
 { "project_id": "<id>", "title": "...", "description": "...", "genre": "Science Fiction" }
 ← { "published": { "slug": "...", "url": "https://contextube.ai/cloud/...", "element_count": 38 } }
 # Publishing the same project again updates the same page. Add "dry_run": true to see the payload first.
+
+# Save a whole cloud as one file, and open it again (no AI used). The file is JSON, named <title>.cloud.json:
+# { "format": "context-cloud", "version": 1, "cloud": { "title", "description"?, ... },
+#   "elements": [ { "kind": plot|characters|stage|universe|ideas|references, "title", "text", "image"?, "metadata"? } ] }
+GET  /api/v1/projects/<id>/cloud-file            ← the file (add ?download=0 for plain JSON)
+POST /api/v1/import/cloud-file                   body: the file   ← { "project": { "id", "title", "created" }, "imported": 42 }
+POST /api/v1/import/cloud-file?project_id=<id>   adds the file's elements to an existing project
+# Published clouds can be saved the same way: GET https://contextube.ai/api/v1/clouds/<slug>/file
 # An item's picture: metadata.image = { "url": "https://…", "alt": "…", "credit": "…", "source": "https://…" }
 
 # Illustrations (uses the image provider chosen in Settings → Illustrations: Google, OpenAI or OpenRouter)
