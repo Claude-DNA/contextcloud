@@ -65,6 +65,10 @@ GET  /api/v1/projects/<id>/cloud-file            ← the file (add ?download=0 f
 POST /api/v1/import/cloud-file                   body: the file   ← { "project": { "id", "title", "created" }, "imported": 42 }
 POST /api/v1/import/cloud-file?project_id=<id>   adds the file's elements to an existing project
 # Published clouds can be saved the same way: GET https://contextube.ai/api/v1/clouds/<slug>/file
+
+# One answer from your own text model (your key, your cost), for evaluations and scripts:
+POST /api/v1/ask   { "prompt": "...", "system": "...", "model": "<optional override>", "json": false, "max_tokens": 2000 }
+← { "text": "...", "model": "...", "provider": "..." }
 # An item's picture: metadata.image = { "url": "https://…", "alt": "…", "credit": "…", "source": "https://…" }
 
 # Illustrations (uses the image provider chosen in Settings → Illustrations: Google, OpenAI or OpenRouter)
