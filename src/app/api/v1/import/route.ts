@@ -285,6 +285,8 @@ export async function POST(req: NextRequest) {
         locations: item.locations,
         ...(item.initial_state ? { initial_state: item.initial_state } : {}),
         ...(item.cloud_type === 'references' ? { origin: 'text' } : {}),
+        ...(item.importance ? { importance: item.importance } : {}),
+        ...(item.whole_work ? { whole_work: true } : {}),
         ...(item.cloud_type === 'arc'
           ? { when: item.when ?? 'main', act: item.act ?? '', act_number: item.act_number ?? null, beat_number: item.beat_number ?? null }
           : {}),

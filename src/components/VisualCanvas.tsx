@@ -1240,6 +1240,7 @@ export default function VisualCanvas() {
     let totalSaved = 0;
     let totalSkipped = 0;
     const gaps: string[] = [];
+    const notes: string[] = [];
     try {
       for (const file of files) {
         const formData = new FormData();
@@ -1255,14 +1256,16 @@ export default function VisualCanvas() {
         if (!res.ok) { showToast(data.error || 'Import failed'); setImporting(false); return; }
         totalSaved   += data.saved   ?? 0;
         totalSkipped += data.skipped ?? 0;
-        const c = data.coverage as { parts_total: number; parts_extracted: number; parts_failed: number; truncated: boolean } | undefined;
+        const c = data.coverage as { parts_total: number; parts_extracted: number; parts_failed: number; truncated: boolean; consolidation?: { merged: number; whole_work_ideas: number } | null; quotes?: { dropped: number } } | undefined;
+        if (c?.consolidation) notes.push(`${c.consolidation.merged} duplicates merged, ${c.consolidation.whole_work_ideas} whole-work ideas added`);
+        if (c?.quotes?.dropped) notes.push(`${c.quotes.dropped} inexact quotes removed`);
         if (c?.truncated) gaps.push(`${file.name}: only the first ${c.parts_extracted} of ${c.parts_total} parts were read (the text is very long)`);
         else if (c?.parts_failed) gaps.push(`${file.name}: ${c.parts_failed} of ${c.parts_total} parts failed; upload it again to retry`);
       }
       if (gaps.length) showToast(`⚠️ ${gaps.join('. ')}`);
       if (totalSaved > 0) {
         const skipped = totalSkipped > 0 ? ` (${totalSkipped} already existed)` : '';
-        if (!gaps.length) showToast(`✅ ${totalSaved} new items saved${skipped} — building graph...`);
+        if (!gaps.length) showToast(`✅ ${totalSaved} new items saved${skipped}${notes.length ? ` (${notes.join('; ')})` : ''} — building graph...`);
         setImporting(false);
         handleAutoBuild();
         return;

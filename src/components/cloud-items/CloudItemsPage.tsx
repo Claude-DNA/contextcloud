@@ -600,7 +600,15 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                         )}
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
-                            <h3 className="font-semibold text-foreground">{item.title}</h3>
+                            <h3 className="font-semibold text-foreground">
+                              {item.title}
+                              {item.metadata?.importance === 'major' && (
+                                <span className="ml-2 align-middle rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted">Major</span>
+                              )}
+                              {item.metadata?.whole_work && (
+                                <span className="ml-2 align-middle rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted" title="Added from the work as a whole, so it has no single quote">Whole work</span>
+                              )}
+                            </h3>
                             {(config.fields || []).map(f => item.metadata?.[f.key] && (
                               <div key={f.key} className="mt-0.5">
                                 <span className="text-xs text-muted">{f.label}: </span>

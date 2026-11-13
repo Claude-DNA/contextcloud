@@ -57,6 +57,8 @@ export async function POST(req: NextRequest) {
         source_quotes: m.source_quotes,
         aliases: m.aliases,
         ...(m.initial_state ? { initial_state: m.initial_state } : {}),
+        ...(m.importance ? { importance: m.importance } : {}),
+        ...(m.whole_work ? { whole_work: true } : {}),
         ...(m.cloud_type === 'arc' ? { when: m.when ?? 'main' } : {}),
       },
     }));
