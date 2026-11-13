@@ -75,6 +75,18 @@ POST /api/v1/import/cloud-file?project_id=<id>   adds the file's elements to an 
 # The arc travels in the cloud file and is published with the cloud.
 GET /api/v1/user/state-library   ← { "formulas": [...] }      PUT the same shape to replace your saved formulas
 
+# Audition: the AI plays your character in a state mixed from up to three entries of the state library
+# (GET https://contextube.ai/api/v1/states), in a scene you set.
+POST /api/v1/audition
+     { "name": "Mara", "who": "A night-shift line operator", "scene": "...", "context": "...",
+       "cast": [ { "state": <library entry>, "weight": 70 }, { "state": <library entry>, "weight": 30 } ],
+       "adjustments": [ { "state": "pride", "amount": 60 } ],      // -100..100: more of a feeling, or held down
+       "shows": "calm" | "none" | "auto", "intensity": 1 | 2 | 3,
+       "turns": [ { "role": "character" | "scene" | "direction", "text": "..." } ] }
+← { "take": "...", "formula_text": "(Grief + Confusion − Hope) × Disgust", "formula": {...}, "strengths": [ { "id", "share" } ] }
+# No turns: it opens the scene. Last turn "scene": it answers what happened. "direction": it replays its last
+# take as directed. "character": another take of the same moment.
+
 # One answer from your own text model (your key, your cost), for evaluations and scripts:
 POST /api/v1/ask   { "prompt": "...", "system": "...", "model": "<optional override>", "json": false, "max_tokens": 2000 }
 ← { "text": "...", "model": "...", "provider": "..." }
