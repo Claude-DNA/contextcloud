@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -356,7 +356,7 @@ export async function runMigrations(): Promise<boolean> {
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_model TEXT`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_model_light TEXT`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_keys JSONB NOT NULL DEFAULT '{}'::jsonb`);
-    // The writer's saved state formulas (was browser-only storage).
+    // v8: the writer's saved state formulas (was browser-only storage).
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS state_library JSONB NOT NULL DEFAULT '[]'::jsonb`);
     await query(`
       UPDATE users SET ai_keys = ai_keys || jsonb_build_object('google', google_ai_key)
