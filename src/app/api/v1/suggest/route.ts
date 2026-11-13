@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthUserId } from '@/lib/api-auth';
 import { getAiConfig, noKeyResponse, aiErrorResponse } from '@/lib/ai-key';
 import { generateJson, providerOfModel, type AiConfig } from '@/lib/ai';
+import { describeFormula, parseStoredFormula } from '@/lib/state-formula';
 
 interface SuggestBody {
   nodeType: string;
   nodeTitle: string;
   nodeContent: string;
+  /** A state node's formula; sent to the AI in words. */
+  stateFormula?: unknown;
   connections: Array<{ type: string; title: string; content: string }>;
   proxies: Array<{ type: string; elements: string[] }>;
   aiNode?: { model?: string; apiKey?: string; systemPrompt?: string; temperature?: number };
@@ -72,14 +75,18 @@ function buildPrompt(body: SuggestBody): string {
   const typeInstructions = TYPE_INSTRUCTIONS[nodeType] ?? TYPE_INSTRUCTIONS[TYPE_ALIAS[key] ?? key] ??
     `This is a ${nodeType} element. Suggest what would make it feel specific and necessary: what makes it irreplaceable, the tension inside it, and how it connects to the rest of the story.`;
   const connectionsText = connections?.length
-    ? connections.map((c) => `- ${c.type}: "${c.title}": ${(c.content || '').slice(0, 600)}`).join('\n')
+    ? connections.map((c) => `- ${c.type}: "${c.title}": ${(c.content || '').slice(0, 1400)}`).join('\n')
     : '(none yet)';
 
+  const formula = parseStoredFormula(body.stateFormula);
+  const formulaBlock = formula
+    ? `\nEMOTIONAL STATE FORMULA (the writer chose this; suggestions must fit it)\n${describeFormula(formula)}\n`
+    : '';
   return `ELEMENT (${nodeType}): "${nodeTitle}"
 <<<
 ${nodeContent || '(not written yet)'}
 >>>
-
+${formulaBlock}
 CONNECTED ELEMENTS
 ${connectionsText}
 

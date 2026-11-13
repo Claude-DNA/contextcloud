@@ -66,6 +66,15 @@ POST /api/v1/import/cloud-file                   body: the file   ← { "project
 POST /api/v1/import/cloud-file?project_id=<id>   adds the file's elements to an existing project
 # Published clouds can be saved the same way: GET https://contextube.ai/api/v1/clouds/<slug>/file
 
+# Character states. A state is a formula over a fixed vocabulary of feelings:
+#   (Base + Base − Base) × Modifier at an intensity. Base: felt together. −Base: called for but missing.
+#   Modifier: how it comes out in action. Intensity: 1 undertone, 2 plain to see, 3 it runs the character.
+# POST /api/v1/graph-build proposes one for every character in every scene, shows it on the graph, and (on a
+# full build) saves each character's arc on the character item: metadata.state_arc =
+#   [ { "beat", "beat_number"?, "state", "delta", "formula": "(Pride + Fear) × Rage", "base", "missing", "modifier"?, "intensity", "color" } ]
+# The arc travels in the cloud file and is published with the cloud.
+GET /api/v1/user/state-library   ← { "formulas": [...] }      PUT the same shape to replace your saved formulas
+
 # One answer from your own text model (your key, your cost), for evaluations and scripts:
 POST /api/v1/ask   { "prompt": "...", "system": "...", "model": "<optional override>", "json": false, "max_tokens": 2000 }
 ← { "text": "...", "model": "...", "provider": "..." }

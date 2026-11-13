@@ -203,171 +203,9 @@ export const AI_NODE_CONFIG = {
   defaultLabel: 'Default model',
 };
 
-// --- States Model ---
-
-export interface AtomicState {
-  id: string;
-  label: string;
-  axis: 'love' | 'fear' | 'neutral' | 'burden' | 'active' | 'saddle';
-  color: string;
-  description: string;
-}
-
-export const ATOMIC_STATES: AtomicState[] = [
-  // Love axis
-  { id: 'love',      label: 'Love',      axis: 'love',    color: '#E91E8C', description: 'Attachment pull; focus on what you have' },
-  { id: 'hope',      label: 'Hope',      axis: 'love',    color: '#4CAF50', description: 'Love - logic; belief despite evidence' },
-  { id: 'joy',       label: 'Joy',       axis: 'love',    color: '#FFD600', description: 'Present-tense positive state' },
-  { id: 'wonder',    label: 'Wonder',    axis: 'love',    color: '#29B6F6', description: 'Passive openness to the unknown' },
-  { id: 'curiosity', label: 'Curiosity', axis: 'active',  color: '#26C6DA', description: 'Active pursuit of the unknown (not Wonder)' },
-  // Fear axis
-  { id: 'fear',      label: 'Fear',      axis: 'fear',    color: '#1565C0', description: 'Exposure to unknown × self-preservation; default state' },
-  { id: 'despair',   label: 'Despair',   axis: 'fear',    color: '#263238', description: 'Fear - logic; hopelessness despite evidence' },
-  { id: 'rage',      label: 'Rage',      axis: 'active',  color: '#B71C1C', description: 'Reactive force; present-tense' },
-  { id: 'disgust',   label: 'Disgust',   axis: 'fear',    color: '#558B2F', description: 'Boundary enforcement, rejection' },
-  { id: 'distrust',  label: 'Distrust',  axis: 'fear',    color: '#37474F', description: 'Not believing in others\' intentions' },
-  { id: 'confusion', label: 'Confusion', axis: 'neutral', color: '#757575', description: 'Epistemic zero-vector; Soul-Mind disconnection' },
-  // Burdens (carry trapped Love)
-  { id: 'guilt',     label: 'Guilt',     axis: 'burden',  color: '#6A1B9A', description: 'I DID wrong; Love trapped in violation awareness' },
-  { id: 'shame',     label: 'Shame',     axis: 'burden',  color: '#4A148C', description: 'I AM wrong; self-collapse' },
-  { id: 'grief',     label: 'Grief',     axis: 'burden',  color: '#37474F', description: 'Love trapped in loss; backward-facing' },
-  // Masks / Modifiers
-  { id: 'pride',     label: 'Pride',     axis: 'fear',    color: '#F57F17', description: 'Fear\'s most successful mask; self-expansion' },
-  // Saddle point
-  { id: 'envy',      label: 'Envy',      axis: 'saddle',  color: '#2E7D32', description: 'Inherently unstable; always resolves (→ Admiration or Resentment)' },
-  // Longing
-  { id: 'longing',   label: 'Longing',   axis: 'burden',  color: '#7B1FA2', description: 'Desire for something absent; bridge between Love and Grief' },
-];
-
-export interface StateFormula {
-  id: string;
-  name: string;
-  base: string[];                     // atomic state ids
-  signs?: Record<string, 1 | -1>;    // +1 (default) or -1 (negated); e.g. { love: -1 } means −Love
-  modifier?: string;                  // atomic state id (optional)
-  modifierSign?: 1 | -1;              // modifier can also be negated
-  description?: string;
-  isPreset?: boolean;
-  color?: string;       // display color (auto-derived if empty)
-}
-
-export const PRESET_FORMULAS: StateFormula[] = [
-  // Field equations
-  {
-    id: 'evil-formula',
-    name: 'Evil Formula',
-    base: ['love', 'confusion'],
-    modifier: 'pride',
-    description: 'Love loses direction via Confusion; Pride (Fear\'s mask) fills the vacuum. Person inside feels love, not evil.',
-    isPreset: true,
-    color: '#B71C1C',
-  },
-  {
-    id: 'honor',
-    name: 'Honor',
-    base: ['fear', 'curiosity'],
-    modifier: 'compassion',
-    description: 'Fear keeps stakes real. Curiosity sees clearly. Compassion as modifier: Pride − Fear = Honor.',
-    isPreset: true,
-    color: '#F57F17',
-  },
-  {
-    id: 'compassion',
-    name: 'Compassion',
-    base: ['love', 'curiosity'],
-    description: 'Always active. Moves toward. Sees the other clearly through Love.',
-    isPreset: true,
-    color: '#E91E8C',
-  },
-  {
-    id: 'cynicism',
-    name: 'Cynicism',
-    base: ['fear', 'wonder'],
-    description: 'Passive by default. Sees clearly — through Fear. When activated: aggression, lies, betrayal.',
-    isPreset: true,
-    color: '#1565C0',
-  },
-  {
-    id: 'admiration',
-    name: 'Admiration',
-    base: ['envy', 'wonder'],
-    modifier: 'curiosity',
-    description: 'Proactive. Curiosity converts Envy + Wonder into movement toward. The stable resolution of Envy.',
-    isPreset: true,
-    color: '#26C6DA',
-  },
-  {
-    id: 'contempt',
-    name: 'Contempt',
-    base: ['pride', 'disgust'],
-    modifier: 'cynicism',
-    description: 'Passive. Looks down, withdraws, dismisses. Cynicism as modifier: cold, analytical rejection.',
-    isPreset: true,
-    color: '#558B2F',
-  },
-  {
-    id: 'resentment',
-    name: 'Resentment',
-    base: ['pride', 'confusion'],
-    modifier: 'rage',
-    description: 'Feeling you should be more than your situation + not knowing why. Variable modifier.',
-    isPreset: true,
-    color: '#B71C1C',
-  },
-  {
-    id: 'warrior-honor',
-    name: 'Warrior Honor',
-    base: ['fear', 'curiosity'],
-    modifier: 'love',
-    description: 'Fear keeps stakes real. Curiosity sees opponent as someone to understand. Love as modifier: you fight but the enemy has a face.',
-    isPreset: true,
-    color: '#F57F17',
-  },
-  {
-    id: 'sociopathy',
-    name: 'Sociopathy',
-    base: ['fear', 'distrust'],
-    description: 'Clear, operational, cold. Has concluded: everyone is a potential threat.',
-    isPreset: true,
-    color: '#263238',
-  },
-  {
-    id: 'paranoia',
-    name: 'Paranoia',
-    base: ['fear', 'distrust', 'confusion'],
-    description: 'Same base as Sociopathy but no stable target. Confusion makes the threat spiral and shift.',
-    isPreset: true,
-    color: '#1A237E',
-  },
-  {
-    id: 'remorse',
-    name: 'Remorse',
-    base: ['guilt', 'curiosity'],
-    description: 'Catalyst that releases Love from Guilt. Active turn toward what was broken. Not guilt about guilt.',
-    isPreset: true,
-    color: '#6A1B9A',
-  },
-  {
-    id: 'warrior-sociopathy',
-    name: 'Warrior Sociopathy',
-    base: ['fear', 'distrust'],
-    modifier: 'confusion',
-    description: 'Dehumanization replaces Curiosity with Distrust, Compassion with Confusion. Committed while confused.',
-    isPreset: true,
-    color: '#37474F',
-  },
-];
-
-export const ATOMIC_STATE_MAP = Object.fromEntries(ATOMIC_STATES.map(s => [s.id, s]));
-
-export function deriveFormulaColor(formula: StateFormula): string {
-  if (formula.color) return formula.color;
-  // Derive from dominant base state
-  const dominant = formula.modifier
-    ? ATOMIC_STATE_MAP[formula.modifier]
-    : formula.base.length > 0 ? ATOMIC_STATE_MAP[formula.base[0]] : null;
-  return dominant?.color || '#888888';
-}
+// --- States Model --- lives in @/lib/state-formula so the server can use it too.
+export * from '@/lib/state-formula';
+import type { StateFormula } from '@/lib/state-formula';
 
 const LIBRARY_KEY = 'contextube_state_library';
 
@@ -390,4 +228,32 @@ export function deleteFromStateLibrary(id: string): StateFormula[] {
   const updated = loadStateLibrary().filter(f => f.id !== id);
   localStorage.setItem(LIBRARY_KEY, JSON.stringify(updated));
   return updated;
+}
+
+/**
+ * The library lives on the account; the browser copy is a cache so the panel opens instantly.
+ * Formulas saved in this browser before accounts kept them are sent up the first time.
+ */
+export async function syncStateLibrary(): Promise<StateFormula[]> {
+  const local = loadStateLibrary();
+  try {
+    const res = await fetch('/api/v1/user/state-library');
+    if (!res.ok) return local;
+    const server = ((await res.json()).formulas ?? []) as StateFormula[];
+    const extra = local.filter((f) => !server.some((s) => s.id === f.id));
+    const all = [...server, ...extra];
+    if (extra.length) await pushStateLibrary(all);
+    localStorage.setItem(LIBRARY_KEY, JSON.stringify(all));
+    return all;
+  } catch {
+    return local;
+  }
+}
+
+export async function pushStateLibrary(formulas: StateFormula[]): Promise<void> {
+  try {
+    await fetch('/api/v1/user/state-library', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ formulas }) });
+  } catch {
+    // The browser copy stays; the next sync sends it up.
+  }
 }

@@ -3,7 +3,7 @@
 import React, { memo, useCallback, useContext, Fragment, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
-import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, HUB_HANDLES, AI_NODE_CONFIG } from './nodeTypes';
+import { STATE_COLORS, NODE_TYPE_MAP, TYPED_HANDLES, OUTPUT_HANDLES, HUB_HANDLES, AI_NODE_CONFIG, formatFormula, deriveFormulaColor, type StateFormula } from './nodeTypes';
 import { GraphContext } from './GraphContext';
 import { type LucideProps } from 'lucide-react';
 import * as Icons from 'lucide-react';
@@ -375,7 +375,10 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
 function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { type, color, title, onDelete } = data;
   const config = NODE_TYPE_MAP[type];
-  const nodeLabel = config?.label || type;
+  // A character's entering or leaving state shows its formula and takes its colour.
+  const formula = (type === 'stateIn' || type === 'stateOut') && data.stateFormula ? (data.stateFormula as StateFormula) : null;
+  const tint = formula ? (data.stateColor as string) || deriveFormulaColor(formula) : null;
+  const nodeLabel = formula ? formatFormula(formula) : config?.label || type;
   const handles = TYPED_HANDLES[type] || [];
   const outputHandles = OUTPUT_HANDLES[type] || [];
 
@@ -551,7 +554,10 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
 function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeData; selected?: boolean }) {
   const { type, color, title, onDelete } = data;
   const config = NODE_TYPE_MAP[type];
-  const nodeLabel = config?.label || type;
+  // A character's entering or leaving state shows its formula and takes its colour.
+  const formula = (type === 'stateIn' || type === 'stateOut') && data.stateFormula ? (data.stateFormula as StateFormula) : null;
+  const tint = formula ? (data.stateColor as string) || deriveFormulaColor(formula) : null;
+  const nodeLabel = formula ? formatFormula(formula) : config?.label || type;
 
   return (
     <div
@@ -559,13 +565,16 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
       style={{
         width: 180,
         height: 50,
-        border: selected ? `2px solid ${color}` : `1px solid #e5e7eb`,
+        border: selected ? `2px solid ${tint || color}` : `1px solid ${tint || '#e5e7eb'}`,
+        borderLeft: tint ? `6px solid ${tint}` : undefined,
+        background: tint ? `${tint}14` : undefined,
         boxShadow: selected ? `0 0 0 2px ${color}40` : undefined,
         display: 'flex',
         alignItems: 'center',
         padding: '0 10px',
         gap: 8,
       }}
+      title={formula ? formatFormula(formula) : undefined}
     >
       {onDelete && (
         <button
@@ -579,7 +588,7 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
       <IconBadge color={color} type={type} />
       <div className="flex flex-col overflow-hidden min-w-0">
         <span className="text-xs text-gray-800 font-medium truncate">{title || 'Untitled'}</span>
-        <span className="text-[9px] text-gray-400 truncate">{nodeLabel}</span>
+        <span className={`${formula ? 'text-[10px] font-medium text-gray-700' : 'text-[9px] text-gray-400'} truncate`}>{nodeLabel}</span>
       </div>
 
       <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-300" />

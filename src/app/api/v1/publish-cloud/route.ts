@@ -19,7 +19,7 @@ import { ensureSchema } from '@/lib/migrations';
 
 const KIND: Record<string, string> = { arc: 'plot', characters: 'characters', scenes: 'stage', world: 'universe', ideas: 'ideas', references: 'references' };
 const ORDER = ['arc', 'characters', 'scenes', 'world', 'ideas', 'references'];
-const META_KEYS = ['source_quote', 'aliases', 'initial_state', 'act', 'act_number', 'beat_number', 'when', 'origin', 'link', 'refType', 'importance', 'whole_work'] as const;
+const META_KEYS = ['source_quote', 'aliases', 'initial_state', 'act', 'act_number', 'beat_number', 'when', 'origin', 'link', 'refType', 'importance', 'whole_work', 'state_arc'] as const;
 
 function slugify(s: string): string {
   return s.normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80);

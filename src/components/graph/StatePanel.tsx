@@ -9,8 +9,11 @@ import {
   loadStateLibrary,
   saveToStateLibrary,
   deleteFromStateLibrary,
-  ATOMIC_STATE_MAP,
   STATE_COLORS,
+  formatFormula,
+  describeFormula,
+  syncStateLibrary,
+  pushStateLibrary,
 } from './nodeTypes';
 
 interface StatePanelProps {
@@ -36,12 +39,18 @@ export default function StatePanel({
   const [baseMap, setBaseMap] = useState<Record<string, Sign>>({});
   const [modifier, setModifier] = useState<string>('');
   const [modSign, setModSign] = useState<Sign>(1);
+  const [intensity, setIntensity] = useState<1 | 2 | 3>(2);
   const [fbName, setFbName] = useState<string>('');
   const [fbDesc, setFbDesc] = useState<string>('');
   const [saved, setSaved] = useState(false);
   const [librarySearch, setLibrarySearch] = useState('');
 
-  useEffect(() => { setLibrary(loadStateLibrary()); }, []);
+  useEffect(() => {
+    setLibrary(loadStateLibrary());
+    let live = true;
+    void syncStateLibrary().then((all) => { if (live) setLibrary(all); });
+    return () => { live = false; };
+  }, []);
 
   // Sync from incoming formula
   useEffect(() => {
@@ -53,6 +62,7 @@ export default function StatePanel({
       setBaseMap(map);
       setModifier(stateFormula.modifier || '');
       setModSign(stateFormula.modifierSign ?? 1);
+      setIntensity(stateFormula.intensity ?? 2);
       setFbName(stateFormula.name);
       setFbDesc(stateFormula.description || '');
     }
@@ -91,7 +101,8 @@ export default function StatePanel({
     modifier: modifier || undefined,
     modifierSign: modifier && modSign === -1 ? -1 : undefined,
     description: fbDesc.trim() || undefined,
-  }), [fbName, baseIds, baseMap, modifier, modSign, fbDesc]);
+    intensity: intensity === 2 ? undefined : intensity,
+  }), [fbName, baseIds, baseMap, modifier, modSign, fbDesc, intensity]);
 
   const applyFormula = useCallback((formula: StateFormula) => {
     onFormulaChange(formula);
@@ -101,6 +112,7 @@ export default function StatePanel({
     setBaseMap(map);
     setModifier(formula.modifier || '');
     setModSign(formula.modifierSign ?? 1);
+    setIntensity(formula.intensity ?? 2);
     setFbName(formula.name);
     setFbDesc(formula.description || '');
   }, [onFormulaChange, onColorChange]);
@@ -113,25 +125,15 @@ export default function StatePanel({
   const handleSave = useCallback(() => {
     if (!fbName.trim() || baseIds.length === 0) return;
     const formula = buildFormula();
-    setLibrary(saveToStateLibrary(formula));
+    const next = saveToStateLibrary(formula);
+    setLibrary(next);
+    void pushStateLibrary(next);
     applyFormula(formula);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
   }, [fbName, baseIds, buildFormula, applyFormula]);
 
-  // Format formula as readable string
-  const fmtF = (f: StateFormula) => {
-    const baseParts = f.base.map(id => {
-      const sign = f.signs?.[id] ?? 1;
-      const label = ATOMIC_STATE_MAP[id]?.label || id;
-      return sign === -1 ? `−${label}` : label;
-    });
-    const base = `(${baseParts.join(' + ')})`;
-    if (!f.modifier) return base;
-    const mLabel = ATOMIC_STATE_MAP[f.modifier]?.label || f.modifier;
-    const mSign = f.modifierSign === -1 ? '−' : '';
-    return `${base} × ${mSign}${mLabel}`;
-  };
+  const fmtF = formatFormula;
 
   // Live preview formula string
   const previewStr = baseIds.length > 0
@@ -255,6 +257,30 @@ export default function StatePanel({
             </div>
           </div>
 
+          {/* Intensity */}
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Intensity</div>
+            <div role="radiogroup" aria-label="Intensity" style={{ display: 'flex', gap: 5 }}>
+              {([[1, 'Undertone'], [2, 'Plain to see'], [3, 'Overwhelming']] as const).map(([n, label]) => (
+                <button key={n} type="button" role="radio" aria-checked={intensity === n} onClick={() => setIntensity(n)}
+                  style={{ flex: 1, padding: '4px 0', borderRadius: 8, fontSize: 11, cursor: 'pointer', background: intensity === n ? (L ? '#eef2ff' : '#312e81') : bgSub,
+                    color: intensity === n ? (L ? '#3730a3' : '#c7d2fe') : muted, border: `1px solid ${intensity === n ? '#6366f1' : bdr}`, fontWeight: intensity === n ? 600 : 400 }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* What the AI is told */}
+          {baseIds.length > 0 && (
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>What the AI reads</div>
+              <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.45, color: txt, background: bgSub, border: `1px solid ${bdr}`, borderRadius: 6, padding: '6px 10px' }}>
+                {describeFormula(buildFormula())}
+              </p>
+            </div>
+          )}
+
           {/* Description */}
           <div>
             <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Description</div>
@@ -363,7 +389,7 @@ export default function StatePanel({
                         <span style={{ fontSize: 10, color: muted }}>→</span>
                       </button>
                       <button
-                        onClick={() => setLibrary(deleteFromStateLibrary(f.id))}
+                        onClick={() => { const next = deleteFromStateLibrary(f.id); setLibrary(next); void pushStateLibrary(next); }}
                         style={{ padding: '0 8px', borderRadius: '0 6px 6px 0', cursor: 'pointer', background: bgSub, border: `1px solid ${bdr}`, color: muted, fontSize: 14 }}
                         onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
                         onMouseLeave={e => { e.currentTarget.style.color = muted; }}

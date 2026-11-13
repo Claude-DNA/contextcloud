@@ -356,6 +356,8 @@ export async function runMigrations(): Promise<boolean> {
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_model TEXT`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_model_light TEXT`);
     await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS ai_keys JSONB NOT NULL DEFAULT '{}'::jsonb`);
+    // The writer's saved state formulas (was browser-only storage).
+    await query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS state_library JSONB NOT NULL DEFAULT '[]'::jsonb`);
     await query(`
       UPDATE users SET ai_keys = ai_keys || jsonb_build_object('google', google_ai_key)
       WHERE google_ai_key IS NOT NULL AND google_ai_key <> '' AND NOT (ai_keys ? 'google')

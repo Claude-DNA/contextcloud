@@ -3,7 +3,7 @@
 import { useCallback, useState, useContext, useMemo, useEffect, useRef } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
 import { NODE_TYPE_MAP, TYPED_HANDLES } from './nodeTypes';
-import type { StateFormula } from './nodeTypes';
+import { describeFormula, type StateFormula } from './nodeTypes';
 import StatePanel from './StatePanel';
 import { GraphContext } from './GraphContext';
 import { type LucideProps } from 'lucide-react';
@@ -104,6 +104,8 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
   const isReference = ['musicReference', 'bookReference', 'artReference', 'filmReference', 'realEventReference'].includes(nodeType);
   const isState = nodeType === 'state';
+  // Built graphs carry a formula on each character's entering and leaving state; those can be edited too.
+  const hasFormula = isState || nodeType === 'stateIn' || nodeType === 'stateOut';
 
   // Load Ideas Cloud data when an ideasProxy node is selected
   useEffect(() => {
@@ -212,7 +214,9 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
       return {
         type: srcType,
         title: (srcNode.data?.title as string) || '',
-        content: ((srcNode.data?.content as string) || '').slice(0, 300),
+        // A state's formula is sent in words, so the AI knows what the character is feeling here.
+        content: ((srcNode.data?.content as string) || '').slice(0, 300)
+          + (srcNode.data?.stateFormula ? `\nEmotional state: ${describeFormula(srcNode.data.stateFormula as StateFormula)}` : ''),
       };
     }).filter(Boolean) as Array<{ type: string; title: string; content: string }>;
 
@@ -248,6 +252,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
           nodeType: (node.data?.type as string) || node.type,
           nodeTitle: (node.data?.title as string) || '',
           nodeContent: (node.data?.content as string) || '',
+          ...(node.data?.stateFormula ? { stateFormula: node.data.stateFormula } : {}),
           connections,
           proxies: proxyConns,
           ...(aiNodeConfig ? { aiNode: aiNodeConfig } : {}),
@@ -777,7 +782,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 )}
 
                 {/* State node — formula builder + library */}
-                {isState && (
+                {hasFormula && (
                   <StatePanel
                     nodeId={node.id}
                     stateColor={stateColor}

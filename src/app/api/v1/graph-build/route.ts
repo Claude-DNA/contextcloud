@@ -2,6 +2,7 @@
 import { getAuthUserId } from '@/lib/api-auth';
 import { query, isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
+import { STATE_VOCABULARY, parseProposedFormula, formatFormula, type StateFormula } from '@/lib/state-formula';
 import { getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { generateJson } from '@/lib/ai';
 
@@ -32,19 +33,19 @@ interface Item {
   title: string;
   content: string;
   tags: string[] | null;
-  metadata: { initial_state?: string; aliases?: string[]; when?: string; act?: string } | null;
+  metadata: { initial_state?: string; aliases?: string[]; when?: string; act?: string; beat_number?: number | null } | null;
 }
 
 /** Above this many characters, places and rules, each scene gets only the ones it mentions or recently changed. */
 const FULL_CAST_LIMIT = 40;
 const RECENT_LIMIT = 12;
 const INFLUENCE_LIMIT = 30;
-interface BuildNode { id: string; type: string; position: { x: number; y: number }; data: { title: string; content: string; type: string } }
+interface BuildNode { id: string; type: string; position: { x: number; y: number }; data: { title: string; content: string; type: string; stateFormula?: StateFormula; stateColor?: string } }
 interface BuildEdge { id: string; source: string; target: string; sourceHandle?: string; targetHandle?: string; animated?: boolean; style?: Record<string, unknown> }
 
 interface SceneResult {
   consequence?: string;
-  characters?: { id: string; agency?: string; state_out?: string; delta?: string }[];
+  characters?: { id: string; agency?: string; state_out?: string; delta?: string; formula?: unknown }[];
   stages?: { id: string; state_out?: string; delta?: string }[];
   worlds?: { id: string; state_out?: string; delta?: string }[];
   themes?: string[];
@@ -59,7 +60,17 @@ const SCHEMA = {
       type: 'ARRAY',
       items: {
         type: 'OBJECT',
-        properties: { id: { type: 'STRING' }, agency: { type: 'STRING' }, state_out: { type: 'STRING' }, delta: { type: 'STRING', enum: DELTAS } },
+        properties: {
+          id: { type: 'STRING' }, agency: { type: 'STRING' }, state_out: { type: 'STRING' }, delta: { type: 'STRING', enum: DELTAS },
+          formula: {
+            type: 'OBJECT',
+            properties: {
+              base: { type: 'ARRAY', items: { type: 'STRING' } }, missing: { type: 'ARRAY', items: { type: 'STRING' } },
+              modifier: { type: 'STRING' }, intensity: { type: 'INTEGER' },
+            },
+            required: ['base'],
+          },
+        },
         required: ['id', 'state_out', 'delta'],
       },
     },
@@ -114,6 +125,13 @@ improved     better off: healed, strengthened, gained
 transformed  different in kind: a turn after which they are not the same (death counts)
 persistent   pressed to change but holds on: a choice to stay the same
 
+STATE FORMULA
+For each character you also give the emotional state they leave the scene in, as a formula built from this vocabulary (use the ids exactly):
+${STATE_VOCABULARY}
+"base": the one to three states the character is in at once. "missing": up to two states the situation calls for that are absent or held down (optional). "modifier": the one state through which it all comes out in what they do, when that differs from the base (optional). "intensity": 1 an undertone, 2 plain to see, 3 it runs the character.
+Choose from what the scene shows of this character, not from the scene's mood. Two characters in one scene rarely share a formula.
+A person is seldom in one pure state: look for the second feeling under the first (fear with pride, joy with distrust), and give a modifier whenever what the character shows the world differs from what they feel (fear that comes out as pride; guilt that comes out as rage). Use a single state only for a walk-on. When nothing in the vocabulary fits, give the nearest state at intensity 1.
+
 RULES
 - Say only what this scene shows or clearly implies. Mark an implied change "(derived from scene outcome)".
 - Never mention anything that happens after this scene. The states you are given describe each entity only up to here.
@@ -125,7 +143,7 @@ function scenePrompt(
   scene: Item,
   index: number,
   total: number,
-  entities: { id: string; kind: Kind; title: string; state: string }[],
+  entities: { id: string; kind: Kind; title: string; state: string; formula?: string }[],
   themes: Item[],
   references: Item[]
 ): string {
@@ -144,7 +162,7 @@ ${brief(scene.content, 3000)}
 >>>
 
 ENTITIES, with their state entering this scene
-${entities.map((e) => `- id:"${e.id}" kind:"${e.kind}" ${e.title}: ${brief(e.state, 400)}`).join('\n') || '(none)'}
+${entities.map((e) => `- id:"${e.id}" kind:"${e.kind}" ${e.title}: ${brief(e.state, 400)}${e.formula ? ` [entering as ${e.formula}]` : ''}`).join('\n') || '(none)'}
 
 THEMES
 ${themes.map((t) => `- id:"${t.id}" ${t.title}: ${brief(t.content, 160)}`).join('\n') || '(none)'}
@@ -154,7 +172,7 @@ ${references.map((r) => `- id:"${r.id}" ${r.title}: ${brief(r.content, 160)}`).j
 
 Return a JSON object:
 - "consequence": one sentence on what this scene changes.
-- "characters": up to 3 characters who act here or are directly changed by it, most important first. Each with "agency" (2-4 sentences: what they choose and do here), "state_out" (1-3 sentences: where they stand leaving the scene) and "delta".
+- "characters": up to 3 characters who act here or are directly changed by it, most important first. Each with "agency" (2-4 sentences: what they choose and do here), "state_out" (1-3 sentences: where they stand leaving the scene), "delta" and "formula".
 - "stages": up to 2 places the scene uses, each with "delta"; give "state_out" when the place changes.
 - "worlds": up to 2 world rules the scene tests, reveals or changes, each with "delta" and "state_out".
 - "themes" and "references": the ids of up to 3 of each that this scene puts to work. Leave a list empty rather than stretch.`;
@@ -201,8 +219,11 @@ export async function POST(req: NextRequest) {
   const nodes: BuildNode[] = [];
   const edges: BuildEdge[] = [];
   const placedInfluence = new Map<string, number>(); // theme/reference id → how many placed at its first scene column
-  const node = (id: string, type: string, x: number, y: number, title: string, content: string) =>
-    nodes.push({ id, type, position: { x, y }, data: { title, content, type } });
+  const node = (id: string, type: string, x: number, y: number, title: string, content: string, formula?: StateFormula | null) =>
+    nodes.push({ id, type, position: { x, y }, data: { title, content, type, ...(formula ? { stateFormula: formula, stateColor: formula.color } : {}) } });
+  // Each character's formula as they stand now, and their arc of states scene by scene.
+  const formulaNow = new Map<string, StateFormula>();
+  const arcs = new Map<string, { beat: string; beat_number?: number; state: string; delta: string; formula?: string; base?: string[]; missing?: string[]; modifier?: string; intensity?: number; color?: string }[]>();
   const edge = (source: string, target: string, style: { animated: boolean; style: Record<string, unknown> }, handles: { sourceHandle?: string; targetHandle?: string } = {}) =>
     edges.push({ id: `e_${source}_${target}`, source, target, ...handles, ...style });
 
@@ -232,7 +253,7 @@ export async function POST(req: NextRequest) {
       return [...named, ...recent];
     };
     const entities = [
-      ...pick(characters).map((c) => ({ id: c.id, kind: 'character' as Kind, title: c.title, state: state.get(c.id) ?? '' })),
+      ...pick(characters).map((c) => ({ id: c.id, kind: 'character' as Kind, title: c.title, state: state.get(c.id) ?? '', formula: formulaNow.has(c.id) ? formatFormula(formulaNow.get(c.id)!) : undefined })),
       ...pick(stages).map((s) => ({ id: s.id, kind: 'stage' as Kind, title: s.title, state: state.get(s.id) ?? '' })),
       ...pick(worlds).map((w) => ({ id: w.id, kind: 'world' as Kind, title: w.title, state: state.get(w.id) ?? '' })),
     ];
@@ -269,8 +290,21 @@ export async function POST(req: NextRequest) {
       const delta = DELTAS.includes(c.delta as Delta) ? c.delta : 'unchanged';
       const proxy = `proxy_${c.id}_${scene.id}`, sin = `statein_${c.id}_${scene.id}`, sout = `stateout_${c.id}_${scene.id}`;
       node(proxy, 'charactersProxy', sx - 220, y, item.title, c.agency || '(no agency described)');
-      node(sin, 'stateIn', sx - 50, y, `${item.title} entering`, state.get(c.id) ?? '');
-      node(sout, 'stateOut', sx + 140, y, `${item.title} after`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`);
+      const formula = parseProposedFormula(c.formula);
+      node(sin, 'stateIn', sx - 50, y, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
+      node(sout, 'stateOut', sx + 140, y, `${item.title} after`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula);
+      if (formula && !flash) formulaNow.set(c.id, formula);
+      if (c.state_out) {
+        const felt = formula ? formula.base.filter((b) => (formula.signs?.[b] ?? 1) === 1) : [];
+        (arcs.get(c.id) ?? arcs.set(c.id, []).get(c.id)!).push({
+          beat: scene.title, ...(scene.metadata?.beat_number ? { beat_number: Number(scene.metadata.beat_number) } : {}),
+          state: brief(c.state_out, 400), delta: delta as string,
+          ...(formula ? {
+            formula: formatFormula(formula), base: felt, missing: formula.base.filter((b) => formula.signs?.[b] === -1),
+            ...(formula.modifier ? { modifier: formula.modifier } : {}), intensity: formula.intensity ?? 2, color: formula.color,
+          } : {}),
+        });
+      }
       edge(proxy, sin, EDGE.charChain);
       edge(sin, sceneNodeId, EDGE.influence, { targetHandle: 'characters' });
       if (c.state_out) carry(c.id, c.state_out); // the next scene's stateIn
@@ -311,6 +345,19 @@ export async function POST(req: NextRequest) {
   }
 
   const partial = built + failed < scenes.length;
+  // A full build records each character's arc of states on the character itself, so it is saved with
+  // the project, travels in the cloud file and is published with the cloud.
+  let arcsSaved = 0;
+  if (!scene_ids?.length && !partial) {
+    for (const [id, arc] of arcs) {
+      try {
+        await query(`UPDATE cloud_items SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('state_arc', $1::jsonb), updated_at = NOW() WHERE id = $2 AND user_id = $3`, [JSON.stringify(arc.slice(0, 60)), id, userId]);
+        arcsSaved++;
+      } catch (e) {
+        console.error('[graph-build] saving a state arc failed:', e instanceof Error ? e.message : e);
+      }
+    }
+  }
   return NextResponse.json({
     nodes,
     edges,
@@ -322,6 +369,7 @@ export async function POST(req: NextRequest) {
       scenesBuilt: built,
       scenesFailed: failed,
       partial,
+      stateArcsSaved: arcsSaved,
     },
   });
 }
