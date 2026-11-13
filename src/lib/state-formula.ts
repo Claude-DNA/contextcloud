@@ -30,9 +30,11 @@ export const ATOMIC_STATES: AtomicState[] = [
   { id: 'fear',      label: 'Fear',      axis: 'fear',    color: '#1565C0', description: 'Exposure to unknown × self-preservation; default state' },
   { id: 'despair',   label: 'Despair',   axis: 'fear',    color: '#263238', description: 'Fear that outruns the evidence; certainty of a bad outcome' },
   { id: 'rage',      label: 'Rage',      axis: 'active',  color: '#B71C1C', description: 'Reactive force; present-tense' },
+  { id: 'ambition',  label: 'Ambition',  axis: 'active',  color: '#C49000', description: 'Active pursuit of gain: money, rank, advantage; focus on what you could get' },
   { id: 'disgust',   label: 'Disgust',   axis: 'fear',    color: '#558B2F', description: 'Boundary enforcement, rejection' },
   { id: 'distrust',  label: 'Distrust',  axis: 'fear',    color: '#37474F', description: 'Not believing in others\' intentions' },
   { id: 'confusion', label: 'Confusion', axis: 'neutral', color: '#757575', description: 'Epistemic zero-vector; Soul-Mind disconnection' },
+  { id: 'calm',      label: 'Calm',      axis: 'neutral', color: '#90A4AE', description: 'Settled; nothing pulling. The baseline the other states disturb' },
   // Burdens (carry trapped Love)
   { id: 'guilt',     label: 'Guilt',     axis: 'burden',  color: '#6A1B9A', description: 'I DID wrong; Love trapped in violation awareness' },
   { id: 'shame',     label: 'Shame',     axis: 'burden',  color: '#4A148C', description: 'I AM wrong; self-collapse' },
@@ -229,22 +231,29 @@ export function describeFormula(f: StateFormula): string {
 /** The vocabulary as a prompt block, so the AI can propose formulas from it. */
 export const STATE_VOCABULARY = ATOMIC_STATES.map((s) => `${s.id}: ${s.description}`).join('\n');
 
-/** Reads a formula the AI proposed: { base: [ids], missing?: [ids], modifier?: id, intensity?: 1-3, name?: string }. Null when it names no known state. */
+/**
+ * Reads a formula the AI proposed: { base: [ids], missing?: [ids], shows: id | "same", intensity?: 1-3, name?: string }.
+ * "shows" (or "modifier") is what others see; when it is one of the felt states there is no modifier.
+ * Null when it names no known state.
+ */
 export function parseProposedFormula(x: unknown): StateFormula | null {
   if (!x || typeof x !== 'object') return null;
-  const o = x as { base?: unknown; missing?: unknown; modifier?: unknown; intensity?: unknown; name?: unknown };
+  const o = x as { base?: unknown; missing?: unknown; modifier?: unknown; shows?: unknown; intensity?: unknown; name?: unknown };
   const ids = (v: unknown) => (Array.isArray(v) ? [...new Set(v.map((s) => String(s).toLowerCase().trim()))].filter((id) => ATOMIC_STATE_MAP[id]) : []);
   const felt = ids(o.base).slice(0, 3);
   const missing = ids(o.missing).filter((id) => !felt.includes(id)).slice(0, 2);
   if (!felt.length) return null;
-  const modifier = typeof o.modifier === 'string' && resolve(o.modifier.toLowerCase().trim()) ? o.modifier.toLowerCase().trim() : undefined;
+  const shown = [o.shows, o.modifier].map((v) => (typeof v === 'string' ? v.toLowerCase().trim() : '')).find((v) => v && resolve(v));
+  // When what shows is one of the felt states, it leads the formula (and gives the colour); otherwise it is the modifier.
+  if (shown && felt.includes(shown)) felt.splice(0, 0, ...felt.splice(felt.indexOf(shown), 1));
+  const modifier = shown && !felt.includes(shown) ? shown : undefined;
   const n = Number(o.intensity);
   const f: StateFormula = {
     id: `ai-${felt.join('-')}${missing.length ? `-no-${missing.join('-')}` : ''}${modifier ? `-x-${modifier}` : ''}`,
     name: typeof o.name === 'string' && o.name.trim() ? o.name.trim().slice(0, 40) : '',
     base: [...felt, ...missing],
     ...(missing.length ? { signs: Object.fromEntries([...felt.map((id) => [id, 1]), ...missing.map((id) => [id, -1])]) as Record<string, 1 | -1> } : {}),
-    ...(modifier && !felt.includes(modifier) ? { modifier } : {}),
+    ...(modifier ? { modifier } : {}),
     intensity: n === 1 || n === 3 ? n : 2,
   };
   if (!f.name) f.name = formatFormula(f);

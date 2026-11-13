@@ -66,9 +66,9 @@ const SCHEMA = {
             type: 'OBJECT',
             properties: {
               base: { type: 'ARRAY', items: { type: 'STRING' } }, missing: { type: 'ARRAY', items: { type: 'STRING' } },
-              modifier: { type: 'STRING' }, intensity: { type: 'INTEGER' },
+              shows: { type: 'STRING' }, intensity: { type: 'INTEGER' },
             },
-            required: ['base'],
+            required: ['base', 'shows', 'intensity'],
           },
         },
         required: ['id', 'state_out', 'delta'],
@@ -128,9 +128,11 @@ persistent   pressed to change but holds on: a choice to stay the same
 STATE FORMULA
 For each character you also give the emotional state they leave the scene in, as a formula built from this vocabulary (use the ids exactly):
 ${STATE_VOCABULARY}
-"base": the one to three states the character is in at once. "missing": up to two states the situation calls for that are absent or held down (optional). "modifier": the one state through which it all comes out in what they do, when that differs from the base (optional). "intensity": 1 an undertone, 2 plain to see, 3 it runs the character.
-Choose from what the scene shows of this character, not from the scene's mood. Two characters in one scene rarely share a formula.
-A person is seldom in one pure state: look for the second feeling under the first (fear with pride, joy with distrust), and give a modifier whenever what the character shows the world differs from what they feel (fear that comes out as pride; guilt that comes out as rage). Use a single state only for a walk-on. When nothing in the vocabulary fits, give the nearest state at intensity 1.
+Answer two separate questions about the character as they leave the scene.
+1. What do they feel? "base": the one to three states they are in at once. A person is seldom in one pure state: look for the second feeling under the first (fear with pride, joy with distrust, ambition with shame). "missing": up to two states the situation calls for that are absent or held down; leave it empty when there are none.
+2. What do the other people in the scene see them do? "shows": the one state their behaviour looks like from outside. People often show something other than what they feel: fear comes out as pride or rage, guilt as rage, ambition as calm, grief as disgust. Give "same" only when they hide nothing and act exactly as they feel.
+"intensity": 1 an undertone, 2 plain to see, 3 it runs the character.
+Choose from what the scene shows of this character, not from the scene's mood. Two characters in one scene rarely share a formula. Use a single state with "same" only for a walk-on. When nothing in the vocabulary fits, give the nearest state at intensity 1.
 
 RULES
 - Say only what this scene shows or clearly implies. Mark an implied change "(derived from scene outcome)".
