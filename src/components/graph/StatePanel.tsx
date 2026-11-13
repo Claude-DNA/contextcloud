@@ -26,6 +26,26 @@ interface StatePanelProps {
 }
 
 type Tab = 'formula' | 'library' | 'color';
+
+const STATE_LIBRARY_URL = `${(process.env.NEXT_PUBLIC_CONTEXTUBE_URL || 'https://contextube.ai').replace(/\/$/, '')}/api/v1/states`;
+
+interface LiteraryState {
+  id: string; character: string; moment: string; work: string; formula: string; color: string;
+  base: string[]; missing: string[]; modifier?: string; intensity: number; inside: string; outside: string; situation: string;
+}
+
+/** A library state as a formula for a node: the character and moment become its name, the inside and outside views its note. */
+function literaryFormula(s: LiteraryState): StateFormula {
+  const base = [...s.base, ...s.missing];
+  return {
+    id: `lit-${s.id}`, name: `${s.character}, ${s.moment}`, base,
+    ...(s.missing.length ? { signs: Object.fromEntries(base.map((id) => [id, s.missing.includes(id) ? -1 : 1])) as Record<string, 1 | -1> } : {}),
+    ...(s.modifier ? { modifier: s.modifier } : {}),
+    ...(s.intensity === 1 || s.intensity === 3 ? { intensity: s.intensity } : {}),
+    color: s.color,
+    description: `${s.inside} ${s.outside}`.slice(0, 500),
+  };
+}
 type Sign = 1 | -1;
 
 export default function StatePanel({
@@ -44,6 +64,17 @@ export default function StatePanel({
   const [fbDesc, setFbDesc] = useState<string>('');
   const [saved, setSaved] = useState(false);
   const [librarySearch, setLibrarySearch] = useState('');
+  // Characters from literature at one moment, from ConteXtube's state library; loaded when the Library tab opens.
+  const [literature, setLiterature] = useState<LiteraryState[] | null>(null);
+  useEffect(() => {
+    if (tab !== 'library' || literature) return;
+    let live = true;
+    fetch(`${STATE_LIBRARY_URL}?limit=200`)
+      .then((r) => (r.ok ? r.json() : { states: [] }))
+      .then((d) => { if (live) setLiterature(Array.isArray(d.states) ? d.states : []); })
+      .catch(() => { if (live) setLiterature([]); });
+    return () => { live = false; };
+  }, [tab, literature]);
 
   useEffect(() => {
     setLibrary(loadStateLibrary());
@@ -359,6 +390,39 @@ export default function StatePanel({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
+              From literature {literature && literature.length > 0 && <span style={{ opacity: 0.6 }}>({literature.length})</span>}
+            </div>
+            {!literature ? (
+              <div style={{ fontSize: 11, color: muted, padding: '4px 2px' }}>Loading…</div>
+            ) : literature.length === 0 ? (
+              <div style={{ fontSize: 11, color: muted, fontStyle: 'italic', padding: '4px 2px' }}>The state library could not be reached.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 260, overflowY: 'auto' }}>
+                {literature.filter((x) => {
+                  const q = librarySearch.toLowerCase();
+                  return !q || `${x.character} ${x.moment} ${x.formula} ${x.work}`.toLowerCase().includes(q);
+                }).map((x) => (
+                  <button
+                    key={x.id}
+                    onClick={() => { applyFormula(literaryFormula(x)); setTab('formula'); }}
+                    title={`${x.situation}\n\n${x.inside}`}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', textAlign: 'left', background: bgSub, border: `1px solid ${bdr}`, borderLeft: `3px solid ${x.color || '#888'}` }}
+                    onMouseEnter={e => (e.currentTarget.style.background = L ? '#f3f4f6' : '#374151')}
+                    onMouseLeave={e => (e.currentTarget.style.background = bgSub)}
+                  >
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.character}, {x.moment}</div>
+                      <div style={{ fontSize: 10, color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.formula} · {x.work}</div>
+                    </div>
+                    <span style={{ fontSize: 10, color: muted, flexShrink: 0 }}>→</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

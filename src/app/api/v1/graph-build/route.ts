@@ -129,7 +129,7 @@ STATE FORMULA
 For each character you also give the emotional state they leave the scene in, as a formula built from this vocabulary (use the ids exactly):
 ${STATE_VOCABULARY}
 Answer two separate questions about the character as they leave the scene.
-1. What do they feel? "base": the one to three states they are in at once. A person is seldom in one pure state: look for the second feeling under the first (fear with pride, joy with distrust, ambition with shame). "missing": up to two states the situation calls for that are absent or held down; leave it empty when there are none.
+1. What do they feel? "base": the one to three states they are in at once. A person is seldom in one pure state: look for the second feeling under the first (fear with pride, joy with distrust, ambition with shame). "missing": up to two states the situation calls for that are absent or held down; leave it empty when there are none, and never list calm here (its absence is true of every strong state).
 2. What do the other people in the scene see them do? "shows": the one state their behaviour looks like from outside. People often show something other than what they feel: fear comes out as pride or rage, guilt as rage, ambition as calm, grief as disgust. Give "same" only when they hide nothing and act exactly as they feel.
 "intensity": 1 an undertone, 2 plain to see, 3 it runs the character.
 Choose from what the scene shows of this character, not from the scene's mood. Two characters in one scene rarely share a formula. Use a single state with "same" only for a walk-on. When nothing in the vocabulary fits, give the nearest state at intensity 1.
