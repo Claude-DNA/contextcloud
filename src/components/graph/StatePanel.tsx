@@ -69,7 +69,7 @@ export default function StatePanel({
   useEffect(() => {
     if (tab !== 'library' || literature) return;
     let live = true;
-    fetch(`${STATE_LIBRARY_URL}?limit=200`)
+    fetch(`${STATE_LIBRARY_URL}?limit=1000`)
       .then((r) => (r.ok ? r.json() : { states: [] }))
       .then((d) => { if (live) setLiterature(Array.isArray(d.states) ? d.states : []); })
       .catch(() => { if (live) setLiterature([]); });

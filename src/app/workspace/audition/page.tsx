@@ -8,7 +8,7 @@ import { ATOMIC_STATES, ATOMIC_STATE_MAP, describeFormula, formatFormula, stateL
 import { MAX_CAST, blendCast, describeAdjustments, type Adjustment, type CastMember, type CastState, type Turn } from '@/lib/audition';
 import { loadStateLibrary, saveToStateLibrary, pushStateLibrary } from '@/components/graph/nodeTypes';
 
-const LIBRARY_URL = `${(process.env.NEXT_PUBLIC_CONTEXTUBE_URL || 'https://contextube.ai').replace(/\/$/, '')}/api/v1/states?limit=200`;
+const LIBRARY_URL = `${(process.env.NEXT_PUBLIC_CONTEXTUBE_URL || 'https://contextube.ai').replace(/\/$/, '')}/api/v1/states?limit=1000`;
 const DRAFT_KEY = 'contextcloud_audition_draft';
 const field = 'w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground placeholder:text-muted focus:outline-none focus:ring-2 focus:ring-accent/40';
 const label = 'block text-xs font-medium text-muted mb-1';
