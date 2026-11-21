@@ -232,16 +232,18 @@ export async function POST(req: NextRequest) {
     if (!edges.some((e) => e.id === id)) edges.push({ id, source, target, ...handles, ...style });
   };
 
-  // Layout. Scenes run left to right in one row. Above them each character has a lane, below them each
-  // place and rule. A lane holds that entity's states in story order: where it enters the story, then a
-  // node after each scene that changes it, placed over that scene. That node is the transition: it is
-  // what the entity carries into the next scene it appears in, so no state is drawn twice.
-  // Themes and references sit in two rows over the character lanes, at the scene where they first matter.
-  const COL = 560, LANE = 150, CHAR_TOP = 240, PLACE_TOP = 320;
-  const charLane = new Map<string, number>();
-  const placeLane = new Map<string, number>();
+  // Layout. Scenes run left to right in one row, and everything sits next to the scene it belongs to.
+  // In the gap before each scene, above the row: the transitions out of the previous scene (the state a
+  // character carries on, nearest the row), then the characters who first appear here (their card and the
+  // state they enter with), then the themes and references that first matter here. Below the row: places
+  // and rules entering on the scene's left, their changed states on its right. A state is drawn once:
+  // a character's latest node feeds every later scene they are in until something changes them.
+  const COL = 700, SLOT_L = 230, SLOT_R = 460, MID = 345;
+  type Row = { h: number; items: { id: string; dx: number }[] };
+  const gaps = new Map<number, { above: Row[]; outs: string[]; ins: string[] }>(); // gap g lies just left of scene g
+  const gap = (g: number) => gaps.get(g) ?? gaps.set(g, { above: [], outs: [], ins: [] }).get(g)!;
   const latest = new Map<string, string>(); // entity id → the node holding its state now
-  const influence: { id: string; col: number; row: 'plot' | 'references' }[] = [];
+  const placedInfluence = new Set<string>();
 
   let built = 0;
   let failed = 0;
@@ -300,8 +302,6 @@ export async function POST(req: NextRequest) {
     const acts: string[] = [];
     valid(r.characters, characters, 3).forEach((c) => {
       const item = byId.get(c.id)!;
-      if (!charLane.has(c.id)) charLane.set(c.id, charLane.size);
-      const y = -(CHAR_TOP + charLane.get(c.id)! * LANE);
       const delta = DELTAS.includes(c.delta as Delta) ? c.delta! : 'unchanged';
       // A state the writer pinned to this scene (from an audition) wins over the one the AI proposes.
       const pin = (item.metadata?.state_arc ?? []).find((e) => e.pinned && e.beat.trim().toLowerCase() === scene.title.trim().toLowerCase());
@@ -311,8 +311,9 @@ export async function POST(req: NextRequest) {
       if (!latest.has(c.id)) {
         // First appearance: the character's card, then the state they bring into the story.
         const card = `proxy_${c.id}_lane`, sin = `statein_${c.id}_${scene.id}`;
-        node(card, 'charactersProxy', sx - COL / 2 - 230, y, item.title, brief(item.content, 500));
-        node(sin, 'stateIn', sx - COL / 2, y, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
+        node(card, 'charactersProxy', 0, 0, item.title, brief(item.content, 500));
+        node(sin, 'stateIn', 0, 0, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
+        gap(i).above.push({ h: 150, items: [{ id: card, dx: SLOT_L }, { id: sin, dx: SLOT_R }] });
         edge(card, sin, EDGE.charChain);
         latest.set(c.id, sin);
       }
@@ -323,7 +324,8 @@ export async function POST(req: NextRequest) {
       const changed = !!pin || (!!c.state_out && (delta !== 'unchanged' || (!!formula && formatFormula(formula) !== before)));
       if (changed) {
         const sout = `stateout_${c.id}_${scene.id}`;
-        node(sout, 'stateOut', sx, y, `${item.title} after ${scene.title}`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula ?? formulaNow.get(c.id));
+        node(sout, 'stateOut', 0, 0, `${item.title} after ${scene.title}`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula ?? formulaNow.get(c.id));
+        gap(i + 1).above.push({ h: 80, items: [{ id: sout, dx: MID }] });
         if (!flash) latest.set(c.id, sout);
       }
       if (formula && !flash) formulaNow.set(c.id, formula);
@@ -352,18 +354,18 @@ export async function POST(req: NextRequest) {
     const placeAndRule = (list: { id: string; state_out?: string; delta?: string }[], pool: Item[], kind: 'stage' | 'world') =>
       valid(list, pool, 2).forEach((s) => {
         const item = byId.get(s.id)!;
-        if (!placeLane.has(s.id)) placeLane.set(s.id, placeLane.size);
-        const y = PLACE_TOP + placeLane.get(s.id)! * LANE;
         const delta = DELTAS.includes(s.delta as Delta) ? s.delta : 'unchanged';
         if (!latest.has(s.id)) {
           const inId = `${kind}in_${s.id}_${scene.id}`;
-          node(inId, `${kind}In`, sx - COL / 2, y, item.title, state.get(s.id) ?? item.content);
+          node(inId, `${kind}In`, 0, 0, item.title, state.get(s.id) ?? item.content);
+          gap(i).ins.push(inId);
           latest.set(s.id, inId);
         }
         edge(latest.get(s.id)!, sceneNodeId, EDGE.place, { targetHandle: 'world' });
         if (delta !== 'unchanged' && s.state_out) {
           const out = `${kind}out_${s.id}_${scene.id}`;
-          node(out, `${kind}Out`, sx, y, `${item.title} after ${scene.title}`, `${s.state_out}\nDelta: ${delta}`);
+          node(out, `${kind}Out`, 0, 0, `${item.title} after ${scene.title}`, `${s.state_out}\nDelta: ${delta}`);
+          gap(i + 1).outs.push(out);
           if (!flash) latest.set(s.id, out);
           carry(s.id, s.state_out);
         } else lastActive.set(s.id, i);
@@ -372,30 +374,37 @@ export async function POST(req: NextRequest) {
     placeAndRule(r.worlds ?? [], worlds, 'world');
 
     // ── Themes and references: one node each (synced to its cloud item), linked to every scene it bears on ──
+    const fresh: string[] = [];
     const influences = (ids: string[] | undefined, pool: Item[], row: 'plot' | 'references') => {
       for (const id of (ids ?? []).filter((x) => pool.slice(0, INFLUENCE_LIMIT).some((p) => p.id === x)).slice(0, 3)) {
         const nodeId = `cloud_${id}`;
-        if (!influence.some((x) => x.id === id)) {
+        if (!placedInfluence.has(id)) {
           const item = byId.get(id)!;
-          node(nodeId, row === 'plot' ? 'theme' : referenceType(item), sx, 0, item.title, item.content);
-          influence.push({ id, col: i, row });
+          node(nodeId, row === 'plot' ? 'theme' : referenceType(item), 0, 0, item.title, item.content);
+          placedInfluence.add(id);
+          fresh.push(nodeId);
         }
         edge(nodeId, sceneNodeId, EDGE.influence, { targetHandle: row });
       }
     };
     influences(r.themes, themes, 'plot');
     influences(r.references, references, 'references');
+    for (let k = 0; k < fresh.length; k += 2) gap(i).above.push({ h: 80, items: fresh.slice(k, k + 2).map((id, j) => ({ id, dx: j ? SLOT_R : SLOT_L })) });
   }
 
-  // Themes and references go over the top character lane, side by side at their first scene.
-  const plotY = -(CHAR_TOP + Math.max(charLane.size, 1) * LANE) - 40;
-  const slots = new Map<string, number>();
-  for (const x of influence) {
-    const key = `${x.col}:${x.row}`;
-    const k = slots.get(key) ?? 0;
-    slots.set(key, k + 1);
-    const n = nodes.find((m) => m.id === `cloud_${x.id}`);
-    if (n) n.position = { x: x.col * COL + k * 190 - 190, y: x.row === 'plot' ? plotY : plotY - 190 };
+  // Place what each gap holds: rows stacked upward from the scene row, places and rules downward.
+  const at = new Map(nodes.map((n) => [n.id, n]));
+  const put = (id: string, x: number, y: number) => { const n = at.get(id); if (n) n.position = { x, y }; };
+  for (const [g, { above, outs, ins }] of gaps) {
+    const x0 = (g - 1) * COL;
+    let bottom = -30;
+    for (const row of above) {
+      const top = bottom - row.h;
+      for (const it of row.items) put(it.id, x0 + it.dx, top + 10);
+      bottom = top;
+    }
+    outs.forEach((id, k) => put(id, x0 + SLOT_L, 130 + k * 80));
+    ins.forEach((id, k) => put(id, x0 + SLOT_R, 130 + k * 80));
   }
 
   const partial = built + failed < scenes.length;
