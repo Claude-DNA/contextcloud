@@ -69,10 +69,15 @@ export default function StatePanel({
   useEffect(() => {
     if (tab !== 'library' || literature) return;
     let live = true;
-    fetch(`${STATE_LIBRARY_URL}?limit=1000`)
-      .then((r) => (r.ok ? r.json() : { states: [] }))
-      .then((d) => { if (live) setLiterature(Array.isArray(d.states) ? d.states : []); })
-      .catch(() => { if (live) setLiterature([]); });
+    // The writer's own states and the shared Studio library first, then the reference library.
+    Promise.all([
+      fetch('/api/v1/states').then((r) => (r.ok ? r.json() : {})).catch(() => ({})) as Promise<{ mine?: unknown; studio?: unknown }>,
+      fetch(`${STATE_LIBRARY_URL}?limit=1000`).then((r) => (r.ok ? r.json() : { states: [] })).catch(() => ({ states: [] })),
+    ]).then(([own, ref]) => {
+      if (!live) return;
+      const list = (v: unknown) => (Array.isArray(v) ? (v as LiteraryState[]) : []);
+      setLiterature([...list(own.mine), ...list(own.studio), ...list(ref.states)].map((x) => ({ ...x, color: x.color || '#888888' })));
+    });
     return () => { live = false; };
   }, [tab, literature]);
 

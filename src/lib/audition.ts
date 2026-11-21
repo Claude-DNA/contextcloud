@@ -174,3 +174,16 @@ ${cut(input.scene, 2000)}
 ${input.context.trim() ? `\nCONTEXT: what has led here and what the character knows\n<<<\n${cut(input.context, 3000)}\n>>>\n` : ''}${so_far ? `\nSO FAR\n${so_far}\n` : ''}
 ${now}`;
 }
+
+/** A formula (a state node's, or a mix) as a cast member, so an audition can play it on its own. */
+export function castFromFormula(f: StateFormula, opts: { id: string; character: string; moment: string; work?: string; situation?: string; inside?: string; outside?: string }): CastState {
+  const base = f.base.filter((id) => (f.signs?.[id] ?? 1) === 1 && ATOMIC_STATE_MAP[id]);
+  const missing = f.base.filter((id) => f.signs?.[id] === -1 && ATOMIC_STATE_MAP[id]);
+  const modifier = f.modifier && f.modifierSign !== -1 && ATOMIC_STATE_MAP[f.modifier] ? f.modifier : undefined;
+  return {
+    id: opts.id, character: opts.character, moment: opts.moment, work: opts.work ?? 'this story',
+    situation: (opts.situation ?? '').slice(0, 600), inside: (opts.inside ?? '').slice(0, 700), outside: (opts.outside ?? '').slice(0, 600),
+    formula: formatFormula(f), base: base.length ? base : f.base.filter((id) => ATOMIC_STATE_MAP[id]).slice(0, 1), missing,
+    ...(modifier ? { modifier } : {}), intensity: f.intensity ?? 2, color: f.color,
+  };
+}

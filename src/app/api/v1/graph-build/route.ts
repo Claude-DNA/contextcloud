@@ -5,6 +5,7 @@ import { ensureSchema } from '@/lib/migrations';
 import { STATE_VOCABULARY, parseProposedFormula, formatFormula, type StateFormula } from '@/lib/state-formula';
 import { getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { generateJson } from '@/lib/ai';
+import { toFormula, upsertArc, type ArcEntry } from '@/lib/state-arc';
 
 /**
  * Causal Propagation Engine: builds the story graph from a project's clouds.
@@ -33,7 +34,7 @@ interface Item {
   title: string;
   content: string;
   tags: string[] | null;
-  metadata: { initial_state?: string; aliases?: string[]; when?: string; act?: string; beat_number?: number | null } | null;
+  metadata: { initial_state?: string; aliases?: string[]; when?: string; act?: string; beat_number?: number | null; state_arc?: ArcEntry[] } | null;
 }
 
 /** Above this many characters, places and rules, each scene gets only the ones it mentions or recently changed. */
@@ -225,7 +226,7 @@ export async function POST(req: NextRequest) {
     nodes.push({ id, type, position: { x, y }, data: { title, content, type, ...(formula ? { stateFormula: formula, stateColor: formula.color } : {}) } });
   // Each character's formula as they stand now, and their arc of states scene by scene.
   const formulaNow = new Map<string, StateFormula>();
-  const arcs = new Map<string, { beat: string; beat_number?: number; state: string; delta: string; formula?: string; base?: string[]; missing?: string[]; modifier?: string; intensity?: number; color?: string }[]>();
+  const arcs = new Map<string, ArcEntry[]>();
   const edge = (source: string, target: string, style: { animated: boolean; style: Record<string, unknown> }, handles: { sourceHandle?: string; targetHandle?: string } = {}) =>
     edges.push({ id: `e_${source}_${target}`, source, target, ...handles, ...style });
 
@@ -292,7 +293,10 @@ export async function POST(req: NextRequest) {
       const delta = DELTAS.includes(c.delta as Delta) ? c.delta : 'unchanged';
       const proxy = `proxy_${c.id}_${scene.id}`, sin = `statein_${c.id}_${scene.id}`, sout = `stateout_${c.id}_${scene.id}`;
       node(proxy, 'charactersProxy', sx - 220, y, item.title, c.agency || '(no agency described)');
-      const formula = parseProposedFormula(c.formula);
+      // A state the writer pinned to this scene (from an audition) wins over the one the AI proposes.
+      const pin = (item.metadata?.state_arc ?? []).find((e) => e.pinned && e.beat.trim().toLowerCase() === scene.title.trim().toLowerCase());
+      const formula = pin?.base?.length ? toFormula(pin) : parseProposedFormula(c.formula);
+      if (pin?.state) c.state_out = pin.state;
       node(sin, 'stateIn', sx - 50, y, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
       node(sout, 'stateOut', sx + 140, y, `${item.title} after`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula);
       if (formula && !flash) formulaNow.set(c.id, formula);
@@ -300,7 +304,7 @@ export async function POST(req: NextRequest) {
         const felt = formula ? formula.base.filter((b) => (formula.signs?.[b] ?? 1) === 1) : [];
         (arcs.get(c.id) ?? arcs.set(c.id, []).get(c.id)!).push({
           beat: scene.title, ...(scene.metadata?.beat_number ? { beat_number: Number(scene.metadata.beat_number) } : {}),
-          state: brief(c.state_out, 400), delta: delta as string,
+          state: brief(c.state_out, 400), delta: delta as string, ...(pin ? { pinned: true, ...(pin.audition ? { audition: pin.audition } : {}) } : {}),
           ...(formula ? {
             formula: formatFormula(formula), base: felt, missing: formula.base.filter((b) => formula.signs?.[b] === -1),
             ...(formula.modifier ? { modifier: formula.modifier } : {}), intensity: formula.intensity ?? 2, color: formula.color,
@@ -351,7 +355,12 @@ export async function POST(req: NextRequest) {
   // the project, travels in the cloud file and is published with the cloud.
   let arcsSaved = 0;
   if (!scene_ids?.length && !partial) {
-    for (const [id, arc] of arcs) {
+    for (const [id, built] of arcs) {
+      // States the writer pinned to scenes this build did not touch stay in the arc.
+      let arc = built;
+      for (const pin of (byId.get(id)?.metadata?.state_arc ?? []).filter((e) => e.pinned)) {
+        if (!arc.some((e) => e.beat.trim().toLowerCase() === pin.beat.trim().toLowerCase())) arc = upsertArc(arc, pin);
+      }
       try {
         await query(`UPDATE cloud_items SET metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object('state_arc', $1::jsonb), updated_at = NOW() WHERE id = $2 AND user_id = $3`, [JSON.stringify(arc.slice(0, 60)), id, userId]);
         arcsSaved++;

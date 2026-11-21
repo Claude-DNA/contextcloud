@@ -5,6 +5,7 @@ import { type Node, type Edge } from '@xyflow/react';
 import { NODE_TYPE_MAP, TYPED_HANDLES } from './nodeTypes';
 import { describeFormula, type StateFormula } from './nodeTypes';
 import StatePanel from './StatePanel';
+import NodeAudition from './NodeAudition';
 import { GraphContext } from './GraphContext';
 import { type LucideProps } from 'lucide-react';
 import * as Icons from 'lucide-react';
@@ -792,6 +793,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                     theme="light"
                   />
                 )}
+                {hasFormula && <NodeAudition node={node} nodes={nodes} edges={edges} formula={stateFormula} />}
 
                 {/* Ideas Proxy — specialized idea list with per-idea transformations */}
                 {isProxy && nodeType === 'ideasProxy' && (() => {

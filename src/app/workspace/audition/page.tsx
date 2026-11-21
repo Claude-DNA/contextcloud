@@ -8,6 +8,7 @@ import { ATOMIC_STATES, ATOMIC_STATE_MAP, describeFormula, formatFormula, stateL
 import { MAX_CAST, blendCast, describeAdjustments, type Adjustment, type CastMember, type CastState, type Turn } from '@/lib/audition';
 import { loadStateLibrary, saveToStateLibrary, pushStateLibrary } from '@/components/graph/nodeTypes';
 import StateMaker from '@/components/audition/StateMaker';
+import KeepState from '@/components/audition/KeepState';
 import type { LibraryState } from '@/lib/state-maker';
 
 const LIBRARY_URL = `${(process.env.NEXT_PUBLIC_CONTEXTUBE_URL || 'https://contextube.ai').replace(/\/$/, '')}/api/v1/states?limit=1000`;
@@ -314,7 +315,7 @@ export default function AuditionPage() {
                         <summary className="cursor-pointer hover:text-foreground">What the AI reads</summary>
                         <p className="mt-1 whitespace-pre-wrap">{describeFormula({ ...blend.formula, name: '' })}</p>
                       </details>
-                      <button type="button" onClick={saveMix} className={`${button} mt-3 border border-border text-foreground hover:bg-white`}>{saved ? 'Saved to your library' : 'Save this mix to my library'}</button>
+                      <button type="button" onClick={saveMix} className={`${button} mt-3 border border-border text-foreground hover:bg-white`}>{saved ? 'Saved to your formulas' : 'Save just the formula'}</button>
                     </>
                   ) : (
                     <p className="text-sm text-muted">{cast.length ? 'Give at least one cast member a weight above zero.' : 'Cast a state to see the formula.'}</p>
@@ -384,6 +385,16 @@ export default function AuditionPage() {
                       </div>
                       <p className="mt-1 text-xs text-muted">Play on: the scene continues with what you wrote. Direct the actor: the last take is played again your way. Another take: the same moment, other choices.</p>
                     </div>
+                    {blend && !busy && turns.some((t) => t.role === 'character') && (
+                      <KeepState
+                        formula={blend.formula}
+                        name={name}
+                        scene={scene}
+                        context={context}
+                        take={[...turns].reverse().find((t) => t.role === 'character')?.text ?? ''}
+                        onSavedToLibrary={(s) => setMine((m) => [s, ...m])}
+                      />
+                    )}
                   </div>
                 )}
               </section>

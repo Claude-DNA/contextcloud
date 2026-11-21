@@ -148,6 +148,7 @@ function snapshotNode(n: Node): HistoryNode {
       systemPrompt: n.data.systemPrompt,
       temperature: n.data.temperature,
       instructions: n.data.instructions,
+      stateFormula: n.data.stateFormula,
     },
   };
 }
@@ -196,7 +197,7 @@ interface SceneItem {
 export default function VisualCanvas() {
   const { data: session } = useSession();
   const reactFlowInstance = useReactFlow();
-  const { activeProjectId, projects } = useProject();
+  const { activeProjectId, projects, projectReady } = useProject();
 
   const [title, setTitle] = useState('Untitled Graph');
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
@@ -1087,24 +1088,25 @@ export default function VisualCanvas() {
       if (n.data.systemPrompt) clean.systemPrompt = n.data.systemPrompt;
       if (n.data.temperature !== undefined) clean.temperature = n.data.temperature;
       if (n.data.instructions) clean.instructions = n.data.instructions;
+      if (n.data.stateFormula) clean.stateFormula = n.data.stateFormula;
       return { ...n, data: clean };
     });
   }, []);
 
   // ── Save: flush cloud sync first, then persist draft ───────────────────────
-  const save = useCallback(async () => {
+  const save = useCallback(async (graph?: { nodes: Node[]; edges: Edge[]; quiet?: boolean; title?: string }) => {
     if (!session) return;
     setSaving(true);
     const synced = flushSync();
     try {
-      const cleanNodes = cleanNodesForSave(nodes);
+      const cleanNodes = cleanNodesForSave(graph?.nodes ?? nodes);
       const method = draftId ? 'PUT' : 'POST';
       const body = {
         ...(draftId ? { id: draftId } : {}),
-        title,
+        title: graph?.title ?? title,
         description: '',
         type: 'graph',
-        canvas: { nodes: cleanNodes, edges },
+        canvas: { nodes: cleanNodes, edges: graph?.edges ?? edges },
       };
       const res = await fetch('/api/v1/drafts', {
         method,
@@ -1114,7 +1116,7 @@ export default function VisualCanvas() {
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Save failed'); return; }
       if (!draftId && data.draft?.id) setDraftId(data.draft.id);
-      showToast(
+      if (!graph?.quiet) showToast(
         synced > 0
           ? `Saved! (${synced} cloud item${synced > 1 ? 's' : ''} synced)`
           : 'Saved!'
@@ -1124,6 +1126,46 @@ export default function VisualCanvas() {
     }
     setSaving(false);
   }, [session, draftId, title, nodes, edges, showToast, cleanNodesForSave, flushSync]);
+  const saveRef = useRef(save);
+  useEffect(() => { saveRef.current = save; }, [save]);
+
+  // ── Working copy: the graph is kept in this browser per project, so leaving the editor never loses it ──
+  const cacheKey = `contextcloud_graph:${activeProjectId ?? 'none'}`;
+  const cacheOwner = useRef<string | null>(null); // the project key the canvas currently belongs to
+  useEffect(() => {
+    if (!projectReady || cacheOwner.current === cacheKey) return;
+    const switching = cacheOwner.current !== null;
+    cacheOwner.current = cacheKey;
+    // A scene, an upload or a draft opened on purpose takes the canvas; the working copy waits.
+    if (sceneId || searchParams.get('upload') === '1') return;
+    try {
+      const cached = JSON.parse(localStorage.getItem(cacheKey) || 'null') as { title?: string; draftId?: string | null; nodes?: HistoryNode[]; edges?: Edge[] } | null;
+      if (cached?.nodes?.length) {
+        setNodes(cached.nodes.map(hydrateNode));
+        setEdges(cached.edges ?? []);
+        setTitle(cached.title || 'Untitled Graph');
+        setDraftId(cached.draftId ?? null);
+        setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 200);
+        return;
+      }
+    } catch { /* a copy that cannot be read is skipped */ }
+    if (switching) {
+      // Another project: its own graph, or a clean canvas. The previous project's graph stays in its copy.
+      setNodes([]); setEdges([]); setDraftId(null); setTitle('Untitled Graph');
+    }
+  }, [projectReady, cacheKey, sceneId, searchParams, hydrateNode, setNodes, setEdges, reactFlowInstance]);
+
+  useEffect(() => {
+    const key = cacheOwner.current;
+    if (!key || sceneId) return;
+    const t = setTimeout(() => {
+      try {
+        if (!nodes.length) { localStorage.removeItem(key); return; }
+        localStorage.setItem(key, JSON.stringify({ title, draftId, nodes: cleanNodesForSave(nodes), edges }));
+      } catch { /* storage full or unavailable: Save still keeps it on the account */ }
+    }, 600);
+    return () => clearTimeout(t);
+  }, [nodes, edges, title, draftId, sceneId, cleanNodesForSave]);
 
   // ── Publish ─────────────────────────────────────────────────────────────────
   // A graph isn't published as is: "Make a flow" saves it, then drafts a ConteXtube flow from the project.
@@ -1202,26 +1244,32 @@ export default function VisualCanvas() {
 
       // Snapshot for undo, then replace canvas
       captureBeforeAction();
-      setNodes(incomingNodes.map(n => ({
+      const builtNodes = incomingNodes.map(n => hydrateNode({
         ...n,
         data: { ...n.data, label: n.data.title, color: NODE_TYPE_MAP[n.type]?.color || '#4A90D9' },
-      })));
+      }));
+      setNodes(builtNodes);
       setEdges([]);
       setTimeout(() => setEdges(incomingEdges), 80);
+      // A build costs AI time; it goes to the account's drafts at once, not only when Save is pressed.
+      const project = projects.find(p => p.id === activeProjectId);
+      const graphTitle = title === 'Untitled Graph' && project?.title ? `${project.title} graph` : title;
+      setTitle(graphTitle);
+      void saveRef.current({ nodes: builtNodes, edges: incomingEdges as Edge[], quiet: true, title: graphTitle });
       // Fit view after nodes + edges are committed
       setTimeout(() => reactFlowInstance.fitView({ duration: 600, padding: 0.15 }), 200);
 
       showToast(
         data.meta?.partial || data.meta?.scenesFailed
           ? `⚠️ Graph built for ${data.meta.scenesBuilt} of ${data.meta.scenes} scenes${data.meta.partial ? ' (time limit reached; select fewer scenes to build the rest)' : ''}${data.meta.scenesFailed ? `, ${data.meta.scenesFailed} failed` : ''}`
-          : `✨ Graph built: ${data.meta?.scenes ?? ''} scenes, ${incomingNodes.length} nodes, ${incomingEdges.length} edges${data.meta ? ` from ${data.meta.itemsUsed} cloud items` : ''}`
+          : `✨ Graph built and saved to your drafts: ${data.meta?.scenes ?? ''} scenes, ${incomingNodes.length} nodes, ${incomingEdges.length} edges`
       );
     } catch (err) {
       showToast(`Auto-build error: ${err}`);
     } finally {
       setAutoBuilding(false);
     }
-  }, [activeProjectId, showToast, captureBeforeAction, setNodes, setEdges]);
+  }, [activeProjectId, projects, title, showToast, captureBeforeAction, setNodes, setEdges, hydrateNode]);
 
   // Keep ref in sync so loadSceneItems (defined earlier) can call handleAutoBuild without deps ordering issues
   useEffect(() => { handleAutoBuildRef.current = handleAutoBuild; }, [handleAutoBuild]);
@@ -1499,7 +1547,7 @@ export default function VisualCanvas() {
 
                   {/* Save (flushes cloud sync too) */}
                   <button
-                    onClick={save}
+                    onClick={() => save()}
                     disabled={saving}
                     className="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-white transition-colors"
                     title="Save draft + sync changes to Clouds"
@@ -1725,7 +1773,7 @@ export default function VisualCanvas() {
         {showDraftBrowser && (
           <DraftBrowser
             onLoad={(loadedNodes, loadedEdges, loadedTitle, loadedDraftId) => {
-              setNodes(loadedNodes);
+              setNodes(loadedNodes.map(n => hydrateNode(n as HistoryNode)));
               setEdges(loadedEdges);
               setTitle(loadedTitle);
               setDraftId(loadedDraftId);
