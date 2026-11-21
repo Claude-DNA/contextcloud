@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -407,6 +407,24 @@ export async function runMigrations(): Promise<boolean> {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_api_keys_user   ON user_api_keys (user_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_api_keys_hash   ON user_api_keys (key_hash)`);
+
+    // v9: character states writers make from stories. A row is in the writer's own library, offered to the
+    // shared Studio library (review: pending → approved or rejected), or both.
+    await query(`
+      CREATE TABLE IF NOT EXISTS character_states (
+        id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+        user_id       TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        work          TEXT NOT NULL,
+        character     TEXT NOT NULL,
+        state         JSONB NOT NULL,
+        in_library    BOOLEAN NOT NULL DEFAULT TRUE,
+        review        TEXT NOT NULL DEFAULT 'none',
+        created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        reviewed_at   TIMESTAMPTZ
+      )
+    `);
+    await query(`CREATE INDEX IF NOT EXISTS idx_character_states_user   ON character_states (user_id)`);
+    await query(`CREATE INDEX IF NOT EXISTS idx_character_states_review ON character_states (review)`);
 
     console.log('Migrations complete');
     return true;

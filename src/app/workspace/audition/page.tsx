@@ -7,6 +7,8 @@ import Header from '@/components/Header';
 import { ATOMIC_STATES, ATOMIC_STATE_MAP, describeFormula, formatFormula, stateLabel } from '@/lib/state-formula';
 import { MAX_CAST, blendCast, describeAdjustments, type Adjustment, type CastMember, type CastState, type Turn } from '@/lib/audition';
 import { loadStateLibrary, saveToStateLibrary, pushStateLibrary } from '@/components/graph/nodeTypes';
+import StateMaker from '@/components/audition/StateMaker';
+import type { LibraryState } from '@/lib/state-maker';
 
 const LIBRARY_URL = `${(process.env.NEXT_PUBLIC_CONTEXTUBE_URL || 'https://contextube.ai').replace(/\/$/, '')}/api/v1/states?limit=1000`;
 const DRAFT_KEY = 'contextcloud_audition_draft';
@@ -18,6 +20,11 @@ interface Draft { name: string; who: string; scene: string; context: string; cas
 
 export default function AuditionPage() {
   const [library, setLibrary] = useState<CastState[] | null>(null);
+  const [mine, setMine] = useState<LibraryState[]>([]);
+  const [studio, setStudio] = useState<LibraryState[]>([]);
+  const [pending, setPending] = useState<LibraryState[]>([]);
+  const [shelf, setShelf] = useState<'all' | 'mine' | 'studio'>('all');
+  const [makerOpen, setMakerOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [cast, setCast] = useState<CastMember[]>([]);
   const [adjustments, setAdjustments] = useState<Adjustment[]>([]);
@@ -36,6 +43,10 @@ export default function AuditionPage() {
 
   useEffect(() => {
     fetch(LIBRARY_URL).then((r) => (r.ok ? r.json() : { states: [] })).then((d) => setLibrary(Array.isArray(d.states) ? d.states : [])).catch(() => setLibrary([]));
+    fetch('/api/v1/states').then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!d) return;
+      setMine(d.mine ?? []); setStudio(d.studio ?? []); setPending(d.pending ?? []);
+    }).catch(() => { /* the reference library still works */ });
     try {
       const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null') as Draft | null;
       if (d) { setName(d.name ?? ''); setWho(d.who ?? ''); setScene(d.scene ?? ''); setContext(d.context ?? ''); setCast(d.cast ?? []); setAdjustments(d.adjustments ?? []); setShows(d.shows ?? 'auto'); setIntensity(d.intensity ?? 'auto'); }
@@ -51,10 +62,11 @@ export default function AuditionPage() {
   );
   const found = useMemo(() => {
     const q = search.toLowerCase().trim().split(/\s+/).filter(Boolean);
-    return (library ?? []).filter((s) => !cast.some((m) => m.state.id === s.id))
+    const all: LibraryState[] = [...mine, ...studio, ...(library ?? []).map((s) => ({ ...s, source: 'contextube' as const }))];
+    return all.filter((s) => shelf === 'all' || s.source === shelf).filter((s) => !cast.some((m) => m.state.id === s.id))
       .filter((s) => { const t = `${s.character} ${s.moment} ${s.formula} ${s.work}`.toLowerCase(); return q.every((w) => t.includes(w)); })
       .slice(0, 40);
-  }, [library, search, cast]);
+  }, [library, mine, studio, shelf, search, cast]);
 
   const setAdjustment = (state: string, amount: number) =>
     setAdjustments((a) => (amount === 0 ? a.filter((x) => x.state !== state) : a.some((x) => x.state === state) ? a.map((x) => (x.state === state ? { state, amount } : x)) : [...a, { state, amount }]));
@@ -76,6 +88,20 @@ export default function AuditionPage() {
   };
   const follow = (role: 'scene' | 'direction') => { const text = next.trim(); if (!text) return; setNext(''); void play([...turns, { role, text }]); };
   const ready = !!blend && scene.trim().length >= 10 && !busy;
+
+  const castState = (s: CastState) => setCast((c) => (c.length < MAX_CAST && !c.some((m) => m.state.id === s.id) ? [...c, { state: s, weight: 50 }] : c));
+  const removeMine = async (s: LibraryState) => {
+    setMine((m) => m.filter((x) => x.id !== s.id));
+    await fetch(`/api/v1/states/${encodeURIComponent(s.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ library: false }) }).catch(() => {});
+  };
+  const decide = async (s: LibraryState, review: 'approved' | 'rejected') => {
+    const res = await fetch(`/api/v1/states/${encodeURIComponent(s.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ review }) }).catch(() => null);
+    if (!res?.ok) return;
+    setPending((p) => p.filter((x) => x.id !== s.id));
+    if (review === 'approved') setStudio((st) => [...st, { ...s, source: 'studio', review: 'approved' }]);
+    setMine((m) => m.map((x) => (x.id === s.id ? { ...x, review } : x)));
+  };
+  const libraryCount = mine.length + studio.length + (library?.length ?? 0);
 
   const saveMix = () => {
     if (!blend) return;
@@ -132,26 +158,89 @@ export default function AuditionPage() {
                   </ul>
                 </div>
 
-                {cast.length < MAX_CAST && (
-                  <div>
-                    <label htmlFor="lib-search" className={label}>State library {library ? `(${library.length})` : ''}</label>
-                    <input id="lib-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search a character, a cause or a feeling: alyosha, humiliated, grief" className={field} />
-                    <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border bg-white p-1">
-                      {!library && <li className="px-2 py-3 text-sm text-muted">Loading the library…</li>}
-                      {library && library.length === 0 && <li className="px-2 py-3 text-sm text-muted">The state library could not be reached. Reload the page to try again.</li>}
-                      {library && library.length > 0 && found.length === 0 && <li className="px-2 py-3 text-sm text-muted">No state matches “{search}”.</li>}
-                      {found.map((s) => (
-                        <li key={s.id}>
-                          <button type="button" title={`${s.situation}\n\n${s.inside}`} onClick={() => setCast((c) => (c.length < MAX_CAST ? [...c, { state: s, weight: 50 }] : c))}
-                            className="block w-full rounded border-l-4 px-2 py-1.5 text-left hover:bg-gray-50" style={{ borderLeftColor: s.color || '#888' }}>
-                            <span className="block truncate text-sm text-foreground">{s.character}, {s.moment}</span>
-                            <span className="block truncate text-xs text-muted">{s.formula}</span>
-                          </button>
+                {pending.length > 0 && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 p-3">
+                    <p className="text-sm font-medium text-amber-900">Waiting for review ({pending.length})</p>
+                    <p className="text-xs text-amber-900/80">Offers to the Studio library. Approved states appear for every writer.</p>
+                    <ul className="mt-2 space-y-2">
+                      {pending.map((s) => (
+                        <li key={s.id} className="rounded-lg border border-border border-l-4 bg-white p-3" style={{ borderLeftColor: s.color || '#888' }}>
+                          <p className="text-sm font-medium text-foreground">{s.character}, {s.moment}</p>
+                          <p className="text-xs text-muted">{s.formula} · {s.work}{s.by ? ` · from ${s.by}` : ''}</p>
+                          <p className="mt-1 text-xs text-foreground">{s.situation}</p>
+                          <details className="mt-1 text-xs text-muted">
+                            <summary className="cursor-pointer hover:text-foreground">Inside and outside</summary>
+                            <p className="mt-1"><span className="font-medium">Inside:</span> {s.inside}</p>
+                            <p className="mt-1"><span className="font-medium">Outside:</span> {s.outside}</p>
+                          </details>
+                          <div className="mt-2 flex gap-2">
+                            <button type="button" onClick={() => decide(s, 'approved')} className="rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700">Approve</button>
+                            <button type="button" onClick={() => decide(s, 'rejected')} className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground hover:bg-gray-50">Reject</button>
+                          </div>
                         </li>
                       ))}
                     </ul>
                   </div>
                 )}
+
+                {cast.length < MAX_CAST && (
+                  <div>
+                    <div className="mb-1 flex flex-wrap items-end justify-between gap-2">
+                      <label htmlFor="lib-search" className="block text-xs font-medium text-muted">State library {library ? `(${libraryCount})` : ''}</label>
+                      <div role="group" aria-label="Which library" className="flex gap-1 text-xs">
+                        {([['all', 'All'], ['mine', `My library (${mine.length})`], ['studio', `Studio library (${studio.length})`]] as const).map(([id, text]) => (
+                          <button key={id} type="button" aria-pressed={shelf === id} onClick={() => setShelf(id)}
+                            className={`rounded-full border px-2.5 py-0.5 ${shelf === id ? 'border-accent bg-accent text-white' : 'border-border text-muted hover:text-foreground'}`}>{text}</button>
+                        ))}
+                      </div>
+                    </div>
+                    <input id="lib-search" type="search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search a character, a cause or a feeling: alyosha, humiliated, grief" className={field} />
+                    <ul className="mt-2 max-h-64 space-y-1 overflow-y-auto rounded-lg border border-border bg-white p-1">
+                      {!library && <li className="px-2 py-3 text-sm text-muted">Loading the library…</li>}
+                      {library && library.length === 0 && <li className="px-2 py-3 text-sm text-muted">The state library could not be reached. Reload the page to try again.</li>}
+                      {library && libraryCount > 0 && found.length === 0 && (
+                        <li className="px-2 py-3 text-sm text-muted">
+                          {shelf === 'mine' && !mine.length ? 'Your library is empty. Make states from a story below.' : shelf === 'studio' && !studio.length ? 'Nothing in the Studio library yet.' : search ? `No state matches “${search}”.` : 'Every state here is already cast.'}
+                        </li>
+                      )}
+                      {found.map((s) => (
+                        <li key={`${s.source}-${s.id}`} className="flex items-stretch gap-1">
+                          <button type="button" title={`${s.situation}\n\n${s.inside}`} onClick={() => castState(s)}
+                            className="block min-w-0 flex-1 rounded border-l-4 px-2 py-1.5 text-left hover:bg-gray-50" style={{ borderLeftColor: s.color || '#888' }}>
+                            <span className="block truncate text-sm text-foreground">{s.character}, {s.moment}</span>
+                            <span className="block truncate text-xs text-muted">
+                              {s.formula}
+                              {s.source === 'mine' && <> · Mine{s.review === 'pending' ? ', waiting for review' : s.review === 'approved' ? ', in the Studio library' : ''}</>}
+                              {s.source === 'studio' && <> · Studio library</>}
+                            </span>
+                          </button>
+                          {s.source === 'mine' && (
+                            <button type="button" onClick={() => removeMine(s)} className="shrink-0 rounded px-2 text-xs text-muted hover:bg-gray-50 hover:text-red-600" aria-label={`Remove ${s.character}, ${s.moment} from my library`}>Remove</button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                <div className="rounded-lg border border-border">
+                  <button type="button" aria-expanded={makerOpen} aria-controls="state-maker" onClick={() => setMakerOpen((o) => !o)}
+                    className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm font-medium text-foreground hover:bg-gray-50">
+                    <span>Make states from a story</span>
+                    <span aria-hidden="true" className="text-muted">{makerOpen ? '−' : '+'}</span>
+                  </button>
+                  {makerOpen && (
+                    <div id="state-maker" className="border-t border-border p-3">
+                      <StateMaker
+                        canCast={cast.length < MAX_CAST}
+                        onCast={castState}
+                        onSaved={(saved) => {
+                          setMine((m) => [...saved.filter((x) => x.in_library), ...m]);
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 <div>
                   <p className={label}>Adjust: turn a feeling up or down</p>
