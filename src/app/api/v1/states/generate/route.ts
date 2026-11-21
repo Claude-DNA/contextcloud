@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const ai = await getAiConfig(userId);
   if (!ai) return noKeyResponse();
   try {
-    const raw = await generateJson({ ai, system: MAKER_SYSTEM, prompt: makerPrompt(work, character, motivation), schema: MAKER_SCHEMA, temperature: 0.5, maxTokens: 4000 });
+    const raw = await generateJson({ ai, system: MAKER_SYSTEM, prompt: makerPrompt(work, character, motivation), schema: MAKER_SCHEMA, temperature: 0.5, maxTokens: 12000 });
     return NextResponse.json(readMakerAnswer(raw, work, character));
   } catch (e) {
     return aiErrorResponse(e, 'The states could not be made');

@@ -44,10 +44,11 @@ export function makerPrompt(work: string, character: string, motivation: string)
   return `STORY: ${work}
 CHARACTER: ${character}
 ${motivation ? `WHAT OTHERS SEE (the writer's words for how this character comes across, what seems to drive them): ${motivation}\n` : ''}
-Find 4 moments in the story where this character is in a clear, distinct state${motivation ? ', preferring moments where what others see matches the writer\'s words' : ''}. Spread them across the story; two moments with the same formula are one too many. Turning points first.
+Find 4 moments in the story where this character is in a clear, distinct state. Spread them across the story; two moments with the same formula are one too many. Turning points first.${motivation ? `
+At least two of the moments must be ones where the character comes across as the writer describes ("${motivation}"): the writer came for those.` : ''}
 
 For each moment:
-- moment: a label a writer would search for, naming the cause: "after his mentor dies", "on learning the inheritance is gone". Lower case, no character name.
+- moment: a label a writer would search for, naming the cause: "after his mentor dies", "on learning the inheritance is gone". Start with a small letter, keep names of people and places capitalised, and leave out the character's own name.
 - situation: what has happened and where the character is, 1 to 2 sentences.
 - inside: what it is like from inside, 1 to 2 sentences.
 - outside: what others see the character do, 1 to 2 sentences.
