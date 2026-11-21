@@ -110,12 +110,12 @@ export default function SettingsPage() {
         )}
 
         {/* Generate new key */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             type="text" placeholder="Key label (e.g. Navigator, My Script…)"
             value={newKeyLabel} onChange={e => setNewKeyLabel(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && generateApiKey()}
-            className="flex-1 border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-transparent focus:outline-none focus:ring-2 focus:ring-accent"
+            className="min-w-0 flex-1 basis-48 border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-transparent focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <button onClick={generateApiKey} disabled={generatingKey}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50 transition-colors whitespace-nowrap">

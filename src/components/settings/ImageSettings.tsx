@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import ProviderGuide, { type GuideProvider } from './ProviderGuide';
 
 type ImageProviderId = 'google' | 'openai' | 'openrouter';
 interface Model { id: string; name: string; price?: string }
@@ -69,7 +70,7 @@ export default function ImageSettings() {
   };
 
   return (
-    <section className="border border-border rounded-xl p-6 bg-card-bg space-y-5" aria-labelledby="img-settings-title">
+    <section id="illustrations" className="scroll-mt-20 border border-border rounded-xl p-6 bg-card-bg space-y-5" aria-labelledby="img-settings-title">
       <div>
         <h2 id="img-settings-title" className="text-base font-semibold text-foreground">Illustrations</h2>
         <p className="text-sm text-muted mt-1">
@@ -108,7 +109,7 @@ export default function ImageSettings() {
               Save key
             </button>
           </div>
-          <a href={info.keyUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline">Get an API key from {info.label}</a>
+          <ProviderGuide provider={current as GuideProvider} label={info.label} open forPictures />
         </div>
       ) : (
         <div>

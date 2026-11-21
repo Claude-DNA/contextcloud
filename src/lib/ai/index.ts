@@ -40,7 +40,7 @@ export const PROVIDER_INFO: Record<Provider, { label: string; keyUrl: string; ke
   },
   anthropic: {
     label: 'Anthropic Claude',
-    keyUrl: 'https://console.anthropic.com/settings/keys',
+    keyUrl: 'https://platform.claude.com/settings/keys',
     keyHint: 'sk-ant-…',
     defaultModel: 'claude-haiku-5-5',
     defaultLight: 'claude-haiku-5-5',

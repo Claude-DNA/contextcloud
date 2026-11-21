@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import ProviderGuide, { KeyExplainer, type GuideProvider } from './ProviderGuide';
 
 type ProviderId = 'google' | 'anthropic' | 'openai' | 'openrouter';
 interface ProviderInfo { id: ProviderId; label: string; keyUrl: string; keyHint: string }
@@ -128,7 +129,7 @@ export default function AiSettings() {
   );
 
   return (
-    <section className="border border-border rounded-xl p-6 bg-card-bg space-y-6" aria-labelledby="ai-settings-title">
+    <section id="ai-model" className="scroll-mt-20 border border-border rounded-xl p-6 bg-card-bg space-y-6" aria-labelledby="ai-settings-title">
       <div>
         <h2 id="ai-settings-title" className="text-base font-semibold text-foreground">AI model</h2>
         <p className="text-sm text-muted mt-1">
@@ -136,6 +137,8 @@ export default function AiSettings() {
           You pay the provider directly; keys are stored encrypted and never shown again in full.
         </p>
       </div>
+
+      <KeyExplainer />
 
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium text-foreground mb-2">Provider</legend>
@@ -186,8 +189,9 @@ export default function AiSettings() {
             Save key
           </button>
         </div>
-        <a href={info.keyUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-accent hover:underline">Get an API key from {info.label}</a>
       </div>
+
+      <ProviderGuide provider={s.provider as GuideProvider} label={info.label} open={!hasKey} />
 
       {hasKey || s.provider === 'openrouter' ? (
         <div className="space-y-3">
