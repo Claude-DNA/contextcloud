@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Sidebar from '@/components/Sidebar';
+import Header from '@/components/Header';
 import AiSettings from '@/components/settings/AiSettings';
 import ImageSettings from '@/components/settings/ImageSettings';
 
@@ -69,7 +71,11 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto py-10 px-4 space-y-8">
+    <div className="flex min-h-screen">
+      <Sidebar />
+      <main className="flex-1 ml-60 flex flex-col">
+        <Header />
+    <div className="w-full max-w-xl mx-auto py-10 px-4 space-y-8">
       <div>
         <h1 className="text-2xl font-semibold text-foreground mb-1">Settings</h1>
         <p className="text-sm text-muted">Configure your workspace preferences.</p>
@@ -157,6 +163,8 @@ export default function SettingsPage() {
           Maximum 10 active keys. Full API reference: <a href="/docs" className="text-accent hover:underline">/docs</a>
         </p>
       </div>
+    </div>
+      </main>
     </div>
   );
 }
