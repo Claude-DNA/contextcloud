@@ -43,9 +43,11 @@ function findContext(node: Node, nodes: Node[], edges: Edge[]) {
     }
     if (!characterId && characterNode) characterId = characterNode.id.match(/^(?:proxy|cloud)_([^_]+)/)?.[1] ?? null;
   }
-  const entering = m ? byId.get(`statein_${m[2]}_${m[3]}`) : undefined;
-  const name = title(characterNode) || title(node).replace(/\s+(entering|after)$/i, '');
-  return { scene, characterId, name, agency: text(characterNode), entering: m?.[1] === 'stateout' ? entering : undefined, kind: m?.[1] === 'statein' ? 'entering' : 'after' };
+  // What the character brings into the scene: the node of theirs that feeds it (their state after an earlier scene).
+  const feeding = m && scene ? edges.find((e) => e.target === scene!.id && e.source !== node.id && (e.source.startsWith(`stateout_${m[2]}_`) || e.source.startsWith(`statein_${m[2]}_`))) : undefined;
+  const entering = feeding ? byId.get(feeding.source) : undefined;
+  const name = title(characterNode) || title(node).replace(/\s+(entering|after\b.*)$/i, '');
+  return { scene, characterId, name, card: text(characterNode), entering: m?.[1] === 'stateout' ? entering : undefined, kind: m?.[1] === 'statein' ? 'entering' : 'after' };
 }
 
 const btn = 'rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed';
@@ -63,14 +65,14 @@ export default function NodeAudition({ node, nodes, edges, formula }: Props) {
   useEffect(() => { setScene(ctx.scene ? `${title(ctx.scene)}\n${text(ctx.scene)}`.slice(0, 2000) : ''); setTurns([]); setNote(null); }, [ctx.scene, node.id]);
   // Who the character is: their card in the Characters cloud.
   useEffect(() => {
-    setWho(ctx.agency);
+    setWho(ctx.card.slice(0, 600));
     if (!ctx.characterId) return;
     let live = true;
     fetch(`/api/v1/cloud-items/${ctx.characterId}/state-arc`).then((r) => (r.ok ? r.json() : null)).then((d) => {
-      if (live && d?.content) setWho([d.content, ctx.agency && ctx.agency !== '(no agency described)' ? `In this scene: ${ctx.agency}` : ''].filter(Boolean).join('\n').slice(0, 600));
+      if (live && d?.content) setWho(String(d.content).slice(0, 600));
     }).catch(() => {});
     return () => { live = false; };
-  }, [ctx.characterId, ctx.agency]);
+  }, [ctx.characterId, ctx.card]);
 
   const sceneTitle = ctx.scene ? beatOf(title(ctx.scene)) : '';
   const state = stateText(text(node));

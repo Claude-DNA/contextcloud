@@ -86,6 +86,7 @@ const SCHEMA = {
 const EDGE = {
   sceneChain: { animated: true, style: { strokeDasharray: '5,5', stroke: '#10b981' } },
   charChain: { animated: false, style: { stroke: '#8b5cf6', strokeWidth: 1.5 } },
+  place: { animated: false, style: { stroke: '#0ea5e9', strokeWidth: 1.5 } },
   influence: { animated: true, style: { strokeDasharray: '5,5', stroke: '#ec4899' } },
 };
 
@@ -221,21 +222,33 @@ export async function POST(req: NextRequest) {
 
   const nodes: BuildNode[] = [];
   const edges: BuildEdge[] = [];
-  const placedInfluence = new Map<string, number>(); // theme/reference id → how many placed at its first scene column
   const node = (id: string, type: string, x: number, y: number, title: string, content: string, formula?: StateFormula | null) =>
     nodes.push({ id, type, position: { x, y }, data: { title, content, type, ...(formula ? { stateFormula: formula, stateColor: formula.color } : {}) } });
   // Each character's formula as they stand now, and their arc of states scene by scene.
   const formulaNow = new Map<string, StateFormula>();
   const arcs = new Map<string, ArcEntry[]>();
-  const edge = (source: string, target: string, style: { animated: boolean; style: Record<string, unknown> }, handles: { sourceHandle?: string; targetHandle?: string } = {}) =>
-    edges.push({ id: `e_${source}_${target}`, source, target, ...handles, ...style });
+  const edge = (source: string, target: string, style: { animated: boolean; style: Record<string, unknown> }, handles: { sourceHandle?: string; targetHandle?: string } = {}) => {
+    const id = `e_${source}_${target}`;
+    if (!edges.some((e) => e.id === id)) edges.push({ id, source, target, ...handles, ...style });
+  };
+
+  // Layout. Scenes run left to right in one row. Above them each character has a lane, below them each
+  // place and rule. A lane holds that entity's states in story order: where it enters the story, then a
+  // node after each scene that changes it, placed over that scene. That node is the transition: it is
+  // what the entity carries into the next scene it appears in, so no state is drawn twice.
+  // Themes and references sit in two rows over the character lanes, at the scene where they first matter.
+  const COL = 560, LANE = 150, CHAR_TOP = 240, PLACE_TOP = 320;
+  const charLane = new Map<string, number>();
+  const placeLane = new Map<string, number>();
+  const latest = new Map<string, string>(); // entity id → the node holding its state now
+  const influence: { id: string; col: number; row: 'plot' | 'references' }[] = [];
 
   let built = 0;
   let failed = 0;
   for (let i = 0; i < scenes.length; i++) {
     if (Date.now() - started > TIME_BUDGET_MS) break;
     const scene = scenes[i];
-    const sx = i * 850;
+    const sx = i * COL;
     const sceneNodeId = `scene_${scene.id}`;
 
     const flash = scene.metadata?.when === 'flashback' || scene.metadata?.when === 'flash_forward';
@@ -280,25 +293,39 @@ export async function POST(req: NextRequest) {
       console.error('[graph-build] scene failed:', scene.title, e instanceof Error ? e.message : e);
     }
 
-    const label = scene.metadata?.when === 'flashback' ? 'Flashback: ' : scene.metadata?.when === 'flash_forward' ? 'Flash-forward: ' : '';
-    node(sceneNodeId, 'scene', sx, 0, `${label}${scene.title}`, `${scene.metadata?.act ? `${scene.metadata.act}\n\n` : ''}${scene.content}${r.consequence ? `\n\nConsequence: ${r.consequence}` : ''}`);
-    if (i > 0) edge(`scene_${scenes[i - 1].id}`, sceneNodeId, EDGE.sceneChain, { sourceHandle: 'output', targetHandle: 'prev_scene' });
-
     const valid = <T extends { id: string }>(list: T[] | undefined, pool: Item[], max: number) =>
       (list ?? []).filter((x) => offered.has(x.id) && pool.some((p) => p.id === x.id)).slice(0, max);
 
-    valid(r.characters, characters, 3).forEach((c, slot) => {
+    // ── Characters ──
+    const acts: string[] = [];
+    valid(r.characters, characters, 3).forEach((c) => {
       const item = byId.get(c.id)!;
-      const y = -260 - slot * 200;
-      const delta = DELTAS.includes(c.delta as Delta) ? c.delta : 'unchanged';
-      const proxy = `proxy_${c.id}_${scene.id}`, sin = `statein_${c.id}_${scene.id}`, sout = `stateout_${c.id}_${scene.id}`;
-      node(proxy, 'charactersProxy', sx - 220, y, item.title, c.agency || '(no agency described)');
+      if (!charLane.has(c.id)) charLane.set(c.id, charLane.size);
+      const y = -(CHAR_TOP + charLane.get(c.id)! * LANE);
+      const delta = DELTAS.includes(c.delta as Delta) ? c.delta! : 'unchanged';
       // A state the writer pinned to this scene (from an audition) wins over the one the AI proposes.
       const pin = (item.metadata?.state_arc ?? []).find((e) => e.pinned && e.beat.trim().toLowerCase() === scene.title.trim().toLowerCase());
       const formula = pin?.base?.length ? toFormula(pin) : parseProposedFormula(c.formula);
       if (pin?.state) c.state_out = pin.state;
-      node(sin, 'stateIn', sx - 50, y, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
-      node(sout, 'stateOut', sx + 140, y, `${item.title} after`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula);
+
+      if (!latest.has(c.id)) {
+        // First appearance: the character's card, then the state they bring into the story.
+        const card = `proxy_${c.id}_lane`, sin = `statein_${c.id}_${scene.id}`;
+        node(card, 'charactersProxy', sx - COL / 2 - 230, y, item.title, brief(item.content, 500));
+        node(sin, 'stateIn', sx - COL / 2, y, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
+        edge(card, sin, EDGE.charChain);
+        latest.set(c.id, sin);
+      }
+      edge(latest.get(c.id)!, sceneNodeId, EDGE.charChain, { targetHandle: 'characters' });
+      if (c.agency) acts.push(`${item.title}: ${brief(c.agency, 300)}`);
+
+      const before = formulaNow.has(c.id) ? formatFormula(formulaNow.get(c.id)!) : '';
+      const changed = !!pin || (!!c.state_out && (delta !== 'unchanged' || (!!formula && formatFormula(formula) !== before)));
+      if (changed) {
+        const sout = `stateout_${c.id}_${scene.id}`;
+        node(sout, 'stateOut', sx, y, `${item.title} after ${scene.title}`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula ?? formulaNow.get(c.id));
+        if (!flash) latest.set(c.id, sout);
+      }
       if (formula && !flash) formulaNow.set(c.id, formula);
       if (c.state_out) {
         const felt = formula ? formula.base.filter((b) => (formula.signs?.[b] ?? 1) === 1) : [];
@@ -311,43 +338,64 @@ export async function POST(req: NextRequest) {
           } : {}),
         });
       }
-      edge(proxy, sin, EDGE.charChain);
-      edge(sin, sceneNodeId, EDGE.influence, { targetHandle: 'characters' });
-      if (c.state_out) carry(c.id, c.state_out); // the next scene's stateIn
+      if (c.state_out) carry(c.id, c.state_out); // what the next scene starts from
       else lastActive.set(c.id, i);
     });
 
-    const placeAndRule = (list: { id: string; state_out?: string; delta?: string }[], pool: Item[], kind: 'stage' | 'world', baseY: number, dx: number) =>
-      valid(list, pool, 2).forEach((s, slot) => {
+    // ── The scene itself ──
+    const label = scene.metadata?.when === 'flashback' ? 'Flashback: ' : scene.metadata?.when === 'flash_forward' ? 'Flash-forward: ' : '';
+    node(sceneNodeId, 'scene', sx, 0, `${label}${scene.title}`,
+      `${scene.metadata?.act ? `${scene.metadata.act}\n\n` : ''}${scene.content}${acts.length ? `\n\nIn this scene:\n${acts.map((a) => `- ${a}`).join('\n')}` : ''}${r.consequence ? `\n\nConsequence: ${r.consequence}` : ''}`);
+    if (i > 0) edge(`scene_${scenes[i - 1].id}`, sceneNodeId, EDGE.sceneChain, { sourceHandle: 'output', targetHandle: 'prev_scene' });
+
+    // ── Places and rules ──
+    const placeAndRule = (list: { id: string; state_out?: string; delta?: string }[], pool: Item[], kind: 'stage' | 'world') =>
+      valid(list, pool, 2).forEach((s) => {
         const item = byId.get(s.id)!;
-        const y = baseY + slot * 180;
+        if (!placeLane.has(s.id)) placeLane.set(s.id, placeLane.size);
+        const y = PLACE_TOP + placeLane.get(s.id)! * LANE;
         const delta = DELTAS.includes(s.delta as Delta) ? s.delta : 'unchanged';
-        const inId = `${kind}in_${s.id}_${scene.id}`;
-        node(inId, `${kind}In`, sx + dx, y, item.title, state.get(s.id) ?? item.content);
-        edge(inId, sceneNodeId, EDGE.influence, { targetHandle: 'world' });
+        if (!latest.has(s.id)) {
+          const inId = `${kind}in_${s.id}_${scene.id}`;
+          node(inId, `${kind}In`, sx - COL / 2, y, item.title, state.get(s.id) ?? item.content);
+          latest.set(s.id, inId);
+        }
+        edge(latest.get(s.id)!, sceneNodeId, EDGE.place, { targetHandle: 'world' });
         if (delta !== 'unchanged' && s.state_out) {
-          node(`${kind}out_${s.id}_${scene.id}`, `${kind}Out`, sx + dx + 160, y, `${item.title} (after)`, `${s.state_out}\nDelta: ${delta}`);
+          const out = `${kind}out_${s.id}_${scene.id}`;
+          node(out, `${kind}Out`, sx, y, `${item.title} after ${scene.title}`, `${s.state_out}\nDelta: ${delta}`);
+          if (!flash) latest.set(s.id, out);
           carry(s.id, s.state_out);
         } else lastActive.set(s.id, i);
       });
-    placeAndRule(r.stages ?? [], stages, 'stage', 340, 0);
-    placeAndRule(r.worlds ?? [], worlds, 'world', 560, 160);
+    placeAndRule(r.stages ?? [], stages, 'stage');
+    placeAndRule(r.worlds ?? [], worlds, 'world');
 
-    // Themes and references: one node each (synced to its cloud item), linked to every scene it bears on.
-    const influence = (ids: string[] | undefined, pool: Item[], handle: string, baseY: number) => {
+    // ── Themes and references: one node each (synced to its cloud item), linked to every scene it bears on ──
+    const influences = (ids: string[] | undefined, pool: Item[], row: 'plot' | 'references') => {
       for (const id of (ids ?? []).filter((x) => pool.slice(0, INFLUENCE_LIMIT).some((p) => p.id === x)).slice(0, 3)) {
         const nodeId = `cloud_${id}`;
-        if (!placedInfluence.has(id)) {
+        if (!influence.some((x) => x.id === id)) {
           const item = byId.get(id)!;
-          const count = [...placedInfluence.values()].filter((v) => v === i).length;
-          node(nodeId, handle === 'plot' ? 'theme' : referenceType(item), sx + 300, baseY + count * 160, item.title, item.content);
-          placedInfluence.set(id, i);
+          node(nodeId, row === 'plot' ? 'theme' : referenceType(item), sx, 0, item.title, item.content);
+          influence.push({ id, col: i, row });
         }
-        edge(nodeId, sceneNodeId, EDGE.influence, { targetHandle: handle });
+        edge(nodeId, sceneNodeId, EDGE.influence, { targetHandle: row });
       }
     };
-    influence(r.themes, themes, 'plot', 340);
-    influence(r.references, references, 'references', 700);
+    influences(r.themes, themes, 'plot');
+    influences(r.references, references, 'references');
+  }
+
+  // Themes and references go over the top character lane, side by side at their first scene.
+  const plotY = -(CHAR_TOP + Math.max(charLane.size, 1) * LANE) - 40;
+  const slots = new Map<string, number>();
+  for (const x of influence) {
+    const key = `${x.col}:${x.row}`;
+    const k = slots.get(key) ?? 0;
+    slots.set(key, k + 1);
+    const n = nodes.find((m) => m.id === `cloud_${x.id}`);
+    if (n) n.position = { x: x.col * COL + k * 190 - 190, y: x.row === 'plot' ? plotY : plotY - 190 };
   }
 
   const partial = built + failed < scenes.length;
