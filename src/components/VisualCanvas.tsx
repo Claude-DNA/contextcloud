@@ -1454,6 +1454,7 @@ export default function VisualCanvas() {
         <div className="flex-1 relative">
           <GraphContext.Provider value={{ bigNodes, onParentChange: handleParentChange }}>
             <ReactFlow
+              minZoom={0.1}
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
