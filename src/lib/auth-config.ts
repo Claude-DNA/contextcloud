@@ -13,6 +13,11 @@ import { getAppleClientSecret } from '@/lib/apple-secret';
  * stay host-only, as before.
  */
 const SITE_DOMAIN = 'contextcloud.studio';
+// Production: Google and Apple only know the main address, so every sign-in is handled there
+// (next-auth reads AUTH_URL on each request), whichever language site it started on.
+if (process.env.VERCEL_ENV === 'production' && !process.env.AUTH_URL && !process.env.NEXTAUTH_URL) {
+  process.env.AUTH_URL = 'https://' + SITE_DOMAIN;
+}
 const authHost = (() => {
   try { return new URL(process.env.NEXTAUTH_URL || process.env.AUTH_URL || '').hostname; } catch { return ''; }
 })();
