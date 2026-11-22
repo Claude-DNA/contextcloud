@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -64,7 +65,7 @@ export default function ChatPage() {
     const debugCount = debugStored ? (() => { try { return JSON.parse(debugStored).length; } catch { return 0; } })() : 0;
     console.log('[chat] LS restore check:', debugCount > 0 ? `${debugCount} messages` : 'empty');
     if (debugCount > 0) {
-      setRestoreInfo(`Session restored (${debugCount} messages)`);
+      setRestoreInfo(tr("Session restored ({debugCount} messages)", { debugCount: debugCount }));
       setTimeout(() => setRestoreInfo(null), 3000);
     }
   }, []);
@@ -258,9 +259,7 @@ export default function ChatPage() {
             <button
               onClick={handleNewProject}
               className="text-xs text-muted hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-gray-100"
-            >
-              New project
-            </button>
+            >{tr("New project")}</button>
           </div>
         )}
         {/* Split panel: chat left, cloud right */}

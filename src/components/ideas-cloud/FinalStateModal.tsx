@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect } from 'react';
 
 interface FinalStateModalProps {
@@ -69,7 +70,7 @@ export default function FinalStateModal({ idea, onClose }: FinalStateModalProps)
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center">
         <div className="bg-card-bg rounded-2xl shadow-2xl p-8">
-          <p className="text-muted text-sm">Loading final state...</p>
+          <p className="text-muted text-sm">{tr("Loading final state...")}</p>
         </div>
       </div>
     );
@@ -81,7 +82,7 @@ export default function FinalStateModal({ idea, onClose }: FinalStateModalProps)
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-foreground">Final State</h2>
+            <h2 className="text-lg font-semibold text-foreground">{tr("Final State")}</h2>
             <p className="text-xs text-muted truncate max-w-[500px]">{idea.text}</p>
           </div>
           <button
@@ -97,11 +98,11 @@ export default function FinalStateModal({ idea, onClose }: FinalStateModalProps)
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* LEFT: Your vision */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Your vision</h3>
+              <h3 className="text-sm font-semibold text-foreground">{tr("Your vision")}</h3>
               <textarea
                 value={manual}
                 onChange={(e) => setManual(e.target.value)}
-                placeholder="Describe your intended final state for this idea..."
+                placeholder={tr("Describe your intended final state for this idea...")}
                 className="w-full h-64 px-3 py-2 border border-border rounded-xl text-sm text-foreground bg-card-bg resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
               />
               <button
@@ -109,20 +110,18 @@ export default function FinalStateModal({ idea, onClose }: FinalStateModalProps)
                 disabled={saving}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? tr("Saving...") : tr("Save")}
               </button>
             </div>
 
             {/* RIGHT: AI prediction */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">AI prediction</h3>
+              <h3 className="text-sm font-semibold text-foreground">{tr("AI prediction")}</h3>
               <div className="w-full h-64 px-3 py-2 border border-border rounded-xl text-sm overflow-y-auto bg-gray-50">
                 {generated ? (
                   <p className="text-foreground whitespace-pre-wrap">{generated}</p>
                 ) : (
-                  <p className="text-muted italic">
-                    No AI prediction yet. Click Generate to create one.
-                  </p>
+                  <p className="text-muted italic">{tr("No AI prediction yet. Click Generate to create one.")}</p>
                 )}
               </div>
               <button
@@ -130,7 +129,7 @@ export default function FinalStateModal({ idea, onClose }: FinalStateModalProps)
                 disabled={generating}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
-                {generating ? 'Generating...' : 'Generate'}
+                {generating ? tr("Generating...") : tr("Generate")}
               </button>
             </div>
           </div>
@@ -141,9 +140,7 @@ export default function FinalStateModal({ idea, onClose }: FinalStateModalProps)
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-          >
-            Close
-          </button>
+          >{tr("Close")}</button>
         </div>
       </div>
     </div>

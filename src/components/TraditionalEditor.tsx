@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 /**
  * The flow editor: one reading of a work in ConteXtube's five layers, edited directly.
  * What you see here is what gets published. Older drafts (free-form layer types) are converted on load.
@@ -77,7 +78,7 @@ function FlowEditorInner() {
         setMeta({ rights: 'own', ...m });
         if (m.project_id) setProjectChoice(m.project_id);
       })
-      .catch(() => setMessage({ type: 'error', text: 'Could not load this draft.' }));
+      .catch(() => setMessage({ type: 'error', text: tr("Could not load this draft.") }));
   }, [draftId, status]);
 
   // What the chosen project holds (cloud items, stored source text).
@@ -93,7 +94,7 @@ function FlowEditorInner() {
   const draftFromProject = useCallback(async () => {
     setDrafting(true);
     setConfirmReplace(false);
-    setMessage({ type: 'info', text: 'Drafting the five layers from your project. This takes up to a minute.' });
+    setMessage({ type: 'info', text: tr("Drafting the five layers from your project. This takes up to a minute.") });
     try {
       const res = await fetch('/api/v1/flows/draft', {
         method: 'POST',
@@ -105,7 +106,7 @@ function FlowEditorInner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ type: 'error', text: data.message || data.error || 'Drafting failed.' });
+        setMessage({ type: 'error', text: data.message || data.error || tr("Drafting failed.") });
         return;
       }
       setChunks(data.chunks);
@@ -121,11 +122,11 @@ function FlowEditorInner() {
       setMessage({
         type: data.unverified ? 'info' : 'success',
         text: data.unverified
-          ? `Draft ready. ${data.unverified} quote${data.unverified === 1 ? '' : 's'} couldn't be found in your source and ${data.unverified === 1 ? 'is' : 'are'} marked: check ${data.unverified === 1 ? 'it' : 'them'} before publishing.`
-          : 'Draft ready. Edit anything, then publish.',
+          ? tr("Draft ready. {unverified} quote{value} couldn't be found in your source and {value2} marked: check {value3} before publishing.", { unverified: data.unverified, value: data.unverified === 1 ? '' : 's', value2: data.unverified === 1 ? 'is' : 'are', value3: data.unverified === 1 ? 'it' : 'them' })
+          : tr("Draft ready. Edit anything, then publish."),
       });
     } catch {
-      setMessage({ type: 'error', text: 'Drafting failed. Check your connection and try again.' });
+      setMessage({ type: 'error', text: tr("Drafting failed. Check your connection and try again.") });
     } finally {
       setDrafting(false);
     }
@@ -157,7 +158,7 @@ function FlowEditorInner() {
     try {
       const body = {
         ...(currentDraftId ? { id: currentDraftId } : {}),
-        title: title || 'Untitled flow',
+        title: title || tr("Untitled flow"),
         description,
         type: 'flow',
         layers: chunks,
@@ -170,7 +171,7 @@ function FlowEditorInner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ type: 'error', text: data.error || 'Save failed.' });
+        setMessage({ type: 'error', text: data.error || tr("Save failed.") });
         return null;
       }
       const savedId = data.draft?.id || currentDraftId;
@@ -180,7 +181,7 @@ function FlowEditorInner() {
       }
       return savedId;
     } catch {
-      setMessage({ type: 'error', text: 'Save failed.' });
+      setMessage({ type: 'error', text: tr("Save failed.") });
       return null;
     } finally {
       setSaving(false);
@@ -189,13 +190,13 @@ function FlowEditorInner() {
 
   async function onSave() {
     const id = await saveDraft();
-    if (id) setMessage({ type: 'success', text: 'Draft saved.' });
+    if (id) setMessage({ type: 'success', text: tr("Draft saved.") });
   }
 
   async function publish() {
     if (problems.length) {
       setShowProblems(true);
-      setMessage({ type: 'error', text: 'Fix the marked problems before publishing.' });
+      setMessage({ type: 'error', text: tr("Fix the marked problems before publishing.") });
       return;
     }
     setPublishing(true);
@@ -216,12 +217,12 @@ function FlowEditorInner() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ type: 'error', text: data.error || 'Publish failed.' });
+        setMessage({ type: 'error', text: data.error || tr("Publish failed.") });
         return;
       }
-      setMessage({ type: 'success', text: 'Published on ConteXtube.', href: data.published?.url });
+      setMessage({ type: 'success', text: tr("Published on ConteXtube."), href: data.published?.url });
     } catch {
-      setMessage({ type: 'error', text: 'Publish failed.' });
+      setMessage({ type: 'error', text: tr("Publish failed.") });
     } finally {
       setPublishing(false);
     }
@@ -231,7 +232,7 @@ function FlowEditorInner() {
     return <div className="p-8 animate-pulse"><div className="h-8 w-64 bg-gray-200 rounded" /></div>;
   }
   if (!session) {
-    return <div className="p-8 text-center text-muted"><p>Please sign in to use the editor.</p></div>;
+    return <div className="p-8 text-center text-muted"><p>{tr("Please sign in to use the editor.")}</p></div>;
   }
 
   const rights = meta.rights ?? 'own';
@@ -241,15 +242,15 @@ function FlowEditorInner() {
     <div className="p-8 max-w-4xl">
       {/* Title row */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-        <h1 className="text-xl font-semibold">{currentDraftId ? 'Edit flow' : 'New flow'}</h1>
+        <h1 className="text-xl font-semibold">{currentDraftId ? tr("Edit flow") : tr("New flow")}</h1>
         <div className="flex items-center gap-3">
           <button onClick={onSave} disabled={saving}
             className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save draft'}
+            {saving ? tr("Saving…") : tr("Save draft")}
           </button>
           <button onClick={publish} disabled={publishing || drafting}
             className="px-4 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50">
-            {publishing ? 'Publishing…' : 'Publish to ConteXtube'}
+            {publishing ? tr("Publishing…") : tr("Publish to ConteXtube")}
           </button>
         </div>
       </div>
@@ -260,8 +261,8 @@ function FlowEditorInner() {
             : message.type === 'error' ? 'bg-red-50 text-red-700 border-red-200'
             : 'bg-indigo-50 text-indigo-700 border-indigo-200'
         }`}>
-          {message.text}{' '}
-          {message.href && <a href={message.href} className="underline font-medium">Open it</a>}
+          {tr(message.text)}{' '}
+          {message.href && <a href={message.href} className="underline font-medium">{tr("Open it")}</a>}
         </div>
       )}
 
@@ -273,33 +274,31 @@ function FlowEditorInner() {
 
       {/* Draft from a project */}
       <section className="mb-8 rounded-xl border border-border bg-gray-50/60 p-4">
-        <h2 className="text-sm font-semibold">Draft from a project</h2>
-        <p className="text-sm text-muted mt-1">
-          The AI reads the project&apos;s clouds and source text and drafts all five layers. Quotes it can&apos;t find in your source are marked.
-        </p>
+        <h2 className="text-sm font-semibold">{tr("Draft from a project")}</h2>
+        <p className="text-sm text-muted mt-1">{tr("The AI reads the project's clouds and source text and drafts all five layers. Quotes it can't find in your source are marked.")}</p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <select value={projectChoice} onChange={(e) => setProjectChoice(e.target.value)} className={`${input} w-auto min-w-56`}
-            aria-label="Project to draft from">
-            <option value="">Items without a project</option>
+            aria-label={tr("Project to draft from")}>
+            <option value="">{tr("Items without a project")}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
           {confirmReplace ? (
             <>
-              <span className="text-sm text-muted">This replaces your current layers.</span>
-              <button onClick={draftFromProject} className="px-3 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover">Replace them</button>
-              <button onClick={() => setConfirmReplace(false)} className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-white">Keep mine</button>
+              <span className="text-sm text-muted">{tr("This replaces your current layers.")}</span>
+              <button onClick={draftFromProject} className="px-3 py-2 text-sm bg-accent text-white rounded-lg hover:bg-accent-hover">{tr("Replace them")}</button>
+              <button onClick={() => setConfirmReplace(false)} className="px-3 py-2 text-sm border border-border rounded-lg hover:bg-white">{tr("Keep mine")}</button>
             </>
           ) : (
             <button
               onClick={() => (chunks.some((c) => c.text.trim()) ? setConfirmReplace(true) : draftFromProject())}
               disabled={drafting || projectInfo?.items === 0}
               className="px-3 py-2 text-sm border border-accent text-accent rounded-lg hover:bg-accent/5 disabled:opacity-50">
-              {drafting ? 'Drafting…' : 'Draft with AI'}
+              {drafting ? tr("Drafting…") : tr("Draft with AI")}
             </button>
           )}
           {projectInfo && (
             <span className="text-xs text-muted">
-              {projectInfo.items} item{projectInfo.items === 1 ? '' : 's'}{projectInfo.has_source ? ' · source text stored' : ''}
+              {projectInfo.items}{" "}{tr("item")}{projectInfo.items === 1 ? '' : 's'}{projectInfo.has_source ? tr(" · source text stored") : ''}
             </span>
           )}
         </div>
@@ -308,55 +307,53 @@ function FlowEditorInner() {
       {/* About the flow */}
       <section className="space-y-4 mb-8">
         <div>
-          <label className="block text-sm font-medium mb-1.5" htmlFor="f-title">Title</label>
-          <input id="f-title" className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="The work's title, or your reading's" />
+          <label className="block text-sm font-medium mb-1.5" htmlFor="f-title">{tr("Title")}</label>
+          <input id="f-title" className={input} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tr("The work's title, or your reading's")} />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1.5" htmlFor="f-desc">Description</label>
+          <label className="block text-sm font-medium mb-1.5" htmlFor="f-desc">{tr("Description")}</label>
           <textarea id="f-desc" className={`${input} resize-y`} rows={2} value={description} onChange={(e) => setDescription(e.target.value)}
-            placeholder="One or two sentences about the work" />
+            placeholder={tr("One or two sentences about the work")} />
         </div>
         <div className="grid sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium mb-1.5" htmlFor="f-st">Source work</label>
+            <label className="block text-sm font-medium mb-1.5" htmlFor="f-st">{tr("Source work")}</label>
             <input id="f-st" className={input} value={meta.source_title ?? ''} onChange={(e) => setMeta({ ...meta, source_title: e.target.value })}
-              placeholder="e.g. The Metamorphosis" />
+              placeholder={tr("e.g. The Metamorphosis")} />
           </div>
           <div>
-            <label className="block text-sm font-medium mb-1.5" htmlFor="f-sa">Author</label>
+            <label className="block text-sm font-medium mb-1.5" htmlFor="f-sa">{tr("Author")}</label>
             <input id="f-sa" className={input} value={meta.source_author ?? ''} onChange={(e) => setMeta({ ...meta, source_author: e.target.value })}
-              placeholder="e.g. Franz Kafka" />
+              placeholder={tr("e.g. Franz Kafka")} />
           </div>
         </div>
         <fieldset>
-          <legend className="block text-sm font-medium mb-1.5">Whose text is it?</legend>
+          <legend className="block text-sm font-medium mb-1.5">{tr("Whose text is it?")}</legend>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             {([['own', 'My own work'], ['public_domain', 'Public domain'], ['copyrighted', "Someone else's, under copyright"]] as [Rights, string][]).map(([v, label]) => (
               <label key={v} className="flex items-center gap-2">
                 <input type="radio" name="rights" checked={rights === v} onChange={() => setMeta({ ...meta, rights: v })} />
-                {label}
+                {tr(label)}
               </label>
             ))}
           </div>
         </fieldset>
         {rights === 'copyrighted' ? (
           <div>
-            <label className="block text-sm font-medium mb-1.5" htmlFor="f-buy">Where to buy it</label>
+            <label className="block text-sm font-medium mb-1.5" htmlFor="f-buy">{tr("Where to buy it")}</label>
             <input id="f-buy" className={input} value={meta.purchase_url ?? ''} onChange={(e) => setMeta({ ...meta, purchase_url: e.target.value })}
-              placeholder="https://…" />
-            <p className="text-xs text-muted mt-1">ConteXtube shows a purchase link instead of the text.</p>
+              placeholder={tr("https://…")} />
+            <p className="text-xs text-muted mt-1">{tr("ConteXtube shows a purchase link instead of the text.")}</p>
           </div>
         ) : (
           <label className={`flex items-center gap-2 text-sm ${canIncludeSource ? '' : 'text-muted'}`}>
             <input type="checkbox" disabled={!canIncludeSource} checked={canIncludeSource && Boolean(meta.include_source)}
-              onChange={(e) => setMeta({ ...meta, include_source: e.target.checked })} />
-            Publish the full source text as L5
-            {!projectInfo?.has_source && <span className="text-xs">(upload the text to this project first)</span>}
+              onChange={(e) => setMeta({ ...meta, include_source: e.target.checked })} />{tr("Publish the full source text as L5")}{!projectInfo?.has_source && <span className="text-xs">{tr("(upload the text to this project first)")}</span>}
           </label>
         )}
         <div>
-          <label className="block text-sm font-medium mb-1.5" htmlFor="f-tags">Tags</label>
-          <input id="f-tags" className={input} value={tags} onChange={(e) => setTags(e.target.value)} placeholder="philosophy, alienation (comma-separated)" />
+          <label className="block text-sm font-medium mb-1.5" htmlFor="f-tags">{tr("Tags")}</label>
+          <input id="f-tags" className={input} value={tags} onChange={(e) => setTags(e.target.value)} placeholder={tr("philosophy, alienation (comma-separated)")} />
         </div>
       </section>
 
@@ -369,50 +366,49 @@ function FlowEditorInner() {
           <section key={L.n} className="mb-8" aria-labelledby={`l${L.n}`}>
             <div className="flex items-baseline justify-between gap-3 border-b border-border pb-2 mb-3">
               <h2 id={`l${L.n}`} className="font-semibold">
-                <span className="text-accent mr-2">L{L.n}</span>{L.name}
+                <span className="text-accent mr-2">L{L.n}</span>{tr(L.name)}
               </h2>
               <span className={`text-xs ${over ? 'text-amber-600' : 'text-muted'}`}>
-                ~{tokens} tokens · aim for ~{L.budget}{L.n === 5 ? '+' : ''} per chunk
-              </span>
+                ~{tokens}{" "}{tr("tokens · aim for ~")}{L.budget}{L.n === 5 ? '+' : ''}{" "}{tr("per chunk")}</span>
             </div>
-            <p className="text-sm text-muted mb-3">{L.hint}</p>
+            <p className="text-sm text-muted mb-3">{tr(L.hint)}</p>
             <div className="space-y-3">
               {list.map((c) => (
                 <div key={c.id} className={`rounded-xl border p-4 bg-white ${problemIds.has(c.id) && showProblems ? 'border-amber-400' : 'border-border'}`}>
                   <div className="flex gap-3">
                     <div className="flex-1 space-y-2">
                       {L.n === 5 && (
-                        <select className={`${input} w-auto`} value={c.type} aria-label="Kind of L5 chunk"
+                        <select className={`${input} w-auto`} value={c.type} aria-label={tr("Kind of L5 chunk")}
                           onChange={(e) => update(c.id, { type: e.target.value as FlowChunk['type'] })}>
-                          <option value="meta">Notes on how this reading was made</option>
-                          <option value="narrative" disabled={rights === 'copyrighted'}>Source text</option>
+                          <option value="meta">{tr("Notes on how this reading was made")}</option>
+                          <option value="narrative" disabled={rights === 'copyrighted'}>{tr("Source text")}</option>
                         </select>
                       )}
                       {L.n !== 5 && (
-                        <input className={`${input} font-medium text-indigo-700`} value={c.extract ?? ''} aria-label="Extract"
+                        <input className={`${input} font-medium text-indigo-700`} value={c.extract ?? ''} aria-label={tr("Extract")}
                           onChange={(e) => update(c.id, { extract: e.target.value })}
-                          placeholder={L.n === 1 ? 'Extract, up to 8 words: e.g. faithfulness∅audience' : 'Extract (optional, up to 8 words)'} />
+                          placeholder={L.n === 1 ? tr("Extract, up to 8 words: e.g. faithfulness∅audience") : tr("Extract (optional, up to 8 words)")} />
                       )}
-                      <textarea className={`${input} resize-y`} rows={L.n === 4 || L.n === 5 ? 6 : 3} value={c.text} aria-label="Text"
+                      <textarea className={`${input} resize-y`} rows={L.n === 4 || L.n === 5 ? 6 : 3} value={c.text} aria-label={tr("Text")}
                         onChange={(e) => update(c.id, { text: e.target.value })} />
                       {L.n === 2 && (
                         <div>
                           <textarea className={`${input} resize-y italic ${c.quote_unverified ? 'border-amber-400 bg-amber-50/40' : ''}`} rows={2}
-                            value={c.source_quote ?? ''} aria-label="Quote from the source"
+                            value={c.source_quote ?? ''} aria-label={tr("Quote from the source")}
                             onChange={(e) => update(c.id, { source_quote: e.target.value, quote_unverified: false })}
-                            placeholder="Quote from the source, copied exactly" />
+                            placeholder={tr("Quote from the source, copied exactly")} />
                           {c.quote_unverified && (
-                            <p className="text-xs text-amber-700 mt-1">This quote wasn&apos;t found in your source. Check it word for word, or replace it.</p>
+                            <p className="text-xs text-amber-700 mt-1">{tr("This quote wasn't found in your source. Check it word for word, or replace it.")}</p>
                           )}
                         </div>
                       )}
                       {L.n === 3 && (
-                        <input className={input} value={(c.links ?? []).join(', ')} aria-label="Linked works"
+                        <input className={input} value={(c.links ?? []).join(', ')} aria-label={tr("Linked works")}
                           onChange={(e) => update(c.id, { links: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
-                          placeholder="Linked works or ideas, comma-separated" />
+                          placeholder={tr("Linked works or ideas, comma-separated")} />
                       )}
                     </div>
-                    <button onClick={() => remove(c.id)} className="self-start p-1.5 text-muted hover:text-red-500" aria-label={`Remove this L${L.n} chunk`}>
+                    <button onClick={() => remove(c.id)} className="self-start p-1.5 text-muted hover:text-red-500" aria-label={tr("Remove this L{n} chunk", { n: L.n })}>
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                       </svg>
@@ -421,8 +417,7 @@ function FlowEditorInner() {
                 </div>
               ))}
             </div>
-            <button onClick={() => add(L.n as FlowChunk['layer'])} className="mt-3 text-sm text-accent hover:underline">
-              + Add to L{L.n}
+            <button onClick={() => add(L.n as FlowChunk['layer'])} className="mt-3 text-sm text-accent hover:underline">{tr("+ Add to L")}{L.n}
             </button>
           </section>
         );

@@ -89,7 +89,7 @@ export async function planIllustration(ai: AiConfig, item: Item, ctx: { work: st
   const m = item.metadata ?? {};
   const aliases = Array.isArray(m.aliases) && m.aliases.length ? `Also called: ${(m.aliases as string[]).join(', ')}\n` : '';
   const start = typeof m.initial_state === 'string' && m.initial_state ? `When first seen: ${m.initial_state}\n` : '';
-  const plan = await generateJson<Plan>({
+  const plan = await generateJson<Plan>({ english: true,
     ai,
     system: PLAN_SYSTEM,
     temperature: 0.6,
@@ -215,7 +215,7 @@ Return {"choice": the number, or -1 for none, "reason": one sentence}.`,
     parts.push({ text: `${n + 1}. ${x.c.title}${x.c.creator ? `, ${x.c.creator}` : ''}${x.c.date ? `, ${x.c.date}` : ''}` });
     parts.push({ file: { mimeType: 'image/jpeg', data: x.data! } });
   });
-  const r = await generateJson<{ choice: number; reason: string }>({
+  const r = await generateJson<{ choice: number; reason: string }>({ english: true,
     ai,
     system: 'You are a picture editor choosing illustrations for a story bible. You judge only what the images actually show.',
     prompt: parts,

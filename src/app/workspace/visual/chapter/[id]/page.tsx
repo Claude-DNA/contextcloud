@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { Suspense } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useParams } from 'next/navigation';
@@ -16,7 +17,7 @@ export default function ChapterCanvasPage() {
       <Sidebar />
       <main className="flex-1 ml-60 flex flex-col">
         <Header />
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500">Loading chapter...</div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500">{tr("Loading chapter...")}</div>}>
           <ReactFlowProvider>
             <ChapterCanvas chapterId={chapterId} />
           </ReactFlowProvider>

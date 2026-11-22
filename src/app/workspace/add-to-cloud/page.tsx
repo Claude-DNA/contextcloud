@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -40,7 +41,7 @@ export default function QuickCapturePage() {
 
   const handleExtract = async () => {
     if (!text.trim() || text.trim().length < 10) {
-      showToast('Please enter at least 10 characters');
+      showToast(tr("Please enter at least 10 characters"));
       return;
     }
 
@@ -57,7 +58,7 @@ export default function QuickCapturePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        showToast(data.error || 'Extraction failed');
+        showToast(data.error || tr("Extraction failed"));
         return;
       }
 
@@ -66,10 +67,10 @@ export default function QuickCapturePage() {
       setProvenance(data.provenance || null);
 
       if ((data.items || []).length === 0) {
-        showToast('No items could be extracted');
+        showToast(tr("No items could be extracted"));
       }
     } catch {
-      showToast('Extraction failed');
+      showToast(tr("Extraction failed"));
     } finally {
       setExtracting(false);
     }
@@ -78,7 +79,7 @@ export default function QuickCapturePage() {
   const handleSave = async () => {
     const toSave = items.filter((_, i) => selected.has(i));
     if (toSave.length === 0) {
-      showToast('No items selected');
+      showToast(tr("No items selected"));
       return;
     }
 
@@ -103,14 +104,14 @@ export default function QuickCapturePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        showToast(data.error || 'Save failed');
+        showToast(data.error || tr("Save failed"));
         return;
       }
 
       setSavedCount(data.count || toSave.length);
-      showToast(`${data.count || toSave.length} items saved to your clouds`);
+      showToast(tr("{value} items saved to your clouds", { value: data.count || toSave.length }));
     } catch {
-      showToast('Save failed');
+      showToast(tr("Save failed"));
     } finally {
       setSaving(false);
     }
@@ -148,30 +149,28 @@ export default function QuickCapturePage() {
         <Header />
         <div className="flex-1 p-8 w-full">
           <div className="max-w-4xl mx-auto">
-            <h1 className="text-xl font-semibold text-foreground mb-1">Quick Capture</h1>
-            <p className="text-sm text-muted mb-6">
-              Paste notes, scenes, ideas, anything — we'll extract and save to your clouds.
-            </p>
+            <h1 className="text-xl font-semibold text-foreground mb-1">{tr("Quick Capture")}</h1>
+            <p className="text-sm text-muted mb-6">{tr("Paste notes, scenes, ideas, anything — we'll extract and save to your clouds.")}</p>
 
             {/* Input area */}
             <div className="mb-6">
               <textarea
                 value={text}
                 onChange={e => setText(e.target.value)}
-                placeholder="Paste notes, scenes, ideas, anything..."
+                placeholder={tr("Paste notes, scenes, ideas, anything...")}
                 rows={10}
                 className="w-full rounded-xl border border-border bg-card-bg p-4 text-sm text-foreground placeholder:text-muted resize-y focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
               />
               <div className="flex items-center justify-between mt-3">
                 <span className="text-xs text-muted">
-                  {text.length > 0 ? `${text.length} characters` : ''}
+                  {text.length > 0 ? tr("{length} characters", { length: text.length }) : ''}
                 </span>
                 <button
                   onClick={handleExtract}
                   disabled={extracting || text.trim().length < 10}
                   className="px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
                 >
-                  {extracting ? 'Extracting...' : 'Extract & Preview'}
+                  {extracting ? tr("Extracting...") : tr("Extract & Preview")}
                 </button>
               </div>
             </div>
@@ -183,18 +182,16 @@ export default function QuickCapturePage() {
                 <div className="flex items-center justify-between px-5 py-3 border-b border-border">
                   <div className="flex items-center gap-3">
                     <span className="text-sm font-medium text-foreground">
-                      {items.length} items extracted
-                    </span>
+                      {items.length}{" "}{tr("items extracted")}</span>
                     <button
                       onClick={toggleAll}
                       className="text-xs text-accent hover:underline"
                     >
-                      {selected.size === items.length ? 'Deselect all' : 'Select all'}
+                      {selected.size === items.length ? tr("Deselect all") : tr("Select all")}
                     </button>
                   </div>
                   <span className="text-xs text-muted">
-                    {selected.size} selected
-                  </span>
+                    {selected.size}{" "}{tr("selected")}</span>
                 </div>
 
                 {/* Grouped items */}
@@ -210,7 +207,7 @@ export default function QuickCapturePage() {
                             className="text-xs font-semibold uppercase tracking-wide"
                             style={{ color: config.color }}
                           >
-                            {config.label}
+                            {tr(config.label)}
                           </span>
                           <span className="text-xs text-muted">({group.length})</span>
                         </div>
@@ -247,20 +244,16 @@ export default function QuickCapturePage() {
                 {/* Save bar */}
                 <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-white/50">
                   {savedCount !== null ? (
-                    <span className="text-sm text-green-600 font-medium">
-                      Saved {savedCount} items to your clouds
-                    </span>
+                    <span className="text-sm text-green-600 font-medium">{tr("Saved")}{" "}{savedCount}{" "}{tr("items to your clouds")}</span>
                   ) : (
-                    <span className="text-xs text-muted">
-                      Uncheck items you don't want to save
-                    </span>
+                    <span className="text-xs text-muted">{tr("Uncheck items you don't want to save")}</span>
                   )}
                   <button
                     onClick={handleSave}
                     disabled={saving || selected.size === 0 || savedCount !== null}
                     className="px-5 py-2.5 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
                   >
-                    {saving ? 'Saving...' : savedCount !== null ? 'Saved' : `Save ${selected.size} to Clouds`}
+                    {saving ? tr("Saving...") : savedCount !== null ? tr("Saved") : tr("Save {size} to Clouds", { size: selected.size })}
                   </button>
                 </div>
               </div>
@@ -274,7 +267,7 @@ export default function QuickCapturePage() {
                     <div key={i} className="h-8 rounded-lg bg-border/30 animate-pulse" />
                   ))}
                 </div>
-                <p className="text-xs text-muted mt-4 text-center">Extracting items from your text...</p>
+                <p className="text-xs text-muted mt-4 text-center">{tr("Extracting items from your text...")}</p>
               </div>
             )}
           </div>
@@ -284,7 +277,7 @@ export default function QuickCapturePage() {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 bg-foreground text-white px-4 py-2.5 rounded-lg text-sm shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2">
-          {toast}
+          {tr(toast)}
         </div>
       )}
     </div>

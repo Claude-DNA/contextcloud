@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useRef, useState, useCallback } from 'react';
 
 // ─── Story Structures ────────────────────────────────────────────────────────
@@ -184,7 +185,7 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
     generate:    mode === 'character' ? '4. Generate Clouds' : '5. Generate Clouds',
   };
 
-  const nextLabel = step === 'generate' ? (importing ? 'Generating…' : 'Generate Clouds ✨') : 'Next →';
+  const nextLabel = step === 'generate' ? (importing ? tr("Generating…") : tr("Generate Clouds ✨")) : tr("Next →");
 
   // ─────────────────────────────────────────────────────────────────────────
 
@@ -198,8 +199,8 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-border shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Upload &amp; Generate Clouds</h2>
-            <p className="text-xs text-gray-400 mt-0.5">{STEP_LABELS[step]}</p>
+            <h2 className="text-lg font-semibold text-gray-900">{tr("Upload & Generate Clouds")}</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{tr(STEP_LABELS[step])}</p>
           </div>
           {/* Step dots */}
           <div className="flex items-center gap-2">
@@ -233,8 +234,8 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                 }`}
               >
                 <div className="text-3xl mb-2">📄</div>
-                <p className="text-sm font-medium text-gray-700">Drop files here or click to browse</p>
-                <p className="text-xs text-gray-400 mt-1">TXT, MD, DOCX, PDF, EPUB, RTF supported</p>
+                <p className="text-sm font-medium text-gray-700">{tr("Drop files here or click to browse")}</p>
+                <p className="text-xs text-gray-400 mt-1">{tr("TXT, MD, DOCX, PDF, EPUB, RTF supported")}</p>
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -264,9 +265,7 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
           {/* ── Step: Mode ── */}
           {step === 'mode' && (
             <div className="flex flex-col gap-4">
-              <p className="text-sm text-gray-500">
-                How should the AI approach your material?
-              </p>
+              <p className="text-sm text-gray-500">{tr("How should the AI approach your material?")}</p>
               <button
                 onClick={() => setMode('structure')}
                 className={`text-left rounded-xl border p-4 transition-all ${
@@ -276,10 +275,8 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                 }`}
               >
                 <div className="text-2xl mb-1">📖</div>
-                <div className="text-sm font-semibold text-gray-800">Story Structure</div>
-                <div className="text-xs text-gray-400 mt-1 leading-snug">
-                  Extract all six layers faithfully. Choose a narrative framework (Three Act, Hero's Journey, etc.) to organise the arc. Best for plot-driven material.
-                </div>
+                <div className="text-sm font-semibold text-gray-800">{tr("Story Structure")}</div>
+                <div className="text-xs text-gray-400 mt-1 leading-snug">{tr("Extract all six layers faithfully. Choose a narrative framework (Three Act, Hero's Journey, etc.) to organise the arc. Best for plot-driven material.")}</div>
               </button>
               <button
                 onClick={() => setMode('character')}
@@ -290,10 +287,8 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                 }`}
               >
                 <div className="text-2xl mb-1">🔮</div>
-                <div className="text-sm font-semibold text-gray-800">Character Transformation</div>
-                <div className="text-xs text-gray-400 mt-1 leading-snug">
-                  Focus on how characters change. Maps transformation arcs (before → catalyst → resistance → after), contradictions, and key relationships. Arc beats are organised around turning points, not plot events.
-                </div>
+                <div className="text-sm font-semibold text-gray-800">{tr("Character Transformation")}</div>
+                <div className="text-xs text-gray-400 mt-1 leading-snug">{tr("Focus on how characters change. Maps transformation arcs (before → catalyst → resistance → after), contradictions, and key relationships. Arc beats are organised around turning points, not plot events.")}</div>
               </button>
             </div>
           )}
@@ -312,10 +307,10 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                   }`}
                 >
                   <div className="text-2xl mb-1">{s.icon}</div>
-                  <div className="text-sm font-semibold text-gray-800">{s.name}</div>
-                  <div className="text-[11px] text-gray-400 mt-0.5 leading-snug">{s.description}</div>
+                  <div className="text-sm font-semibold text-gray-800">{tr(s.name)}</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5 leading-snug">{tr(s.description)}</div>
                   {s.examples.length > 0 && (
-                    <div className="text-[10px] text-accent mt-1 truncate">{s.examples.join(' · ')}</div>
+                    <div className="text-[10px] text-accent mt-1 truncate">{s.examples.map((x) => tr(x)).join(' · ')}</div>
                   )}
                 </button>
               ))}
@@ -325,9 +320,7 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
           {/* ── Step 3: Temperature ── */}
           {step === 'temperature' && (
             <div className="flex flex-col gap-6">
-              <p className="text-sm text-gray-500">
-                Controls how much the AI expands and suggests beyond your source material. Can be changed anytime in Chat.
-              </p>
+              <p className="text-sm text-gray-500">{tr("Controls how much the AI expands and suggests beyond your source material. Can be changed anytime in Chat.")}</p>
               {/* Slider */}
               <div className="px-2">
                 <input
@@ -340,9 +333,9 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                   className="w-full accent-accent"
                 />
                 <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                  <span>0.0 — Strict</span>
-                  <span>0.5 — Balanced</span>
-                  <span>1.0 — Creative</span>
+                  <span>{tr("0.0 — Strict")}</span>
+                  <span>{tr("0.5 — Balanced")}</span>
+                  <span>{tr("1.0 — Creative")}</span>
                 </div>
               </div>
               {/* Presets */}
@@ -361,15 +354,15 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
                       temperature === p.value ? 'bg-accent text-white' : 'bg-gray-100 text-gray-500'
                     }`}>{p.value.toFixed(1)}</div>
                     <div>
-                      <div className="text-sm font-semibold text-gray-800">{p.label}</div>
-                      <div className="text-xs text-gray-400">{p.desc}</div>
+                      <div className="text-sm font-semibold text-gray-800">{tr(p.label)}</div>
+                      <div className="text-xs text-gray-400">{tr(p.desc)}</div>
                     </div>
                   </button>
                 ))}
               </div>
               {/* Custom value indicator */}
               {!TEMP_PRESETS.find(p => p.value === temperature) && (
-                <div className="text-xs text-center text-gray-400">Custom: {temperature.toFixed(1)}</div>
+                <div className="text-xs text-center text-gray-400">{tr("Custom:")}{" "}{temperature.toFixed(1)}</div>
               )}
             </div>
           )}
@@ -378,27 +371,27 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
           {step === 'generate' && (
             <div className="flex flex-col gap-5">
               <div className="bg-gray-50 rounded-xl p-4 flex flex-col gap-3">
-                <Row label="Files" value={files.map(f => f.name).join(', ')} />
-                <Row label="Mode" value={mode === 'character' ? '🔮 Character Transformation' : '📖 Story Structure'} />
+                <Row label={tr("Files")} value={files.map(f => f.name).join(', ')} />
+                <Row label={tr("Mode")} value={mode === 'character' ? `🔮 ${tr('Character Transformation')}` : `📖 ${tr('Story Structure')}`} />
                 {mode === 'structure' && (
-                  <Row label="Structure" value={`${structure.icon} ${structure.name} — ${structure.description}`} />
+                  <Row label={tr("Structure")} value={`${structure.icon} ${tr(structure.name)} — ${tr(structure.description)}`} />
                 )}
-                <Row label="Temperature" value={`${temperature.toFixed(1)} — ${TEMP_PRESETS.find(p => p.value === temperature)?.label ?? 'Custom'}`} />
+                <Row label={tr("Temperature")} value={`${temperature.toFixed(1)} — ${tr(TEMP_PRESETS.find(p => p.value === temperature)?.label ?? 'Custom')}`} />
               </div>
               {mode === 'structure' && structure.beats.length > 0 && (
                 <div>
-                  <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Pre-seeded arc beats</p>
+                  <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">{tr("Pre-seeded arc beats")}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {structure.beats.map((b, i) => (
-                      <span key={i} className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">{b}</span>
+                      <span key={i} className="text-xs bg-accent/10 text-accent px-2 py-0.5 rounded-full">{tr(b)}</span>
                     ))}
                   </div>
                 </div>
               )}
               <p className="text-sm text-gray-500">
                 {mode === 'character'
-                  ? `The AI will map how your characters transform — arcs, contradictions, turning points — at temperature ${temperature.toFixed(1)}.`
-                  : `The AI will extract all items from your files, organize the arc using the chosen structure, and build your cloud at temperature ${temperature.toFixed(1)}.`
+                  ? tr("The AI will map how your characters transform — arcs, contradictions, turning points — at temperature {temperature}.", { temperature: temperature.toFixed(1) })
+                  : tr("The AI will extract all items from your files, organize the arc using the chosen structure, and build your cloud at temperature {temperature}.", { temperature: temperature.toFixed(1) })
                 }
               </p>
             </div>
@@ -412,7 +405,7 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
             disabled={importing}
             className="text-sm text-gray-400 hover:text-gray-700 transition-colors disabled:opacity-40"
           >
-            {stepIndex === 0 ? 'Cancel' : '← Back'}
+            {stepIndex === 0 ? tr("Cancel") : tr("← Back")}
           </button>
           <button
             onClick={next}

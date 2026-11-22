@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { useState } from 'react';
 import { Clip, Track, TRACK_CONFIG, STATE_COLORS } from './types';
 
@@ -35,7 +36,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
   if (!clip || !track) {
     return (
       <div className="flex h-full items-center justify-center bg-[#1a1d23] border-l border-[#2a2e36] text-[#5a5f6a]">
-        <p className="text-center px-4 text-xs">Select a clip to edit</p>
+        <p className="text-center px-4 text-xs">{tr("Select a clip to edit")}</p>
       </div>
     );
   }
@@ -81,7 +82,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
       <div className="px-4 py-3 border-b border-[#2a2e36] flex items-center gap-2 flex-shrink-0">
         <span className="w-3 h-3 rounded-full" style={{ backgroundColor: trackConfig.accent }} />
         <span className="text-xs font-bold text-[#6a6f7a] tracking-wide">{trackConfig.icon}</span>
-        <span className="text-sm font-medium text-[#8a8f99]">{trackConfig.label}</span>
+        <span className="text-sm font-medium text-[#8a8f99]">{tr(trackConfig.label)}</span>
         {clip.characterLabel && <span className="text-xs text-[#6a6f7a]">({clip.characterLabel})</span>}
       </div>
 
@@ -89,31 +90,27 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
       <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-4">
         {/* Title */}
         <div>
-          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">
-            Clip Title
-          </label>
+          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">{tr("Clip Title")}</label>
           <input
             type="text"
             value={localTitle}
             onChange={(e) => handleTitleChange(e.target.value)}
             onBlur={handleTitleBlur}
             className="w-full px-3 py-2 bg-white/5 border border-[#2a2e36] rounded text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#5a6a8a] focus:bg-white/10 transition-colors"
-            placeholder="Enter clip title"
+            placeholder={tr("Enter clip title")}
           />
         </div>
 
         {/* Content */}
         <div>
-          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">
-            Content
-          </label>
+          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">{tr("Content")}</label>
           <textarea
             value={localContent}
             onChange={(e) => handleContentChange(e.target.value)}
             onBlur={handleContentBlur}
             className="w-full px-3 py-2 bg-white/5 border border-[#2a2e36] rounded text-white text-sm placeholder-white/30 focus:outline-none focus:border-[#5a6a8a] focus:bg-white/10 transition-colors resize-none"
             style={{ minHeight: '200px' }}
-            placeholder="Enter clip content"
+            placeholder={tr("Enter clip content")}
           />
         </div>
 
@@ -121,8 +118,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
             user overrides. Prior gating on `clip.dimensionWeights` meant most
             demo clips could never set weights. */}
         <div>
-          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-3">
-            Dimension Weights {dimensionSum !== 100 && <span className="text-orange-400 ml-2">Sum: {dimensionSum}</span>}
+          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-3">{tr("Dimension Weights")}{" "}{dimensionSum !== 100 && <span className="text-orange-400 ml-2">{tr("Sum:")}{" "}{dimensionSum}</span>}
           </label>
             <div className="space-y-3">
               {['characters', 'ideas', 'scene', 'arc'].map((dim) => (
@@ -152,15 +148,13 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
         {/* State Formula */}
         {clip.stateFormula && stateColor && (
           <div>
-            <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">
-              State
-            </label>
+            <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">{tr("State")}</label>
             <div className="flex items-center gap-2 p-2 bg-white/5 rounded border border-[#2a2e36]">
               <div
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: stateColor.hex }}
               />
-              <span className="text-sm capitalize text-white">{stateColor.label}</span>
+              <span className="text-sm capitalize text-white">{tr(stateColor.label)}</span>
             </div>
           </div>
         )}
@@ -168,9 +162,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
         {/* Idea Weights */}
         {clip.ideaWeights && (
           <div>
-            <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">
-              Idea Weights
-            </label>
+            <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">{tr("Idea Weights")}</label>
             <div className="space-y-1 text-xs">
               {Object.entries(clip.ideaWeights).map(([idea, weight]) => (
                 <div key={idea} className="flex items-center justify-between p-2 bg-white/5 rounded">
@@ -184,9 +176,7 @@ export const EditorPanel: React.FC<EditorPanelProps> = ({
 
         {/* Predictability — always shown; default 50 until overridden. */}
         <div>
-          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">
-            Predictability
-          </label>
+          <label className="block text-xs font-semibold text-white/60 uppercase tracking-wide mb-2">{tr("Predictability")}</label>
           <div className="flex items-center gap-3">
             <input
               type="range"

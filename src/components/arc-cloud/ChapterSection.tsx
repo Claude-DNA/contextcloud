@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { useState } from 'react';
 import PlotRow from './PlotRow';
 
@@ -64,24 +65,18 @@ export default function ChapterSection({ chapter, onRename, onAddPlot, onPlotCli
         <button
           onClick={() => setEditing(true)}
           className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
-        >
-          rename
-        </button>
+        >{tr("rename")}</button>
         <button
           onClick={() => onAddPlot(chapter.id)}
           className="px-2 py-1 text-xs text-accent hover:bg-accent/10 rounded transition-colors"
-        >
-          + plot
-        </button>
+        >{tr("+ plot")}</button>
       </div>
 
       {/* Plots */}
       {!collapsed && (
         <div className="divide-y divide-border">
           {chapter.plots.length === 0 ? (
-            <p className="px-4 py-6 text-center text-muted text-xs">
-              No plots yet — click &quot;+ plot&quot; to add one
-            </p>
+            <p className="px-4 py-6 text-center text-muted text-xs">{tr("No plots yet — click \"+ plot\" to add one")}</p>
           ) : (
             chapter.plots.map((plot, idx) => (
               <PlotRow

@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { Fragment, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
@@ -121,12 +122,12 @@ export default function ArcCloudPage() {
     try {
       const res = await fetch('/api/v1/arc-scenes/migrate-legacy', { method: 'POST' });
       const data = await res.json();
-      showToast(data.message || 'Migration complete');
+      showToast(data.message || tr("Migration complete"));
       try { localStorage.setItem(LEGACY_DISMISSED_KEY, '1'); } catch { /* ignore */ }
       setHasLegacyData(false);
       await fetchScenes();
     } catch {
-      showToast('Migration failed — try again');
+      showToast(tr("Migration failed — try again"));
     }
     setMigrating(false);
   };
@@ -172,7 +173,7 @@ export default function ArcCloudPage() {
       const alreadyAttached = attachedItems[sceneId] || [];
       setAttachChecked(new Set(alreadyAttached.map(i => i.id)));
     } catch {
-      showToast('Failed to load items');
+      showToast(tr("Failed to load items"));
       setAttachModalSceneId(null);
     }
     setAttachLoadingModal(false);
@@ -208,9 +209,9 @@ export default function ArcCloudPage() {
       await fetchAttached(attachModalSceneId);
       await fetchScenes();
       setAttachModalSceneId(null);
-      showToast(`${toAttach.length} attached, ${toDetach.length} detached`);
+      showToast(tr("{length} attached, {length2} detached", { length: toAttach.length, length2: toDetach.length }));
     } catch {
-      showToast('Failed to save changes');
+      showToast(tr("Failed to save changes"));
     }
     setAttachSaving(false);
   }, [attachModalSceneId, attachChecked, attachedItems, fetchAttached, fetchScenes, showToast]);
@@ -267,7 +268,7 @@ export default function ArcCloudPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this scene and detach all items? This cannot be undone.')) return;
+    if (!confirm(tr("Delete this scene and detach all items? This cannot be undone."))) return;
     await fetch(`/api/v1/cloud-items/${id}`, { method: 'DELETE' });
     if (expandedId === id) setExpandedId(null);
     await fetchScenes();
@@ -308,10 +309,8 @@ export default function ArcCloudPage() {
             {/* Title bar */}
             <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-xl font-semibold text-foreground">
-                  Story Structure
-                </h1>
-                <p className="text-sm text-muted mt-0.5">Build your arc. Each scene is a turning point.</p>
+                <h1 className="text-xl font-semibold text-foreground">{tr("Story Structure")}</h1>
+                <p className="text-sm text-muted mt-0.5">{tr("Build your arc. Each scene is a turning point.")}</p>
               </div>
               <div className="flex flex-wrap items-center justify-end gap-3 [&_button]:whitespace-nowrap">
               <ProjectIllustrations onDone={fetchScenes} />
@@ -322,9 +321,7 @@ export default function ArcCloudPage() {
                 disabled={adding}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
                 style={{ background: '#ec4899' }}
-              >
-                + Add Scene
-              </button>
+              >{tr("+ Add Scene")}</button>
               </div>
             </div>
 
@@ -333,23 +330,21 @@ export default function ArcCloudPage() {
               <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-center gap-3">
                 <span className="text-amber-600 text-lg">📦</span>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-amber-800">You have story structure from the old Arc Cloud</p>
-                  <p className="text-xs text-amber-600 mt-0.5">Import your existing arcs & chapters into the new format with one click.</p>
+                  <p className="text-sm font-medium text-amber-800">{tr("You have story structure from the old Arc Cloud")}</p>
+                  <p className="text-xs text-amber-600 mt-0.5">{tr("Import your existing arcs & chapters into the new format with one click.")}</p>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button
                     onClick={handleDismissLegacy}
                     className="px-3 py-2 rounded-lg text-xs text-amber-700 hover:bg-amber-100 transition-colors"
-                  >
-                    Dismiss
-                  </button>
+                  >{tr("Dismiss")}</button>
                   <button
                     onClick={handleMigrateLegacy}
                     disabled={migrating}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-50 transition-opacity hover:opacity-90"
                     style={{ background: '#f59e0b' }}
                   >
-                    {migrating ? 'Importing…' : 'Import now'}
+                    {migrating ? tr("Importing…") : tr("Import now")}
                   </button>
                 </div>
               </div>
@@ -358,19 +353,19 @@ export default function ArcCloudPage() {
             {/* Add form */}
             {adding && (
               <div className="mb-4 rounded-xl border border-border bg-card-bg p-4">
-                <p className="text-xs text-muted uppercase tracking-wider mb-3">New Scene</p>
+                <p className="text-xs text-muted uppercase tracking-wider mb-3">{tr("New Scene")}</p>
                 <form onSubmit={handleCreate} className="space-y-3">
                   <input
                     autoFocus
                     value={formTitle}
                     onChange={e => setFormTitle(e.target.value)}
-                    placeholder="Story beat…"
+                    placeholder={tr("Story beat…")}
                     className={inputCls}
                   />
                   <textarea
                     value={formContent}
                     onChange={e => setFormContent(e.target.value)}
-                    placeholder="What happens at this turning point — the shift, the consequence, the surprise…"
+                    placeholder={tr("What happens at this turning point — the shift, the consequence, the surprise…")}
                     rows={3}
                     className={`${inputCls} resize-y`}
                   />
@@ -381,11 +376,9 @@ export default function ArcCloudPage() {
                       className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
                       style={{ background: '#ec4899' }}
                     >
-                      {saving ? 'Saving…' : 'Save'}
+                      {saving ? tr("Saving…") : tr("Save")}
                     </button>
-                    <button type="button" onClick={cancelForm} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border">
-                      Cancel
-                    </button>
+                    <button type="button" onClick={cancelForm} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border">{tr("Cancel")}</button>
                   </div>
                 </form>
               </div>
@@ -401,14 +394,12 @@ export default function ArcCloudPage() {
             ) : scenes.length === 0 && !adding ? (
               <div className="text-center py-16">
                 <div className="text-4xl mb-3">🎬</div>
-                <p className="text-muted text-sm mb-4">No arc scenes yet. Add your first scene to start building the scaffold.</p>
+                <p className="text-muted text-sm mb-4">{tr("No arc scenes yet. Add your first scene to start building the scaffold.")}</p>
                 <button
                   onClick={() => { setAdding(true); setFormTitle(''); setFormContent(''); }}
                   className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity"
                   style={{ background: '#ec4899' }}
-                >
-                  + Add Scene
-                </button>
+                >{tr("+ Add Scene")}</button>
               </div>
             ) : (
               <div className="space-y-3">
@@ -428,13 +419,13 @@ export default function ArcCloudPage() {
                             autoFocus
                             value={formTitle}
                             onChange={e => setFormTitle(e.target.value)}
-                            placeholder="Story beat…"
+                            placeholder={tr("Story beat…")}
                             className={inputCls}
                           />
                           <textarea
                             value={formContent}
                             onChange={e => setFormContent(e.target.value)}
-                            placeholder="What happens at this turning point…"
+                            placeholder={tr("What happens at this turning point…")}
                             rows={3}
                             className={`${inputCls} resize-y`}
                           />
@@ -445,11 +436,9 @@ export default function ArcCloudPage() {
                               className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
                               style={{ background: '#ec4899' }}
                             >
-                              {saving ? 'Saving…' : 'Save'}
+                              {saving ? tr("Saving…") : tr("Save")}
                             </button>
-                            <button type="button" onClick={cancelForm} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border">
-                              Cancel
-                            </button>
+                            <button type="button" onClick={cancelForm} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border">{tr("Cancel")}</button>
                           </div>
                         </form>
                       </div>
@@ -469,15 +458,14 @@ export default function ArcCloudPage() {
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-foreground">{scene.title}</h3>
                                 {(scene.when_told === 'flashback' || scene.when_told === 'flash_forward') && (
-                                  <span className="text-xs text-muted">{scene.when_told === 'flashback' ? 'Flashback' : 'Flash-forward'}</span>
+                                  <span className="text-xs text-muted">{scene.when_told === 'flashback' ? tr("Flashback") : tr("Flash-forward")}</span>
                                 )}
                                 {scene.attached_count > 0 && (
                                   <span
                                     className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
                                     style={{ background: '#ec489918', color: '#ec4899' }}
                                   >
-                                    {scene.attached_count} attached
-                                  </span>
+                                    {scene.attached_count}{" "}{tr("attached")}</span>
                                 )}
                               </div>
                               {scene.content && (
@@ -489,11 +477,11 @@ export default function ArcCloudPage() {
                                 <button
                                   onClick={() => startEdit(scene)}
                                   className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
-                                >Edit</button>
+                                >{tr("Edit")}</button>
                                 <button
                                   onClick={() => handleDelete(scene.id)}
                                   className="px-2 py-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                                >Delete</button>
+                                >{tr("Delete")}</button>
                               </div>
                               <svg
                                 className={`w-4 h-4 text-muted transition-transform ${expandedId === scene.id ? 'rotate-180' : ''}`}
@@ -518,24 +506,20 @@ export default function ArcCloudPage() {
                               />
                             </div>
                             {attachedLoading === scene.id ? (
-                              <p className="text-xs text-muted py-2">Loading attached items...</p>
+                              <p className="text-xs text-muted py-2">{tr("Loading attached items...")}</p>
                             ) : !attachedItems[scene.id] || attachedItems[scene.id].length === 0 ? (
                               <div className="text-center py-4">
-                                <p className="text-xs text-muted mb-2">No items attached to this scene yet.</p>
+                                <p className="text-xs text-muted mb-2">{tr("No items attached to this scene yet.")}</p>
                                 <div className="flex items-center justify-center gap-2">
                                   <button
                                     onClick={() => openAttachModal(scene.id)}
                                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-pink-300 text-pink-600 hover:bg-pink-50 transition-colors"
-                                  >
-                                    + Attach items
-                                  </button>
+                                  >{tr("+ Attach items")}</button>
                                   <button
                                     onClick={() => router.push(`/workspace/visual?scene=${scene.id}&sceneName=${encodeURIComponent(scene.title)}`)}
                                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90 transition-opacity"
                                     style={{ background: '#ec4899' }}
-                                  >
-                                    Open in Editor
-                                  </button>
+                                  >{tr("Open in Editor")}</button>
                                 </div>
                               </div>
                             ) : (
@@ -545,7 +529,7 @@ export default function ArcCloudPage() {
                                   return (
                                     <div key={type}>
                                       <p className="text-xs font-semibold uppercase tracking-wider mb-1.5" style={{ color: typeInfo.color }}>
-                                        {typeInfo.label} ({items.length})
+                                        {tr(typeInfo.label)} ({items.length})
                                       </p>
                                       <div className="space-y-1">
                                         {items.map(item => (
@@ -568,16 +552,12 @@ export default function ArcCloudPage() {
                                   <button
                                     onClick={() => openAttachModal(scene.id)}
                                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-pink-300 text-pink-600 hover:bg-pink-50 transition-colors"
-                                  >
-                                    ✏️ Edit attached
-                                  </button>
+                                  >{tr("✏️ Edit attached")}</button>
                                   <button
                                     onClick={() => router.push(`/workspace/visual?scene=${scene.id}&sceneName=${encodeURIComponent(scene.title)}`)}
                                     className="px-3 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90 transition-opacity"
                                     style={{ background: '#ec4899' }}
-                                  >
-                                    Open in Editor
-                                  </button>
+                                  >{tr("Open in Editor")}</button>
                                 </div>
                               </div>
                             )}
@@ -608,10 +588,8 @@ export default function ArcCloudPage() {
             {/* Header */}
             <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100">
               <div>
-                <h2 className="text-base font-semibold text-gray-800">Attach Items to Scene</h2>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Select items from your Clouds to connect to this scene.
-                </p>
+                <h2 className="text-base font-semibold text-gray-800">{tr("Attach Items to Scene")}</h2>
+                <p className="text-xs text-gray-400 mt-0.5">{tr("Select items from your Clouds to connect to this scene.")}</p>
               </div>
               <button
                 onClick={() => setAttachModalSceneId(null)}
@@ -628,37 +606,33 @@ export default function ArcCloudPage() {
                   <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Loading items...
-                </div>
+                  </svg>{tr("Loading items...")}</div>
               ) : Object.keys(attachAllItems).length === 0 ? (
-                <div className="text-center py-10 text-gray-400 text-sm">
-                  No cloud items found. Add some items to your Clouds first.
-                </div>
+                <div className="text-center py-10 text-gray-400 text-sm">{tr("No cloud items found. Add some items to your Clouds first.")}</div>
               ) : (
                 <div className="space-y-2">
                   {/* Select all / clear */}
                   <div className="flex items-center justify-between mb-1 pb-2 border-b border-gray-100">
-                    <span className="text-xs text-gray-500">{attachChecked.size} selected</span>
+                    <span className="text-xs text-gray-500">{attachChecked.size}{" "}{tr("selected")}</span>
                     <div className="flex gap-3">
                       <button
                         onClick={() => setAttachChecked(new Set(Object.values(attachAllItems).flat().map(i => i.id)))}
                         className="text-xs text-indigo-600 hover:underline"
-                      >Select all</button>
+                      >{tr("Select all")}</button>
                       <button
                         onClick={() => setAttachChecked(new Set())}
                         className="text-xs text-gray-400 hover:underline"
-                      >Clear</button>
+                      >{tr("Clear")}</button>
                     </div>
                   </div>
 
                   {Object.entries(attachAllItems).map(([cloudType, items]) => {
                     const TYPE_INFO: Record<string, { label: string; emoji: string }> = {
-                      characters: { label: 'Characters', emoji: '👤' },
-                      scenes:     { label: 'Stage',      emoji: '🎬' },
-                      world:      { label: 'World',      emoji: '🌍' },
-                      ideas:      { label: 'Ideas',      emoji: '💡' },
-                      references: { label: 'References', emoji: '📑' },
+                      characters: { label: tr("Characters"), emoji: '👤' },
+                      scenes:     { label: tr("Stage"),      emoji: '🎬' },
+                      world:      { label: tr("World"),      emoji: '🌍' },
+                      ideas:      { label: tr("Ideas"),      emoji: '💡' },
+                      references: { label: tr("References"), emoji: '📑' },
                     };
                     const info = TYPE_INFO[cloudType] || { label: cloudType, emoji: '☁️' };
                     const isCollapsed = attachGroupCollapsed.has(cloudType);
@@ -690,7 +664,7 @@ export default function ArcCloudPage() {
                             className="rounded border-gray-300"
                           />
                           <span>{info.emoji}</span>
-                          <span className="text-sm font-medium text-gray-700">{info.label}</span>
+                          <span className="text-sm font-medium text-gray-700">{tr(info.label)}</span>
                           <span className="text-xs text-gray-400 ml-auto">{groupCheckedCount}/{items.length}</span>
                         </div>
                         {!isCollapsed && (
@@ -724,16 +698,14 @@ export default function ArcCloudPage() {
               <button
                 onClick={() => setAttachModalSceneId(null)}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
+              >{tr("Cancel")}</button>
               <button
                 onClick={handleAttachConfirm}
                 disabled={attachSaving}
                 className="px-5 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
                 style={{ background: '#ec4899' }}
               >
-                {attachSaving ? 'Saving...' : `Save (${attachChecked.size} items)`}
+                {attachSaving ? tr("Saving...") : tr("Save ({size} items)", { size: attachChecked.size })}
               </button>
             </div>
           </div>
@@ -743,7 +715,7 @@ export default function ArcCloudPage() {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-6 right-6 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg shadow-lg z-50 transition-opacity">
-          {toast}
+          {tr(toast)}
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect, useCallback } from 'react';
 
 interface Transformation {
@@ -67,7 +68,7 @@ export default function TransformationsModal({ idea, onClose }: TransformationsM
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-foreground">Transformations</h2>
+            <h2 className="text-lg font-semibold text-foreground">{tr("Transformations")}</h2>
             <p className="text-xs text-muted truncate max-w-[420px]">{idea.text}</p>
           </div>
           <button
@@ -87,9 +88,7 @@ export default function TransformationsModal({ idea, onClose }: TransformationsM
               ))}
             </div>
           ) : transformations.length === 0 ? (
-            <p className="text-center text-muted text-sm py-8">
-              No transformations yet
-            </p>
+            <p className="text-center text-muted text-sm py-8">{tr("No transformations yet")}</p>
           ) : (
             transformations.map((t) => (
               <div
@@ -126,13 +125,10 @@ export default function TransformationsModal({ idea, onClose }: TransformationsM
                       checked={Boolean(t.locked)}
                       readOnly
                       className="accent-[var(--accent)]"
-                    />
-                    Lock
-                  </label>
+                    />{tr("Lock")}</label>
                 </div>
                 {t.source_node_level && (
-                  <p className="text-xs text-muted">
-                    Source: {t.source_node_level}
+                  <p className="text-xs text-muted">{tr("Source:")}{" "}{t.source_node_level}
                     {t.source_node_id ? ` (${t.source_node_id})` : ''}
                   </p>
                 )}
@@ -148,7 +144,7 @@ export default function TransformationsModal({ idea, onClose }: TransformationsM
               type="text"
               value={newText}
               onChange={(e) => setNewText(e.target.value)}
-              placeholder="Add transformation..."
+              placeholder={tr("Add transformation...")}
               className="flex-1 px-3 py-2 border border-border rounded-lg text-sm text-foreground bg-card-bg focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
@@ -162,8 +158,8 @@ export default function TransformationsModal({ idea, onClose }: TransformationsM
               onChange={(e) => setNewType(e.target.value as 'additive' | 'override')}
               className="px-3 py-2 border border-border rounded-lg text-sm text-foreground bg-card-bg focus:outline-none focus:ring-2 focus:ring-accent/30"
             >
-              <option value="additive">Additive</option>
-              <option value="override">Override</option>
+              <option value="additive">{tr("Additive")}</option>
+              <option value="override">{tr("Override")}</option>
             </select>
           </div>
           <div className="flex items-center justify-between">
@@ -172,14 +168,12 @@ export default function TransformationsModal({ idea, onClose }: TransformationsM
               disabled={!newText.trim() || saving}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
             >
-              {saving ? 'Adding...' : 'Add'}
+              {saving ? tr("Adding...") : tr("Add")}
             </button>
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-            >
-              Close
-            </button>
+            >{tr("Close")}</button>
           </div>
         </div>
       </div>

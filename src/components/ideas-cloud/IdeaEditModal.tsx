@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState } from 'react';
 
 interface IdeaEditModalProps {
@@ -31,7 +32,7 @@ export default function IdeaEditModal({ idea, onClose, onSave, onDelete }: IdeaE
       <div className="bg-card-bg rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Edit Idea</h2>
+          <h2 className="text-lg font-semibold text-foreground">{tr("Edit Idea")}</h2>
           <button
             onClick={onClose}
             className="text-muted hover:text-foreground transition-colors text-xl leading-none"
@@ -45,7 +46,7 @@ export default function IdeaEditModal({ idea, onClose, onSave, onDelete }: IdeaE
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Write your idea..."
+            placeholder={tr("Write your idea...")}
             className="w-full h-64 px-3 py-2 border border-border rounded-xl text-sm text-foreground bg-card-bg resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
             autoFocus
           />
@@ -54,17 +55,13 @@ export default function IdeaEditModal({ idea, onClose, onSave, onDelete }: IdeaE
             <button
               disabled
               className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted cursor-not-allowed opacity-50"
-              title="Coming soon"
-            >
-              Generate Image
-            </button>
+              title={tr("Coming soon")}
+            >{tr("Generate Image")}</button>
             <button
               disabled
               className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-muted cursor-not-allowed opacity-50"
-              title="Coming soon"
-            >
-              Export as Card
-            </button>
+              title={tr("Coming soon")}
+            >{tr("Export as Card")}</button>
           </div>
         </div>
 
@@ -79,7 +76,7 @@ export default function IdeaEditModal({ idea, onClose, onSave, onDelete }: IdeaE
                   : 'text-red-500 hover:bg-red-50'
               }`}
             >
-              {confirmDelete ? 'Confirm Delete' : 'Delete'}
+              {confirmDelete ? tr("Confirm Delete") : tr("Delete")}
             </button>
           ) : (
             <div />
@@ -88,16 +85,12 @@ export default function IdeaEditModal({ idea, onClose, onSave, onDelete }: IdeaE
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
+            >{tr("Cancel")}</button>
             <button
               onClick={handleSave}
               disabled={!text.trim()}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
-            >
-              Save
-            </button>
+            >{tr("Save")}</button>
           </div>
         </div>
       </div>

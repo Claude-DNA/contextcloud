@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface Alternative {
@@ -126,7 +127,7 @@ export default function AlternativesModal({ plot, onClose, onActiveChange }: Alt
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Alternatives</h2>
+            <h2 className="text-lg font-semibold text-foreground">{tr("Alternatives")}</h2>
             <p className="text-xs text-muted">{plotName}</p>
           </div>
           <button
@@ -148,12 +149,12 @@ export default function AlternativesModal({ plot, onClose, onActiveChange }: Alt
           >
             <div className="flex items-center gap-2">
               <input type="radio" checked={!activeId} readOnly className="accent-accent" />
-              <span className="text-sm font-medium text-foreground">Original</span>
+              <span className="text-sm font-medium text-foreground">{tr("Original")}</span>
             </div>
           </div>
 
           {loading ? (
-            <p className="text-center text-muted text-sm py-4">Loading...</p>
+            <p className="text-center text-muted text-sm py-4">{tr("Loading...")}</p>
           ) : (
             alternatives.map(alt => (
               <div
@@ -171,9 +172,7 @@ export default function AlternativesModal({ plot, onClose, onActiveChange }: Alt
                   <button
                     onClick={(e) => { e.stopPropagation(); handleEditClick(alt); }}
                     className="text-xs text-muted hover:text-foreground transition-colors"
-                  >
-                    edit
-                  </button>
+                  >{tr("edit")}</button>
                 </div>
                 {alt.content && (
                   <p className="text-xs text-muted mt-1 ml-6 truncate">{alt.content.substring(0, 100)}</p>
@@ -189,13 +188,13 @@ export default function AlternativesModal({ plot, onClose, onActiveChange }: Alt
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
-            placeholder="Alternative name..."
+            placeholder={tr("Alternative name...")}
             className="w-full px-3 py-2 border border-border rounded-lg text-sm text-foreground bg-card-bg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
           />
           <textarea
             value={newContent}
             onChange={(e) => setNewContent(e.target.value)}
-            placeholder="Alternative content (optional)..."
+            placeholder={tr("Alternative content (optional)...")}
             className="w-full h-20 px-3 py-2 border border-border rounded-lg text-sm text-foreground bg-card-bg resize-none focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
           />
           <div className="flex justify-between">
@@ -204,14 +203,12 @@ export default function AlternativesModal({ plot, onClose, onActiveChange }: Alt
               disabled={!newName.trim() || adding}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
             >
-              {adding ? 'Adding...' : '+ Add Alternative'}
+              {adding ? tr("Adding...") : tr("+ Add Alternative")}
             </button>
             <button
               onClick={onClose}
               className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-            >
-              Close
-            </button>
+            >{tr("Close")}</button>
           </div>
         </div>
       </div>
@@ -224,22 +221,20 @@ export default function AlternativesModal({ plot, onClose, onActiveChange }: Alt
             <textarea
               value={editContent}
               onChange={(e) => setEditContent(e.target.value)}
-              placeholder="Edit alternative content..."
+              placeholder={tr("Edit alternative content...")}
               className="w-full h-40 px-3 py-2 border border-border rounded-lg text-sm text-foreground bg-card-bg resize-none focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
             />
             <div className="flex items-center justify-end gap-3">
               <button
                 onClick={() => setEditingAlt(null)}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
+              >{tr("Cancel")}</button>
               <button
                 onClick={handleSaveEdit}
                 disabled={savingEdit}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
-                {savingEdit ? 'Saving...' : 'Save'}
+                {savingEdit ? tr("Saving...") : tr("Save")}
               </button>
             </div>
           </div>

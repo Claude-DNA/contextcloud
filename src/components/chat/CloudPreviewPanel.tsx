@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useCallback } from 'react';
 import type { ParsedCloudItem, CloudType } from './CloudParser';
 
@@ -116,8 +117,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
           <span className="shrink-0 text-lg leading-none">&#9888;</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold">
-              {saveErrors.length} item{saveErrors.length !== 1 ? 's' : ''} failed to save
-            </p>
+              {saveErrors.length}{" "}{tr("item")}{saveErrors.length !== 1 ? 's' : ''}{" "}{tr("failed to save")}</p>
             <ul className="mt-1 space-y-0.5">
               {saveErrors.map((e, i) => (
                 <li key={i} className="text-xs opacity-90 truncate">{e}</li>
@@ -127,7 +127,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
           <button
             onClick={() => setSaveErrors([])}
             className="shrink-0 text-white/70 hover:text-white text-lg leading-none"
-            aria-label="Dismiss"
+            aria-label={tr("Dismiss")}
           >
             &times;
           </button>
@@ -137,8 +137,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
       {/* Success banner */}
       {lastSaveCount > 0 && saveErrors.length === 0 && (
         <div className="px-4 py-2 bg-green-600 text-white text-sm font-medium text-center">
-          {lastSaveCount} item{lastSaveCount !== 1 ? 's' : ''} saved to your Cloud
-        </div>
+          {lastSaveCount}{" "}{tr("item")}{lastSaveCount !== 1 ? 's' : ''}{" "}{tr("saved to your Cloud")}</div>
       )}
 
       {/* Header */}
@@ -146,10 +145,10 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-sm font-semibold text-foreground">
-              {projectTitle || 'Context Cloud'}
+              {projectTitle || tr("Context Cloud")}
             </h2>
             <p className="text-xs text-muted">
-              {totalItems} item{totalItems !== 1 ? 's' : ''} across {grouped.size} layer{grouped.size !== 1 ? 's' : ''}
+              {totalItems}{" "}{tr("item")}{totalItems !== 1 ? 's' : ''}{" "}{tr("across")}{" "}{grouped.size}{" "}{tr("layer")}{grouped.size !== 1 ? 's' : ''}
             </p>
           </div>
           {totalItems > 0 && (
@@ -158,7 +157,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
               disabled={saving || selectedCount === 0}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-accent hover:bg-accent-hover disabled:opacity-40 transition-colors"
             >
-              {saving ? 'Saving...' : `Save selected (${selectedCount})`}
+              {saving ? tr("Saving...") : tr("Save selected ({selectedCount})", { selectedCount: selectedCount })}
             </button>
           )}
         </div>
@@ -169,7 +168,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
         {totalItems === 0 ? (
           <div className="text-center py-16">
             <div className="text-4xl mb-3 opacity-30">☁️</div>
-            <p className="text-muted text-sm">Your cloud will appear here as you chat.</p>
+            <p className="text-muted text-sm">{tr("Your cloud will appear here as you chat.")}</p>
           </div>
         ) : (
           LAYER_ORDER.map((type) => {
@@ -184,7 +183,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
                   style={{ background: `${cfg.colorHex}12`, color: cfg.colorHex }}
                 >
                   <span>{cfg.emoji}</span>
-                  <span>{cfg.label}</span>
+                  <span>{tr(cfg.label)}</span>
                   <span className="ml-auto text-[10px] font-medium opacity-70">
                     {layerItems.length}
                   </span>
@@ -205,7 +204,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
                           <div className="flex items-center gap-1.5">
                             <p className="text-sm font-medium text-foreground">{item.title}</p>
                             {isSaved && (
-                              <span className="text-green-600 text-xs font-medium">Saved</span>
+                              <span className="text-green-600 text-xs font-medium">{tr("Saved")}</span>
                             )}
                           </div>
                           {item.content && (
@@ -237,12 +236,9 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
         {/* Completion banner */}
         {isComplete && (
           <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
-            <p className="text-sm font-semibold text-green-800 mb-2">
-              Your cloud is ready!
-            </p>
+            <p className="text-sm font-semibold text-green-800 mb-2">{tr("Your cloud is ready!")}</p>
             <p className="text-xs text-green-600 mb-3">
-              {totalItems} items across {grouped.size} layers. Select and save items above.
-            </p>
+              {totalItems}{" "}{tr("items across")}{" "}{grouped.size}{" "}{tr("layers. Select and save items above.")}</p>
           </div>
         )}
 
@@ -250,17 +246,16 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
         {lastSaveCount > 0 && (
           <div className="rounded-xl border border-accent/20 bg-accent/5 p-4">
             <p className="text-sm font-semibold text-foreground mb-1">
-              ✅ {lastSaveCount} item{lastSaveCount !== 1 ? 's' : ''} saved to your Cloud
-            </p>
-            <p className="text-xs text-muted mb-3">Open your workspace to view, edit, and refine them:</p>
+              ✅ {lastSaveCount}{" "}{tr("item")}{lastSaveCount !== 1 ? 's' : ''}{" "}{tr("saved to your Cloud")}</p>
+            <p className="text-xs text-muted mb-3">{tr("Open your workspace to view, edit, and refine them:")}</p>
             <div className="flex flex-wrap gap-2">
               {([
-                { label: 'Characters', href: '/workspace/characters-cloud' },
-                { label: 'Stage', href: '/workspace/scenes-cloud' },
-                { label: 'World', href: '/workspace/world-cloud' },
-                { label: 'Ideas', href: '/workspace/ideas-cloud' },
-                { label: 'Arc', href: '/workspace/arc-cloud' },
-                { label: 'Visual Editor', href: '/workspace/visual' },
+                { label: tr("Characters"), href: '/workspace/characters-cloud' },
+                { label: tr("Stage"), href: '/workspace/scenes-cloud' },
+                { label: tr("World"), href: '/workspace/world-cloud' },
+                { label: tr("Ideas"), href: '/workspace/ideas-cloud' },
+                { label: tr("Arc"), href: '/workspace/arc-cloud' },
+                { label: tr("Visual Editor"), href: '/workspace/visual' },
               ] as const).map(({ label, href }) => (
                 <a
                   key={href}

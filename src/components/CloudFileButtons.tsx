@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useRef, useState } from 'react';
 import { useProject } from '@/context/ProjectContext';
 
@@ -23,7 +24,7 @@ export default function CloudFileButtons() {
       if (!res.ok) throw new Error(d.error || 'The file could not be opened.');
       await refreshProjects();
       setActiveProjectId(d.project.id);
-      setMessage({ ok: true, text: `Opened "${d.project.title}" as a new project: ${d.imported} items.` });
+      setMessage({ ok: true, text: tr("Opened \"{title}\" as a new project: {imported} items.", { title: d.project.title, imported: d.imported }) });
     } catch (e) {
       setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
     } finally {
@@ -36,16 +37,16 @@ export default function CloudFileButtons() {
   return (
     <div className="relative flex items-center gap-3">
       {activeProjectId && (
-        <a href={`/api/v1/projects/${activeProjectId}/cloud-file`} className={button}>Save cloud file</a>
+        <a href={`/api/v1/projects/${activeProjectId}/cloud-file`} className={button}>{tr("Save cloud file")}</a>
       )}
       <button type="button" className={button} disabled={busy} onClick={() => input.current?.click()}>
-        {busy ? 'Opening…' : 'Open cloud file'}
+        {busy ? tr("Opening…") : tr("Open cloud file")}
       </button>
-      <input ref={input} type="file" accept=".json,application/json" className="sr-only" aria-label="Cloud file to open"
+      <input ref={input} type="file" accept=".json,application/json" className="sr-only" aria-label={tr("Cloud file to open")}
         onChange={(e) => { const f = e.target.files?.[0]; if (f) void open(f); }} />
       {message && (
         <p role="status" className={`absolute right-0 top-full z-10 mt-2 w-72 rounded-lg border border-border bg-white p-3 text-sm shadow ${message.ok ? 'text-emerald-700' : 'text-red-600'}`}>
-          {message.text}
+          {tr(message.text)}
         </p>
       )}
     </div>

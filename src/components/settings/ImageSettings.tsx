@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useCallback, useEffect, useState } from 'react';
 import ProviderGuide, { type GuideProvider } from './ProviderGuide';
 
@@ -30,7 +31,7 @@ export default function ImageSettings() {
   const save = useCallback(async (body: Record<string, unknown>) => {
     const res = await fetch('/api/v1/user/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const d = await res.json();
-    if (!res.ok) throw new Error(d.error || 'Could not save');
+    if (!res.ok) throw new Error(d.error || tr('Could not save'));
     setS(d);
     return d as Settings;
   }, []);
@@ -42,13 +43,13 @@ export default function ImageSettings() {
     if (!p || (p !== 'openrouter' && !d.keys[p] && !d.server_keys.includes(p))) return;
     const res = await fetch(`/api/v1/user/image-models?provider=${p}`);
     const m = await res.json();
-    if (!res.ok) { setModelsError(m.error || 'Could not load models.'); return; }
+    if (!res.ok) { setModelsError(m.error || tr("Could not load models.")); return; }
     setModels(m.models ?? []);
     if (!d.image_model && m.recommended) await save({ image_model: m.recommended });
   }, [save]);
 
   useEffect(() => {
-    fetch('/api/v1/user/settings').then((r) => r.json()).then((d: Settings) => { setS(d); loadModels(d); });
+    fetch('/api/v1/user/settings').then(async (r) => { if (!r.ok) return; const d: Settings = await r.json(); setS(d); loadModels(d); }).catch(() => {});
   }, [loadModels]);
 
   if (!s) return null;
@@ -72,15 +73,12 @@ export default function ImageSettings() {
   return (
     <section id="illustrations" className="scroll-mt-20 border border-border rounded-xl p-6 bg-card-bg space-y-5" aria-labelledby="img-settings-title">
       <div>
-        <h2 id="img-settings-title" className="text-base font-semibold text-foreground">Illustrations</h2>
-        <p className="text-sm text-muted mt-1">
-          Pictures for your clouds. Studio first looks for a public-domain artwork that shows the element; if none fits, this model draws one in your project&apos;s style.
-          Anthropic has no image models, so this can be a different provider from your text model.
-        </p>
+        <h2 id="img-settings-title" className="text-base font-semibold text-foreground">{tr("Illustrations")}</h2>
+        <p className="text-sm text-muted mt-1">{tr("Pictures for your clouds. Studio first looks for a public-domain artwork that shows the element; if none fits, this model draws one in your project's style. Anthropic has no image models, so this can be a different provider from your text model.")}</p>
       </div>
 
       <fieldset>
-        <legend className="text-sm font-medium text-foreground mb-2">Provider</legend>
+        <legend className="text-sm font-medium text-foreground mb-2">{tr("Provider")}</legend>
         <div className="grid gap-2 sm:grid-cols-3">
           {PROVIDERS.map((p) => (
             <label key={p.id}
@@ -88,10 +86,10 @@ export default function ImageSettings() {
               <span className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <input type="radio" name="image-provider" checked={p.id === current} disabled={busy}
                   onChange={() => run(async () => loadModels(await save({ image_provider: p.id })))} />
-                {p.label}
+                {tr(p.label)}
               </span>
-              <span className="mt-1 pl-5 text-xs text-muted leading-relaxed">{p.blurb}</span>
-              {s.keys[p.id] && <span className="mt-1 pl-5 text-xs text-emerald-700">key saved</span>}
+              <span className="mt-1 pl-5 text-xs text-muted leading-relaxed">{tr(p.blurb)}</span>
+              {s.keys[p.id] && <span className="mt-1 pl-5 text-xs text-emerald-700">{tr("key saved")}</span>}
             </label>
           ))}
         </div>
@@ -99,28 +97,26 @@ export default function ImageSettings() {
 
       {!hasKey ? (
         <div className="space-y-2">
-          <label htmlFor="img-key" className="text-sm font-medium text-foreground block">{info.label} API key</label>
+          <label htmlFor="img-key" className="text-sm font-medium text-foreground block">{tr(info.label)}{" "}{tr("API key")}</label>
           <div className="flex gap-2">
-            <input id="img-key" type="password" autoComplete="off" placeholder={info.keyHint} value={keyInput} onChange={(e) => setKeyInput(e.target.value)}
+            <input id="img-key" type="password" autoComplete="off" placeholder={tr(info.keyHint)} value={keyInput} onChange={(e) => setKeyInput(e.target.value)}
               className="flex-1 border border-border rounded-lg px-3 py-2 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-accent" />
             <button type="button" disabled={busy || !keyInput.trim()}
               onClick={() => run(async () => { const d = await save({ key: { provider: current, value: keyInput.trim() } }); setKeyInput(''); await loadModels(d); }, 'Key saved.')}
-              className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50">
-              Save key
-            </button>
+              className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50">{tr("Save key")}</button>
           </div>
-          <ProviderGuide provider={current as GuideProvider} label={info.label} open forPictures />
+          <ProviderGuide provider={current as GuideProvider} label={tr(info.label)} open forPictures />
         </div>
       ) : (
         <div>
-          <label htmlFor="img-model" className="text-sm font-medium text-foreground block mb-1">Image model</label>
+          <label htmlFor="img-model" className="text-sm font-medium text-foreground block mb-1">{tr("Image model")}</label>
           {modelsError ? (
             <p className="text-sm text-red-600">{modelsError}</p>
           ) : (
             <select id="img-model" value={s.image_model ?? ''} disabled={busy}
               onChange={(e) => run(() => save({ image_model: e.target.value }), 'Image model saved.')}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-accent">
-              {!s.image_model && <option value="">Choose a model</option>}
+              {!s.image_model && <option value="">{tr("Choose a model")}</option>}
               {s.image_model && !models.some((m) => m.id === s.image_model) && <option value={s.image_model}>{s.image_model}</option>}
               {models.map((m) => <option key={m.id} value={m.id}>{(m.name === m.id ? m.id : `${m.name} (${m.id})`) + (m.price ? ` · ${m.price}` : '')}</option>)}
             </select>
@@ -128,7 +124,7 @@ export default function ImageSettings() {
         </div>
       )}
 
-      {status && <p role="status" className={`text-sm ${status.ok ? 'text-emerald-700' : 'text-red-600'}`}>{status.text}</p>}
+      {status && <p role="status" className={`text-sm ${status.ok ? 'text-emerald-700' : 'text-red-600'}`}>{tr(status.text)}</p>}
     </section>
   );
 }

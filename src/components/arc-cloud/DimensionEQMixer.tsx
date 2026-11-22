@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { useState, useEffect, useCallback } from 'react';
 
 interface Dimensions {
@@ -149,18 +150,18 @@ export default function DimensionEQMixer({ plotId, initialDimensions, onSave }: 
     }
   };
 
-  if (loading) return <p className="text-xs text-muted py-2">Loading weights...</p>;
+  if (loading) return <p className="text-xs text-muted py-2">{tr("Loading weights...")}</p>;
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">Dimension Mix</h4>
+        <h4 className="text-xs font-semibold text-foreground uppercase tracking-wide">{tr("Dimension Mix")}</h4>
         <button
           onClick={handleSave}
           disabled={saving}
           className="px-3 py-1 text-xs bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-50"
         >
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? tr("Saving...") : tr("Save")}
         </button>
       </div>
 
@@ -176,7 +177,7 @@ export default function DimensionEQMixer({ plotId, initialDimensions, onSave }: 
               {/* Lock box */}
               <button
                 onClick={() => toggleLock(key)}
-                title={isLocked ? 'Unlock' : 'Lock'}
+                title={isLocked ? tr("Unlock") : tr("Lock")}
                 className={`w-5 h-5 rounded border flex items-center justify-center transition-colors text-[10px] ${
                   isLocked
                     ? 'bg-amber-100 border-amber-400 text-amber-600'
@@ -202,11 +203,11 @@ export default function DimensionEQMixer({ plotId, initialDimensions, onSave }: 
       {/* Predictability — independent, own lock */}
       <div className="pt-2 border-t border-border space-y-1">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted flex-1">🌀 Chaotic → Predictable 📐</span>
+          <span className="text-xs text-muted flex-1">{tr("🌀 Chaotic → Predictable 📐")}</span>
           <span className="text-xs font-mono text-muted w-8 text-right">{dimensions.predictability}</span>
           <button
             onClick={() => toggleLock('predictability')}
-            title={locks.predictability ? 'Unlock' : 'Lock'}
+            title={locks.predictability ? tr("Unlock") : tr("Lock")}
             className={`w-5 h-5 rounded border flex items-center justify-center transition-colors text-[10px] ${
               locks.predictability
                 ? 'bg-amber-100 border-amber-400 text-amber-600'

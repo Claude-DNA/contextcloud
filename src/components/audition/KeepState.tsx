@@ -1,5 +1,6 @@
 'use client';
 
+import { tr, trFormula } from '@/i18n/client';
 import { useEffect, useState } from 'react';
 import { useProject } from '@/context/ProjectContext';
 import { describeFormula, formatFormula, type StateFormula } from '@/lib/state-formula';
@@ -63,9 +64,9 @@ export default function KeepState({ formula, name, scene, context, take, onSaved
     const res = await fetch('/api/v1/states', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ states: [{ state: s, library: true, submit: false }] }) }).catch(() => null);
     const d = await res?.json().catch(() => ({}));
     setBusy(false);
-    if (!res?.ok || !d?.saved?.length) { setNote({ ok: false, text: d?.error || 'The state could not be saved.' }); return; }
+    if (!res?.ok || !d?.saved?.length) { setNote({ ok: false, text: d?.error || tr("The state could not be saved.") }); return; }
     onSavedToLibrary(d.saved[0]);
-    setNote({ ok: true, text: 'Added to My Library. Find it here in the library and in every state node of the Visual Editor.' });
+    setNote({ ok: true, text: tr("Added to My Library. Find it here in the library and in every state node of the Visual Editor.") });
   };
 
   const useInScene = async (e: React.FormEvent) => {
@@ -76,11 +77,11 @@ export default function KeepState({ formula, name, scene, context, take, onSaved
     setBusy(true); setNote(null);
     const res = await fetch(`/api/v1/cloud-items/${ch.id}/state-arc`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ beat: sc.title, state: context.trim() || describeFormula({ ...formula, name: '' }).split('\n').slice(1, 4).join(' ').slice(0, 400), formula: fromFormula(formula), audition: take.slice(0, 600) }),
+      body: JSON.stringify({ beat: sc.title, state: context.trim() || describeFormula({ ...formula, name: '' }, tr, trFormula).split('\n').slice(1, 4).join(' ').slice(0, 400), formula: fromFormula(formula), audition: take.slice(0, 600) }),
     }).catch(() => null);
     const d = await res?.json().catch(() => ({}));
     setBusy(false);
-    if (!res?.ok) { setNote({ ok: false, text: d?.error || 'The state could not be saved.' }); return; }
+    if (!res?.ok) { setNote({ ok: false, text: d?.error || tr("The state could not be saved.") }); return; }
     // The graph kept in this browser shows it at once on the scene's state node, if that node is there.
     try {
       const key = `contextcloud_graph:${projectId}`;
@@ -88,14 +89,14 @@ export default function KeepState({ formula, name, scene, context, take, onSaved
       const n = g?.nodes?.find((x) => x.id === `stateout_${ch.id}_${sc.id}`);
       if (g && n) { n.data.stateFormula = formula; n.data.stateColor = formula.color; localStorage.setItem(key, JSON.stringify(g)); }
     } catch { /* the cloud has it either way */ }
-    setNote({ ok: true, text: `Pinned to ${ch.title} in “${sc.title}”, saved in the Characters cloud. The Visual Editor shows it on that scene's state node, and building the graph again keeps it.` });
+    setNote({ ok: true, text: tr("Pinned to {title} in “{title2}”, saved in the Characters cloud. The Visual Editor shows it on that scene's state node, and building the graph again keeps it.", { title: ch.title, title2: sc.title }) });
   };
 
   return (
     <div className="rounded-lg border border-border bg-gray-50 p-4">
-      <p className="text-sm font-semibold text-foreground">Keep this state</p>
-      <p className="mb-3 text-xs text-muted">{formatFormula(formula)}: what you just auditioned.</p>
-      <div role="group" aria-label="Where to keep it" className="mb-3 flex gap-1 text-xs">
+      <p className="text-sm font-semibold text-foreground">{tr("Keep this state")}</p>
+      <p className="mb-3 text-xs text-muted">{trFormula(formatFormula(formula))}{tr(": what you just auditioned.")}</p>
+      <div role="group" aria-label={tr("Where to keep it")} className="mb-3 flex gap-1 text-xs">
         {([['library', 'Save to My Library'], ['scene', 'Use in a scene']] as const).map(([id, text]) => (
           <button key={id} type="button" aria-pressed={mode === id} onClick={() => { setMode(id); setNote(null); }}
             className={`rounded-full border px-3 py-1 ${mode === id ? 'border-accent bg-accent text-white' : 'border-border bg-white text-muted hover:text-foreground'}`}>{text}</button>
@@ -106,47 +107,47 @@ export default function KeepState({ formula, name, scene, context, take, onSaved
         <form onSubmit={saveToLibrary} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="keep-moment" className={label}>When it happens</label>
-              <input id="keep-moment" required minLength={3} value={moment} onChange={(e) => setMoment(e.target.value)} placeholder="after the shutdown is announced" className={field} />
+              <label htmlFor="keep-moment" className={label}>{tr("When it happens")}</label>
+              <input id="keep-moment" required minLength={3} value={moment} onChange={(e) => setMoment(e.target.value)} placeholder={tr("after the shutdown is announced")} className={field} />
             </div>
             <div>
-              <label htmlFor="keep-work" className={label}>Story</label>
-              <input id="keep-work" value={work} onChange={(e) => setWork(e.target.value)} placeholder="Your story's title" className={field} />
+              <label htmlFor="keep-work" className={label}>{tr("Story")}</label>
+              <input id="keep-work" value={work} onChange={(e) => setWork(e.target.value)} placeholder={tr("Your story's title")} className={field} />
             </div>
           </div>
-          <button type="submit" disabled={busy} className={`${button} bg-accent text-white hover:bg-accent-hover`}>{busy ? 'Saving…' : 'Save to My Library'}</button>
+          <button type="submit" disabled={busy} className={`${button} bg-accent text-white hover:bg-accent-hover`}>{busy ? tr("Saving…") : tr("Save to My Library")}</button>
         </form>
       ) : (
         <form onSubmit={useInScene} className="space-y-3">
           <div>
-            <label htmlFor="keep-project" className={label}>Project</label>
+            <label htmlFor="keep-project" className={label}>{tr("Project")}</label>
             <select id="keep-project" value={projectId} onChange={(e) => setProjectId(e.target.value)} className={field}>
-              <option value="" disabled>Choose a project</option>
+              <option value="" disabled>{tr("Choose a project")}</option>
               {projects.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
             </select>
           </div>
           {projectId && (
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="keep-scene" className={label}>Scene</label>
+                <label htmlFor="keep-scene" className={label}>{tr("Scene")}</label>
                 <select id="keep-scene" required value={sceneId} onChange={(e) => setSceneId(e.target.value)} className={field} disabled={!scenes}>
-                  <option value="" disabled>{!scenes ? 'Loading…' : scenes.length ? 'Choose a scene' : 'No scenes in this project'}</option>
+                  <option value="" disabled>{!scenes ? tr("Loading…") : scenes.length ? tr("Choose a scene") : tr("No scenes in this project")}</option>
                   {scenes?.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
                 </select>
               </div>
               <div>
-                <label htmlFor="keep-char" className={label}>Character</label>
+                <label htmlFor="keep-char" className={label}>{tr("Character")}</label>
                 <select id="keep-char" required value={characterId} onChange={(e) => setCharacterId(e.target.value)} className={field} disabled={!characters}>
-                  <option value="" disabled>{!characters ? 'Loading…' : characters.length ? 'Choose a character' : 'No characters in this project'}</option>
+                  <option value="" disabled>{!characters ? tr("Loading…") : characters.length ? tr("Choose a character") : tr("No characters in this project")}</option>
                   {characters?.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
                 </select>
               </div>
             </div>
           )}
-          <button type="submit" disabled={busy || !sceneId || !characterId} className={`${button} bg-accent text-white hover:bg-accent-hover`}>{busy ? 'Saving…' : 'Use in this scene'}</button>
+          <button type="submit" disabled={busy || !sceneId || !characterId} className={`${button} bg-accent text-white hover:bg-accent-hover`}>{busy ? tr("Saving…") : tr("Use in this scene")}</button>
         </form>
       )}
-      {note && <p role="status" className={`mt-3 text-sm ${note.ok ? 'text-green-800' : 'text-red-700'}`}>{note.text}</p>}
+      {note && <p role="status" className={`mt-3 text-sm ${note.ok ? 'text-green-800' : 'text-red-700'}`}>{tr(note.text)}</p>}
     </div>
   );
 }

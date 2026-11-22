@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect } from 'react';
 
 interface CloudItemFinalStateModalProps {
@@ -74,7 +75,7 @@ export default function CloudItemFinalStateModal({
     return (
       <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center">
         <div className="bg-card-bg rounded-2xl shadow-2xl p-8 border border-border">
-          <p className="text-muted text-sm">Loading final state...</p>
+          <p className="text-muted text-sm">{tr("Loading final state...")}</p>
         </div>
       </div>
     );
@@ -86,7 +87,7 @@ export default function CloudItemFinalStateModal({
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
           <div className="min-w-0">
-            <h2 className="text-lg font-semibold text-foreground">Final State</h2>
+            <h2 className="text-lg font-semibold text-foreground">{tr("Final State")}</h2>
             <p className="text-xs text-muted truncate max-w-[500px]">{item.title}</p>
           </div>
           <button
@@ -102,11 +103,11 @@ export default function CloudItemFinalStateModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* LEFT: Your vision */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">Your vision</h3>
+              <h3 className="text-sm font-semibold text-foreground">{tr("Your vision")}</h3>
               <textarea
                 value={manual}
                 onChange={(e) => setManual(e.target.value)}
-                placeholder="Describe where this character ends up — their state, relationships, beliefs by the final act…"
+                placeholder={tr("Describe where this character ends up — their state, relationships, beliefs by the final act…")}
                 className="w-full h-64 px-3 py-2 border border-border rounded-xl text-sm text-foreground bg-white resize-none focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent"
               />
               <button
@@ -115,20 +116,18 @@ export default function CloudItemFinalStateModal({
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
                 style={{ background: colorHex }}
               >
-                {saving ? 'Saving...' : 'Save'}
+                {saving ? tr("Saving...") : tr("Save")}
               </button>
             </div>
 
             {/* RIGHT: AI prediction */}
             <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-foreground">AI prediction</h3>
+              <h3 className="text-sm font-semibold text-foreground">{tr("AI prediction")}</h3>
               <div className="w-full h-64 px-3 py-2 border border-border rounded-xl text-sm overflow-y-auto bg-gray-50">
                 {generated ? (
                   <p className="text-foreground whitespace-pre-wrap">{generated}</p>
                 ) : (
-                  <p className="text-muted italic">
-                    No AI prediction yet. Click Generate to create one based on character traits and arc.
-                  </p>
+                  <p className="text-muted italic">{tr("No AI prediction yet. Click Generate to create one based on character traits and arc.")}</p>
                 )}
               </div>
               <button
@@ -137,7 +136,7 @@ export default function CloudItemFinalStateModal({
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
                 style={{ background: colorHex }}
               >
-                {generating ? 'Generating...' : 'Generate'}
+                {generating ? tr("Generating...") : tr("Generate")}
               </button>
             </div>
           </div>
@@ -148,9 +147,7 @@ export default function CloudItemFinalStateModal({
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-          >
-            Close
-          </button>
+          >{tr("Close")}</button>
         </div>
       </div>
     </div>

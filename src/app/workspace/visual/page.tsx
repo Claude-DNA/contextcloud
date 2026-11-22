@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { Suspense } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import Sidebar from '@/components/Sidebar';
@@ -12,7 +13,7 @@ export default function VisualWorkspacePage() {
       <Sidebar />
       <main className="flex-1 ml-60 flex flex-col">
         <Header />
-        <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500">Loading graph editor...</div>}>
+        <Suspense fallback={<div className="flex-1 flex items-center justify-center text-gray-500">{tr("Loading graph editor...")}</div>}>
           <ReactFlowProvider>
             <VisualCanvas />
           </ReactFlowProvider>

@@ -1,5 +1,7 @@
 'use client';
 
+import { tr, useLocale } from '@/i18n/client';
+import { originFor } from '@/i18n/core';
 import { useState, useRef, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import Link from 'next/link';
@@ -8,6 +10,12 @@ import { useRouter } from 'next/navigation';
 
 export default function Header() {
   const { data: session, status } = useSession();
+  const locale = useLocale();
+  const confirmWord = tr('clear');
+  const switchLanguage = () => {
+    const other = locale === 'ru' ? 'en' : 'ru';
+    window.location.href = originFor(other, window.location.href) + window.location.pathname + window.location.search;
+  };
   const { activeProjectId, setActiveProjectId, projects, refreshProjects } = useProject();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [showNewModal, setShowNewModal] = useState(false);
@@ -54,7 +62,7 @@ export default function Header() {
   };
 
   const handleClearProject = async () => {
-    if (clearConfirmText !== 'clear') return;
+    if (clearConfirmText.trim().toLowerCase() !== confirmWord) return;
     setClearing(true);
     try {
       const url = activeProjectId
@@ -63,7 +71,7 @@ export default function Header() {
       const res = await fetch(url, { method: 'DELETE' });
       const data = await res.json();
       if (res.ok) {
-        setClearResult(`Deleted ${data.deleted} items.`);
+        setClearResult(tr("Deleted {deleted} items.", { deleted: data.deleted }));
         await refreshProjects();
         router.refresh();
         setTimeout(() => {
@@ -72,10 +80,10 @@ export default function Header() {
           setClearResult(null);
         }, 1800);
       } else {
-        setClearResult(data.error || 'Failed to clear project.');
+        setClearResult(data.error || tr("Failed to clear project."));
       }
     } catch {
-      setClearResult('Something went wrong.');
+      setClearResult(tr("Something went wrong."));
     }
     setClearing(false);
   };
@@ -90,7 +98,7 @@ export default function Header() {
             className="flex items-center gap-2 text-sm text-foreground hover:bg-gray-50 px-3 py-1.5 rounded-lg transition-colors"
           >
             <span className="font-medium truncate max-w-[200px]">
-              {activeProject ? activeProject.title : 'All Projects'}
+              {activeProject ? activeProject.title : tr("All Projects")}
             </span>
             <svg className={`w-3.5 h-3.5 text-muted transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
@@ -103,9 +111,7 @@ export default function Header() {
                 <button
                   onClick={() => { setActiveProjectId(null); setDropdownOpen(false); }}
                   className={`w-full text-left px-4 py-2 text-sm hover:bg-gray-50 transition-colors ${!activeProjectId ? 'text-accent font-medium' : 'text-foreground'}`}
-                >
-                  All Projects
-                </button>
+                >{tr("All Projects")}</button>
                 {projects.map(p => (
                   <button
                     key={p.id}
@@ -121,14 +127,12 @@ export default function Header() {
                 <button
                   onClick={() => { setDropdownOpen(false); setShowNewModal(true); }}
                   className="w-full text-left px-4 py-2 text-sm text-accent hover:bg-gray-50 transition-colors font-medium"
-                >
-                  + New Project
-                </button>
+                >{tr("+ New Project")}</button>
                 <button
                   onClick={() => { setDropdownOpen(false); setClearConfirmText(''); setClearResult(null); setShowClearModal(true); }}
                   className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 transition-colors font-medium border-t border-border"
                 >
-                  🗑 {activeProjectId ? `Clear "${activeProject?.title}"…` : 'Clear all unassigned items…'}
+                  🗑 {activeProjectId ? tr("Clear \"{title}\"…", { title: activeProject?.title }) : tr("Clear all unassigned items…")}
                 </button>
               </div>
             </div>
@@ -136,6 +140,12 @@ export default function Header() {
         </div>
 
         <div className="flex items-center gap-4">
+          <button
+            onClick={switchLanguage}
+            className="text-xs text-muted hover:text-foreground transition-colors"
+            title={locale === 'ru' ? 'Switch to English' : 'Перейти на русский'}
+            lang={locale === 'ru' ? 'en' : 'ru'}
+          >{locale === 'ru' ? 'English' : 'Русский'}</button>
           {status === 'loading' ? (
             <div className="w-8 h-8 rounded-full bg-gray-200 animate-pulse" />
           ) : session?.user ? (
@@ -155,17 +165,13 @@ export default function Header() {
               <button
                 onClick={() => signOut()}
                 className="text-xs text-muted hover:text-foreground transition-colors"
-              >
-                Sign out
-              </button>
+              >{tr("Sign out")}</button>
             </div>
           ) : (
             <Link
               href="/auth/signin"
               className="px-4 py-1.5 bg-accent text-white text-sm rounded-lg hover:bg-accent-hover transition-colors"
-            >
-              Sign in
-            </Link>
+            >{tr("Sign in")}</Link>
           )}
         </div>
       </header>
@@ -174,28 +180,26 @@ export default function Header() {
       {showNewModal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50" onClick={() => setShowNewModal(false)}>
           <div className="bg-white rounded-xl border border-border shadow-xl w-full max-w-sm p-6" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-semibold text-foreground mb-4">New Project</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-4">{tr("New Project")}</h2>
             <input
               autoFocus
               value={newTitle}
               onChange={e => setNewTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
-              placeholder="Project title..."
+              placeholder={tr("Project title...")}
               className="w-full border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors bg-white"
             />
             <div className="flex gap-2 mt-4 justify-end">
               <button
                 onClick={() => { setShowNewModal(false); setNewTitle(''); }}
                 className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border"
-              >
-                Cancel
-              </button>
+              >{tr("Cancel")}</button>
               <button
                 onClick={handleCreate}
                 disabled={creating || !newTitle.trim()}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-accent hover:bg-accent-hover disabled:opacity-40 transition-colors"
               >
-                {creating ? 'Creating...' : 'Create'}
+                {creating ? tr("Creating...") : tr("Create")}
               </button>
             </div>
           </div>
@@ -216,29 +220,27 @@ export default function Header() {
               <span className="text-2xl mt-0.5">⚠️</span>
               <div>
                 <h2 className="text-base font-semibold text-gray-900">
-                  {activeProjectId ? `Clear all items in "${activeProject?.title}"?` : 'Clear all unassigned items?'}
+                  {activeProjectId ? tr("Clear all items in \"{title}\"?", { title: activeProject?.title }) : tr("Clear all unassigned items?")}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
                   {activeProjectId
-                    ? <>This permanently deletes <strong>all cloud items</strong> in this project — characters, scenes, world, arc, ideas, references. The project itself will remain.</>
-                    : <>This permanently deletes <strong>all items not assigned to a project</strong> — everything currently visible under "All Projects" that has no project tag.</>
+                    ? <>{tr("This permanently deletes")}{" "}<strong>{tr("all cloud items")}</strong>{" "}{tr("in this project — characters, scenes, world, arc, ideas, references. The project itself will remain.")}</>
+                    : <>{tr("This permanently deletes")}{" "}<strong>{tr("all items not assigned to a project")}</strong>{" "}{tr("— everything currently visible under \"All Projects\" that has no project tag.")}</>
                   }
                 </p>
-                <p className="text-sm text-red-500 font-medium mt-2">This cannot be undone.</p>
+                <p className="text-sm text-red-500 font-medium mt-2">{tr("This cannot be undone.")}</p>
               </div>
             </div>
 
             {/* Type "clear" input */}
             <div className="mb-4">
-              <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                Type <span className="font-mono bg-gray-100 px-1 rounded">clear</span> to confirm
-              </label>
+              <label className="block text-xs font-medium text-gray-600 mb-1.5">{tr("Type the word")}{" "}<span className="font-mono bg-gray-100 px-1 rounded">{confirmWord}</span>{" "}{tr("to confirm")}</label>
               <input
                 autoFocus
                 value={clearConfirmText}
                 onChange={e => setClearConfirmText(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && clearConfirmText === 'clear' && handleClearProject()}
-                placeholder="clear"
+                onKeyDown={e => e.key === 'Enter' && clearConfirmText.trim().toLowerCase() === confirmWord && handleClearProject()}
+                placeholder={tr("clear")}
                 disabled={clearing}
                 className="w-full border border-border rounded-lg px-3 py-2 text-sm font-mono text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-red-400/30 focus:border-red-400 transition-colors bg-white disabled:opacity-50"
               />
@@ -256,15 +258,13 @@ export default function Header() {
                 onClick={() => { setShowClearModal(false); setClearConfirmText(''); setClearResult(null); }}
                 disabled={clearing}
                 className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border disabled:opacity-40"
-              >
-                Cancel
-              </button>
+              >{tr("Cancel")}</button>
               <button
                 onClick={handleClearProject}
-                disabled={clearing || clearConfirmText !== 'clear'}
+                disabled={clearing || clearConfirmText.trim().toLowerCase() !== confirmWord}
                 className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-red-500 hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                {clearing ? 'Clearing…' : 'Clear all items'}
+                {clearing ? tr("Clearing…") : tr("Clear all items")}
               </button>
             </div>
           </div>

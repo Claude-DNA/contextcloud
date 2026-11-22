@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ItemIllustration, { type ItemImage } from '@/components/ItemIllustration';
 import Sidebar from '@/components/Sidebar';
@@ -187,13 +188,13 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
         autoFocus
         value={title}
         onChange={e => setTitle(e.target.value)}
-        placeholder={config.titlePlaceholder}
+        placeholder={tr(config.titlePlaceholder)}
         className={inputCls}
       />
       <textarea
         value={content}
         onChange={e => setContent(e.target.value)}
-        placeholder={config.contentPlaceholder}
+        placeholder={tr(config.contentPlaceholder)}
         rows={4}
         className={textareaCls}
       />
@@ -201,7 +202,7 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
         <input
           value={tagsRaw}
           onChange={e => setTagsRaw(e.target.value)}
-          placeholder={`${config.tagLabel}: ${config.tagPlaceholder}`}
+          placeholder={`${tr(config.tagLabel)}: ${tr(config.tagPlaceholder)}`}
           className={inputCls}
         />
         <button
@@ -209,28 +210,28 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
           onClick={handleGenerateTags}
           disabled={generatingTags || (!title.trim() && !content.trim())}
           className="shrink-0 px-3 py-2 rounded-lg text-sm font-medium border border-border text-muted hover:text-foreground hover:bg-gray-50 disabled:opacity-40 transition-colors whitespace-nowrap"
-          title="Generate tags from title + description"
+          title={tr("Generate tags from title + description")}
         >
-          {generatingTags ? '…' : '✦ Generate'}
+          {generatingTags ? '…' : tr("✦ Generate")}
         </button>
       </div>
       {(config.fields || []).map(f => (
         <div key={f.key}>
-          <label className="text-xs text-muted mb-1 block">{f.label}</label>
+          <label className="text-xs text-muted mb-1 block">{tr(f.label)}</label>
           {f.options ? (
             <select
               value={meta[f.key] || ''}
               onChange={e => setMeta(m => ({ ...m, [f.key]: e.target.value }))}
               className={inputCls}
             >
-              <option value="">— select —</option>
+              <option value="">{tr("— select —")}</option>
               {f.options.map(o => <option key={o} value={o}>{o}</option>)}
             </select>
           ) : (
             <input
               value={meta[f.key] || ''}
               onChange={e => setMeta(m => ({ ...m, [f.key]: e.target.value }))}
-              placeholder={f.placeholder}
+              placeholder={tr(f.placeholder)}
               className={inputCls}
             />
           )}
@@ -243,15 +244,13 @@ function ItemForm({ config, initial, onSave, onCancel, saving }: ItemFormProps) 
           className="px-4 py-2 rounded-lg text-sm font-medium text-white disabled:opacity-40 transition-colors"
           style={{ background: config.colorHex }}
         >
-          {saving ? 'Saving…' : 'Save'}
+          {saving ? tr("Saving…") : tr("Save")}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="px-4 py-2 rounded-lg text-sm text-muted hover:text-foreground hover:bg-gray-50 transition-colors border border-border"
-        >
-          Cancel
-        </button>
+        >{tr("Cancel")}</button>
       </div>
     </form>
   );
@@ -277,7 +276,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   const withTransformations = cloudType === 'characters';
 
   const handleClearAll = async () => {
-    if (!confirm(`Delete ALL ${config.label} items? This cannot be undone.`)) return;
+    if (!confirm(tr("Delete ALL {label} items? This cannot be undone.", { label: tr(config.label) }))) return;
     await fetch(`/api/v1/cloud-items?type=${cloudType}`, { method: 'DELETE' });
     await fetchItems();
   };
@@ -293,7 +292,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
       const res = await fetch(`/api/v1/cloud-items?${params}`);
       const data = await res.json();
       if (!res.ok) {
-        setFetchError(data.error || `Failed to load items (${res.status})`);
+        setFetchError(data.error || tr("Failed to load items ({status})", { status: res.status }));
         setLoading(false);
         return;
       }
@@ -318,7 +317,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
         setTransCounts(counts);
       }
     } catch (err) {
-      setFetchError(err instanceof Error ? err.message : 'Failed to load items — check connection');
+      setFetchError(err instanceof Error ? err.message : tr("Failed to load items — check connection"));
     }
     setLoading(false);
   }, [cloudType, activeProjectId, projectReady]);
@@ -339,8 +338,8 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
     try {
       const res = await fetch(`/api/v1/projects/${activeProjectId}/associations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.message || d.error || 'Could not suggest associations');
-      setAssocMessage(d.saved ? `Added ${d.saved} associations. Delete any that don't ring true.` : 'No new associations found.');
+      if (!res.ok) throw new Error(d.message || d.error || tr('Could not suggest associations'));
+      setAssocMessage(d.saved ? tr("Added {saved} associations. Delete any that don't ring true.", { saved: d.saved }) : tr("No new associations found."));
       await fetchItems();
     } catch (e) {
       setAssocMessage(e instanceof Error ? e.message : String(e));
@@ -378,7 +377,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this item?')) return;
+    if (!confirm(tr("Delete this item?"))) return;
     await fetch(`/api/v1/cloud-items/${id}`, { method: 'DELETE' });
     setItems(prev => prev.filter(it => it.id !== id));
   };
@@ -429,7 +428,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) {
-      setExportError(err instanceof Error ? err.message : 'Export failed');
+      setExportError(err instanceof Error ? err.message : tr("Export failed"));
     }
     setExportingRunway(false);
   };
@@ -453,17 +452,17 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
             {/* Title bar */}
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-xl font-semibold text-foreground">
-                {config.emoji} {config.label}
+                {config.emoji} {tr(config.label)}
               </h1>
               <div className="flex gap-2">
                 {cloudType === 'references' && activeProjectId && (
                   <button
                     onClick={suggestAssociations}
                     disabled={associating}
-                    title="References the work sets off in readers' minds: films, series, myths, conspiracy lore, games, history"
+                    title={tr("References the work sets off in readers' minds: films, series, myths, conspiracy lore, games, history")}
                     className="px-3 py-2 rounded-lg text-xs font-medium border border-border text-foreground hover:bg-gray-50 disabled:opacity-50 transition-colors"
                   >
-                    {associating ? 'Thinking…' : 'Suggest associations'}
+                    {associating ? tr("Thinking…") : tr("Suggest associations")}
                   </button>
                 )}
                 {items.length > 0 && (
@@ -472,30 +471,25 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                     disabled={exportingRunway}
                     className="px-3 py-2 rounded-lg text-xs font-medium border border-border text-muted hover:text-foreground hover:bg-gray-50 disabled:opacity-50 transition-colors"
                   >
-                    {exportingRunway ? 'Generating…' : '🎬 Export for Runway'}
+                    {exportingRunway ? tr("Generating…") : tr("🎬 Export for Runway")}
                   </button>
                 )}
                 {items.length > 0 && (
                   <button
                     onClick={handleClearAll}
                     className="px-4 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
-                  >
-                    Clear All
-                  </button>
+                  >{tr("Clear All")}</button>
                 )}
                 <button
                   onClick={handleUpload}
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-                >
-                  Upload
-                </button>
+                >{tr("Upload")}</button>
                 <button
                   onClick={() => { setAdding(true); setEditingId(null); }}
                   disabled={adding}
                   className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-50"
                   style={{ background: config.colorHex }}
-                >
-                  + Add {config.label.replace(' Cloud', '')}
+                >{tr("+ Add {thing}", { thing: tr(config.label.replace(' Cloud', '')) })}
                 </button>
               </div>
             </div>
@@ -507,20 +501,18 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                placeholder="Search…"
+                placeholder={tr("Search…")}
                 className={inputCls}
               />
             </div>
 
             {fetchError && (
               <div className="mb-4 px-3 py-2 rounded-lg bg-amber-50 border border-amber-200 text-amber-700 text-sm flex items-center justify-between gap-3">
-                <span>⚠️ {fetchError}</span>
+                <span>⚠️ {tr(fetchError)}</span>
                 <button
                   onClick={() => fetchItems()}
                   className="shrink-0 text-xs underline hover:no-underline"
-                >
-                  Retry
-                </button>
+                >{tr("Retry")}</button>
               </div>
             )}
 
@@ -533,7 +525,7 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
             {/* Add form */}
             {adding && (
               <div className="mb-4 rounded-xl border border-border bg-card-bg p-4">
-                <p className="text-xs text-muted uppercase tracking-wider mb-3">New Item</p>
+                <p className="text-xs text-muted uppercase tracking-wider mb-3">{tr("New Item")}</p>
                 <ItemForm
                   config={config}
                   onSave={handleCreate}
@@ -554,15 +546,14 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
               <div className="text-center py-16">
                 <div className="text-4xl mb-3">{config.emoji}</div>
                 <p className="text-muted text-sm mb-4">
-                  {search ? 'No items match your search.' : `No ${config.label.toLowerCase()} yet.`}
+                  {search ? tr("No items match your search.") : tr("No {label} yet.", { label: tr(config.label).toLowerCase() })}
                 </p>
                 {!search && (
                   <button
                     onClick={() => setAdding(true)}
                     className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity"
                     style={{ background: config.colorHex }}
-                  >
-                    + Add {config.label.replace(' Cloud', '')}
+                  >{tr("+ Add {thing}", { thing: tr(config.label.replace(' Cloud', '')) })}
                   </button>
                 )}
               </div>
@@ -603,15 +594,15 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                             <h3 className="font-semibold text-foreground">
                               {item.title}
                               {item.metadata?.importance === 'major' && (
-                                <span className="ml-2 align-middle rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted">Major</span>
+                                <span className="ml-2 align-middle rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted">{tr("Major")}</span>
                               )}
                               {item.metadata?.whole_work && (
-                                <span className="ml-2 align-middle rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted" title="Added from the work as a whole, so it has no single quote">Whole work</span>
+                                <span className="ml-2 align-middle rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted" title={tr("Added from the work as a whole, so it has no single quote")}>{tr("Whole work")}</span>
                               )}
                             </h3>
                             {(config.fields || []).map(f => item.metadata?.[f.key] && (
                               <div key={f.key} className="mt-0.5">
-                                <span className="text-xs text-muted">{f.label}: </span>
+                                <span className="text-xs text-muted">{tr(f.label)}: </span>
                                 {f.key === 'url' ? (
                                   <a href={item.metadata[f.key]} target="_blank" rel="noopener noreferrer"
                                     className="text-xs text-accent hover:underline">{item.metadata[f.key]}</a>
@@ -642,28 +633,26 @@ export default function CloudItemsPage({ cloudType }: { cloudType: CloudType }) 
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setTransModalItem(item); }}
                                   className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                                  title="Transformations"
+                                  title={tr("Transformations")}
                                 >
                                   T:{transCounts[item.id] ?? 0}
                                 </button>
                                 <button
                                   onClick={(e) => { e.stopPropagation(); setFsModalItem(item); }}
                                   className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
-                                  title="Final State"
-                                >
-                                  FS
-                                </button>
+                                  title={tr("Final State")}
+                                >{tr("FS")}</button>
                               </>
                             )}
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                               <button
                                 onClick={() => { setEditingId(item.id); setAdding(false); }}
                                 className="px-2 py-1 text-xs text-muted hover:text-foreground hover:bg-gray-100 rounded transition-colors"
-                              >Edit</button>
+                              >{tr("Edit")}</button>
                               <button
                                 onClick={() => handleDelete(item.id)}
                                 className="px-2 py-1 text-xs text-red-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              >Delete</button>
+                              >{tr("Delete")}</button>
                             </div>
                           </div>
                         </div>

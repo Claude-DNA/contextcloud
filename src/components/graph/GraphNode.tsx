@@ -1,5 +1,6 @@
 'use client';
 
+import { tr, trFormula } from '@/i18n/client';
 import React, { memo, useCallback, useContext, Fragment, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
@@ -74,7 +75,7 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
           <button
             onClick={(e) => { e.stopPropagation(); onDelete(id); }}
             className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-            title="Delete node"
+            title={tr("Delete node")}
           >{'\u00D7'}</button>
         )}
         <div
@@ -87,7 +88,7 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
         >
           <Handle type="source" position={srcPos} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-white" />
           <IconBadge color={color} type={type} size={26} />
-          <span className="text-[9px] text-gray-600 font-medium truncate">{NODE_TYPE_MAP[type]?.label || type}</span>
+          <span className="text-[9px] text-gray-600 font-medium truncate">{tr(NODE_TYPE_MAP[type]?.label) || type}</span>
         </div>
       </div>
     );
@@ -131,7 +132,7 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
             onClick={(e) => { e.stopPropagation(); onZoomToParent(parentNodeId); }}
             className="nodrag nopan text-[9px] text-gray-400 hover:text-gray-700 leading-none"
             style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
-            title="Zoom to parent"
+            title={tr("Zoom to parent")}
           >↗</button>
         )}
         {onDelete && (
@@ -139,7 +140,7 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
             onClick={(e) => { e.stopPropagation(); onDelete(id); }}
             className="nodrag nopan opacity-0 group-hover:opacity-100 transition-opacity text-red-400 hover:text-red-600 leading-none text-[11px] font-bold"
             style={{ padding: 0, background: 'none', border: 'none', cursor: 'pointer' }}
-            title="Delete"
+            title={tr("Delete")}
           >×</button>
         )}
       </div>
@@ -155,7 +156,7 @@ function ProxyNode({ id, data, selected }: { id: string; data: GraphNodeData; se
           onClick={(e) => e.stopPropagation()}
           className="nodrag nopan text-[9px] bg-gray-100 text-gray-700 border border-gray-300 rounded px-1 py-0.5 w-full"
         >
-          <option value="">Link to node...</option>
+          <option value="">{tr("Link to node...")}</option>
           {(bigNodes || []).map(n => (
             <option key={n.id} value={n.id}>{n.label || n.id}</option>
           ))}
@@ -181,7 +182,7 @@ function StateNode({ id, data }: { id: string; data: GraphNodeData }) {
     <div className="flex gap-1 flex-wrap justify-center px-1">
       {Object.entries(STATE_COLORS).map(([key, { hex }]) => (
         <button key={key} onClick={() => handleColorPick(hex)}
-          title={STATE_COLORS[key as keyof typeof STATE_COLORS].label}
+          title={tr(STATE_COLORS[key as keyof typeof STATE_COLORS].label)}
           className="transition-transform hover:scale-125"
           style={{ width: hasContent ? 10 : 12, height: hasContent ? 10 : 12, borderRadius: '50%',
             background: hex, border: stateColor === hex ? '2px solid #374151' : '1px solid #d1d5db',
@@ -196,7 +197,7 @@ function StateNode({ id, data }: { id: string; data: GraphNodeData }) {
       {onDelete && (
         <button onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-          title="Delete node">{'\u00D7'}</button>
+          title={tr("Delete node")}>{'\u00D7'}</button>
       )}
       {hasContent ? (
         /* Rich state card — used in auto-built graphs */
@@ -208,7 +209,7 @@ function StateNode({ id, data }: { id: string; data: GraphNodeData }) {
           <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 border-b border-gray-100"
             style={{ background: stateColor ? `${stateColor}18` : '#f9fafb' }}>
             <IconBadge color={stateColor || '#888888'} type="state" />
-            <span className="text-[11px] font-semibold text-gray-700 truncate">{data.title || 'State'}</span>
+            <span className="text-[11px] font-semibold text-gray-700 truncate">{data.title || tr("State")}</span>
           </div>
           {data.content && (
             <div className="px-2.5 py-2">
@@ -226,7 +227,7 @@ function StateNode({ id, data }: { id: string; data: GraphNodeData }) {
           <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
           <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2.5 !h-2.5 !border-2 !border-gray-300" />
           <IconBadge color="#888888" type="state" />
-          <span className="text-[11px] text-gray-600 font-medium">State</span>
+          <span className="text-[11px] text-gray-600 font-medium">{tr("State")}</span>
           {colorDots}
         </div>
       )}
@@ -242,7 +243,7 @@ function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData
   const { color, onDelete, type } = data;
   const externalTitle = (data.externalTitle || data.title) as string;
   const config = NODE_TYPE_MAP[type];
-  const refLabel = config?.label || 'Reference';
+  const refLabel = tr(config?.label || "Reference");
 
   return (
     <div
@@ -268,7 +269,7 @@ function ReferenceNode({ id, data, selected }: { id: string; data: GraphNodeData
 
       <IconBadge color={color} type={type} />
       <div className="flex flex-col overflow-hidden min-w-0">
-        <span className="text-xs text-gray-800 font-medium truncate">{externalTitle || 'Untitled'}</span>
+        <span className="text-xs text-gray-800 font-medium truncate">{externalTitle || tr("Untitled")}</span>
         <span className="text-[9px] text-gray-400 truncate">{refLabel}</span>
       </div>
 
@@ -286,7 +287,7 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
   const chapterId = data.chapterId as string | undefined;
   const size = HUB_NODE_SIZES[type] || { width: 190, minHeight: 72 };
   const config = NODE_TYPE_MAP[type];
-  const nodeLabel = config?.label || type;
+  const nodeLabel = tr(config?.label) || type;
   const handles = HUB_HANDLES[type] || [];
 
   const posMap = { top: Position.Top, bottom: Position.Bottom, left: Position.Left, right: Position.Right } as const;
@@ -324,7 +325,7 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
         return (
           <Fragment key={h.id}>
             <Handle type={h.type} position={posMap[h.position]} id={h.id} style={handleStyle} />
-            <span className="hub-handle-label" style={labelBase}>{h.label}</span>
+            <span className="hub-handle-label" style={labelBase}>{tr(h.label)}</span>
           </Fragment>
         );
       })}
@@ -348,13 +349,13 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
       {onDelete && (
         <button onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold"
-          title="Delete node">×</button>
+          title={tr("Delete node")}>×</button>
       )}
 
       {/* Content */}
       <IconBadge color={color} type={type} size={26} />
       <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-        <span className="text-[11px] text-gray-800 font-semibold leading-tight line-clamp-2">{title || 'Untitled'}</span>
+        <span className="text-[11px] text-gray-800 font-semibold leading-tight line-clamp-2">{title || tr("Untitled")}</span>
         <span className="text-[9px] text-gray-400 truncate mt-0.5">{nodeLabel}</span>
         {chapterId && (
           <Link
@@ -362,9 +363,7 @@ function HubNode({ id, data, selected }: { id: string; data: GraphNodeData; sele
             onClick={e => e.stopPropagation()}
             onMouseDown={e => e.stopPropagation()}
             className="nodrag nopan text-[9px] text-indigo-500 hover:text-indigo-700 font-medium mt-0.5 truncate"
-          >
-            Open plots →
-          </Link>
+          >{tr("Open plots →")}</Link>
         )}
       </div>
     </div>
@@ -378,7 +377,7 @@ function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeDa
   // A character's entering or leaving state shows its formula and takes its colour.
   const formula = (type === 'stateIn' || type === 'stateOut') && data.stateFormula ? (data.stateFormula as StateFormula) : null;
   const tint = formula ? (data.stateColor as string) || deriveFormulaColor(formula) : null;
-  const nodeLabel = formula ? formatFormula(formula) : config?.label || type;
+  const nodeLabel = formula ? trFormula(formatFormula(formula)) : tr(config?.label) || type;
   const handles = TYPED_HANDLES[type] || [];
   const outputHandles = OUTPUT_HANDLES[type] || [];
 
@@ -401,7 +400,7 @@ function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeDa
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-          title="Delete node"
+          title={tr("Delete node")}
         >{'\u00D7'}</button>
       )}
 
@@ -431,14 +430,14 @@ function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeDa
               whiteSpace: 'nowrap',
             }}
           >
-            {h.label}
+            {tr(h.label)}
           </span>
         </div>
       ))}
 
       <IconBadge color={color} type={type} />
       <div className="flex flex-col overflow-hidden min-w-0">
-        <span className="text-xs text-gray-800 font-medium truncate">{title || 'Untitled'}</span>
+        <span className="text-xs text-gray-800 font-medium truncate">{title || tr("Untitled")}</span>
         <span className="text-[9px] text-gray-400 truncate">{nodeLabel}</span>
       </div>
 
@@ -468,7 +467,7 @@ function TypedHandleNode({ id, data, selected }: { id: string; data: GraphNodeDa
               whiteSpace: 'nowrap',
             }}
           >
-            {h.label}
+            {tr(h.label)}
           </span>
         </div>
       )) : (
@@ -509,7 +508,7 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-          title="Delete node"
+          title={tr("Delete node")}
         >{'\u00D7'}</button>
       )}
       {!handleSide && <Handle type="target" position={Position.Left} className="!bg-indigo-400 !w-3 !h-3 !border-2 !border-indigo-200" />}
@@ -531,7 +530,7 @@ function AiNode({ id, data, selected }: { id: string; data: GraphNodeData; selec
       </div>
       <div className="flex flex-col overflow-hidden min-w-0">
         <span className="text-xs text-gray-800 font-semibold truncate">{shortLabel}</span>
-        <span className="text-[9px] text-indigo-400 truncate">AI Agent</span>
+        <span className="text-[9px] text-indigo-400 truncate">{tr("AI Agent")}</span>
       </div>
 
       <Handle
@@ -557,7 +556,7 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
   // A character's entering or leaving state shows its formula and takes its colour.
   const formula = (type === 'stateIn' || type === 'stateOut') && data.stateFormula ? (data.stateFormula as StateFormula) : null;
   const tint = formula ? (data.stateColor as string) || deriveFormulaColor(formula) : null;
-  const nodeLabel = formula ? formatFormula(formula) : config?.label || type;
+  const nodeLabel = formula ? trFormula(formatFormula(formula)) : tr(config?.label) || type;
 
   return (
     <div
@@ -574,20 +573,20 @@ function DefaultGraphNode({ id, data, selected }: { id: string; data: GraphNodeD
         padding: '0 10px',
         gap: 8,
       }}
-      title={formula ? formatFormula(formula) : undefined}
+      title={formula ? trFormula(formatFormula(formula)) : undefined}
     >
       {onDelete && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(id); }}
           className="absolute -top-2 -right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity w-5 h-5 flex items-center justify-center rounded-full bg-red-500/80 hover:bg-red-500 text-white text-[10px] font-bold leading-none"
-          title="Delete node"
+          title={tr("Delete node")}
         >{'\u00D7'}</button>
       )}
       <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-3 !h-3 !border-2 !border-gray-300" />
 
       <IconBadge color={color} type={type} />
       <div className="flex flex-col overflow-hidden min-w-0">
-        <span className="text-xs text-gray-800 font-medium truncate">{title || 'Untitled'}</span>
+        <span className="text-xs text-gray-800 font-medium truncate">{title || tr("Untitled")}</span>
         <span className={`${formula ? 'text-[10px] font-medium text-gray-700' : 'text-[9px] text-gray-400'} truncate`}>{nodeLabel}</span>
       </div>
 
@@ -658,18 +657,18 @@ function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeDat
       >
         <div className="flex items-center gap-1.5">
           <span className="text-sm">💡</span>
-          <span className="text-[11px] font-semibold text-gray-700">Ideas Cloud</span>
+          <span className="text-[11px] font-semibold text-gray-700">{tr("Ideas Cloud")}</span>
         </div>
-        <span className="text-[10px] text-gray-400">{picking ? '▲' : '▼'} {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'pick'}</span>
+        <span className="text-[10px] text-gray-400">{picking ? '▲' : '▼'} {selectedIds.length > 0 ? tr("{length} selected", { length: selectedIds.length }) : 'pick'}</span>
       </div>
 
       {/* Picker (expanded) */}
       {picking && (
         <div className="nodrag nopan border-b border-gray-100 max-h-40 overflow-y-auto" onMouseDown={(e) => e.stopPropagation()}>
           {loading ? (
-            <div className="px-2 py-2 text-[10px] text-gray-400">Loading...</div>
+            <div className="px-2 py-2 text-[10px] text-gray-400">{tr("Loading...")}</div>
           ) : allIdeas.length === 0 ? (
-            <div className="px-2 py-2 text-[10px] text-gray-400">No ideas yet</div>
+            <div className="px-2 py-2 text-[10px] text-gray-400">{tr("No ideas yet")}</div>
           ) : allIdeas.map(idea => (
             <label
               key={idea.id}
@@ -704,7 +703,7 @@ function IdeasProxyNode({ id, data, selected }: { id: string; data: GraphNodeDat
       )}
 
       {shown.length === 0 && !picking && (
-        <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">Click header to select ideas</div>
+        <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">{tr("Click header to select ideas")}</div>
       )}
 
       <Handle
@@ -776,9 +775,9 @@ function CharactersProxyNode({ id, data, selected }: { id: string; data: GraphNo
         <div className="px-3 py-2 rounded-t-xl border-b border-gray-100" style={{ background: `${color}18` }}>
           <div className="flex items-center gap-1.5">
             <span className="text-xs">👤</span>
-            <span className="text-xs font-semibold text-gray-700 truncate">{data.title || 'Character'}</span>
+            <span className="text-xs font-semibold text-gray-700 truncate">{data.title || tr("Character")}</span>
           </div>
-          <span className="text-[10px] text-gray-400 block">in scene</span>
+          <span className="text-[10px] text-gray-400 block">{tr("in scene")}</span>
         </div>
         <div className="px-3 py-2">
           <p className="text-[11px] text-gray-600 leading-snug line-clamp-3">{rawContent}</p>
@@ -815,18 +814,18 @@ function CharactersProxyNode({ id, data, selected }: { id: string; data: GraphNo
       >
         <div className="flex items-center gap-1.5">
           <span className="text-sm">👤</span>
-          <span className="text-[11px] font-semibold text-gray-700">Characters Cloud</span>
+          <span className="text-[11px] font-semibold text-gray-700">{tr("Characters Cloud")}</span>
         </div>
-        <span className="text-[10px] text-gray-400">{picking ? '▲' : '▼'} {selectedIds.length > 0 ? `${selectedIds.length} selected` : 'pick'}</span>
+        <span className="text-[10px] text-gray-400">{picking ? '▲' : '▼'} {selectedIds.length > 0 ? tr("{length} selected", { length: selectedIds.length }) : 'pick'}</span>
       </div>
 
       {/* Picker (expanded) */}
       {picking && (
         <div className="nodrag nopan border-b border-gray-100 max-h-40 overflow-y-auto" onMouseDown={(e) => e.stopPropagation()}>
           {loading ? (
-            <div className="px-2 py-2 text-[10px] text-gray-400">Loading...</div>
+            <div className="px-2 py-2 text-[10px] text-gray-400">{tr("Loading...")}</div>
           ) : allChars.length === 0 ? (
-            <div className="px-2 py-2 text-[10px] text-gray-400">No characters yet</div>
+            <div className="px-2 py-2 text-[10px] text-gray-400">{tr("No characters yet")}</div>
           ) : allChars.map(char => (
             <label
               key={char.id}
@@ -864,7 +863,7 @@ function CharactersProxyNode({ id, data, selected }: { id: string; data: GraphNo
       )}
 
       {shown.length === 0 && !picking && (
-        <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">Click header to select characters</div>
+        <div className="px-2.5 py-2 text-[10px] text-gray-400 italic">{tr("Click header to select characters")}</div>
       )}
 
       <Handle

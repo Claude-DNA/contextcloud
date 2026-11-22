@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 
 export interface ReferenceNodeData {
@@ -20,9 +21,9 @@ export default function ReferenceNode({ data, selected }: NodeProps) {
         <div className="w-5 h-5 rounded bg-gray-500 text-white flex items-center justify-center text-[9px] font-bold">
           R
         </div>
-        <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">Reference</div>
+        <div className="text-[10px] font-semibold text-gray-600 uppercase tracking-wide">{tr("Reference")}</div>
       </div>
-      <div className="font-medium text-sm truncate">{d.label || 'Untitled Reference'}</div>
+      <div className="font-medium text-sm truncate">{d.label || tr("Untitled Reference")}</div>
       {d.url && (
         <div className="text-xs text-blue-500 mt-1 truncate">{d.url}</div>
       )}

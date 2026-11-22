@@ -5,6 +5,7 @@ import { ensureSchema } from '@/lib/migrations';
 import { STATE_VOCABULARY, parseProposedFormula, formatFormula, type StateFormula } from '@/lib/state-formula';
 import { getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { generateJson } from '@/lib/ai';
+import { getTr } from '@/i18n/server';
 import { toFormula, upsertArc, type ArcEntry } from '@/lib/state-arc';
 
 /**
@@ -183,6 +184,7 @@ Return a JSON object:
 }
 
 export async function POST(req: NextRequest) {
+  const t = await getTr();
   const started = Date.now();
   const userId = await getAuthUserId(req);
   if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
@@ -312,7 +314,7 @@ export async function POST(req: NextRequest) {
         // First appearance: the character's card, then the state they bring into the story.
         const card = `proxy_${c.id}_lane`, sin = `statein_${c.id}_${scene.id}`;
         node(card, 'charactersProxy', 0, 0, item.title, brief(item.content, 500));
-        node(sin, 'stateIn', 0, 0, `${item.title} entering`, state.get(c.id) ?? '', formulaNow.get(c.id));
+        node(sin, 'stateIn', 0, 0, t('{name} entering', { name: item.title }), state.get(c.id) ?? '', formulaNow.get(c.id));
         gap(i).above.push({ h: 150, items: [{ id: card, dx: SLOT_L }, { id: sin, dx: SLOT_R }] });
         edge(card, sin, EDGE.charChain);
         latest.set(c.id, sin);
@@ -324,7 +326,7 @@ export async function POST(req: NextRequest) {
       const changed = !!pin || (!!c.state_out && (delta !== 'unchanged' || (!!formula && formatFormula(formula) !== before)));
       if (changed) {
         const sout = `stateout_${c.id}_${scene.id}`;
-        node(sout, 'stateOut', 0, 0, `${item.title} after ${scene.title}`, `${c.state_out || state.get(c.id)}\nDelta: ${delta}`, formula ?? formulaNow.get(c.id));
+        node(sout, 'stateOut', 0, 0, t('{name} after {scene}', { name: item.title, scene: scene.title }), `${c.state_out || state.get(c.id)}\n${t('Delta: {delta}', { delta: t(delta) })}`, formula ?? formulaNow.get(c.id));
         gap(i + 1).above.push({ h: 80, items: [{ id: sout, dx: MID }] });
         if (!flash) latest.set(c.id, sout);
       }
@@ -347,7 +349,7 @@ export async function POST(req: NextRequest) {
     // ── The scene itself ──
     const label = scene.metadata?.when === 'flashback' ? 'Flashback: ' : scene.metadata?.when === 'flash_forward' ? 'Flash-forward: ' : '';
     node(sceneNodeId, 'scene', sx, 0, `${label}${scene.title}`,
-      `${scene.metadata?.act ? `${scene.metadata.act}\n\n` : ''}${scene.content}${acts.length ? `\n\nIn this scene:\n${acts.map((a) => `- ${a}`).join('\n')}` : ''}${r.consequence ? `\n\nConsequence: ${r.consequence}` : ''}`);
+      `${scene.metadata?.act ? `${scene.metadata.act}\n\n` : ''}${scene.content}${acts.length ? `\n\n${t('In this scene:')}\n${acts.map((a) => `- ${a}`).join('\n')}` : ''}${r.consequence ? `\n\n${t('Consequence: {text}', { text: r.consequence })}` : ''}`);
     if (i > 0) edge(`scene_${scenes[i - 1].id}`, sceneNodeId, EDGE.sceneChain, { sourceHandle: 'output', targetHandle: 'prev_scene' });
 
     // ── Places and rules ──
@@ -364,7 +366,7 @@ export async function POST(req: NextRequest) {
         edge(latest.get(s.id)!, sceneNodeId, EDGE.place, { targetHandle: 'world' });
         if (delta !== 'unchanged' && s.state_out) {
           const out = `${kind}out_${s.id}_${scene.id}`;
-          node(out, `${kind}Out`, 0, 0, `${item.title} after ${scene.title}`, `${s.state_out}\nDelta: ${delta}`);
+          node(out, `${kind}Out`, 0, 0, t('{name} after {scene}', { name: item.title, scene: scene.title }), `${s.state_out}\n${t('Delta: {delta}', { delta: t(String(delta)) })}`);
           gap(i + 1).outs.push(out);
           if (!flash) latest.set(s.id, out);
           carry(s.id, s.state_out);

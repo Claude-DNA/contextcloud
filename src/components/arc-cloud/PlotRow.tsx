@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React from 'react';
 
 interface Plot {
@@ -38,8 +39,7 @@ export default function PlotRow({ plot, isLast = true, onClick, onAltClick }: Pl
             ? 'bg-violet-50 text-violet-700 hover:bg-violet-100'
             : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
         }`}
-      >
-        Alt: {altCount}
+      >{tr("Alt:")}{" "}{altCount}
       </button>
     </div>
   );

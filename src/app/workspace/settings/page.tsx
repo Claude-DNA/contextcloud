@@ -1,5 +1,6 @@
 'use client';
 
+import { tr, pageLocale } from '@/i18n/client';
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -66,8 +67,8 @@ export default function SettingsPage() {
   }
 
   function formatDate(iso: string | null) {
-    if (!iso) return 'Never';
-    return new Date(iso).toLocaleDateString('en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
+    if (!iso) return tr('Never');
+    return new Date(iso).toLocaleDateString(pageLocale() === 'ru' ? 'ru-RU' : 'en-CA', { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
   return (
@@ -77,8 +78,8 @@ export default function SettingsPage() {
         <Header />
     <div className="w-full max-w-xl mx-auto py-10 px-4 space-y-8">
       <div>
-        <h1 className="text-2xl font-semibold text-foreground mb-1">Settings</h1>
-        <p className="text-sm text-muted">Configure your workspace preferences.</p>
+        <h1 className="text-2xl font-semibold text-foreground mb-1">{tr("Settings")}</h1>
+        <p className="text-sm text-muted">{tr("Configure your workspace preferences.")}</p>
       </div>
 
       <AiSettings />
@@ -88,63 +89,56 @@ export default function SettingsPage() {
       {/* ── API Access Keys ────────────────────────────────────────────────── */}
       <div className="border border-border rounded-xl p-6 bg-card-bg space-y-5">
         <div>
-          <h2 className="text-base font-semibold text-foreground">API Access Keys</h2>
-          <p className="text-sm text-muted mt-1">
-            Use these keys to access the Context Cloud API from scripts, agents, or integrations.
-            Pass as <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">Authorization: Bearer &lt;key&gt;</code> header.
-            Keys are shown once — store them securely.
-          </p>
+          <h2 className="text-base font-semibold text-foreground">{tr("API Access Keys")}</h2>
+          <p className="text-sm text-muted mt-1">{tr("Use these keys to access the Context Cloud API from scripts, agents, or integrations. Pass as")}{" "}<code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded">Authorization: Bearer &lt;key&gt;</code>{" "}{tr("header. Keys are shown once — store them securely.")}</p>
         </div>
 
         {/* New key revealed */}
         {newKeyValue && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 space-y-3">
-            <p className="text-sm font-semibold text-emerald-800">✓ New key generated — copy it now. You won't see it again.</p>
+            <p className="text-sm font-semibold text-emerald-800">{tr("✓ New key generated — copy it now. You won't see it again.")}</p>
             <div className="flex items-center gap-2">
               <code className="flex-1 text-xs font-mono bg-white border border-emerald-200 rounded-lg px-3 py-2 text-emerald-900 break-all select-all">
                 {newKeyValue}
               </code>
               <button onClick={() => copyKey(newKeyValue)}
                 className="shrink-0 px-3 py-2 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 transition-colors">
-                {newKeyCopied ? '✓ Copied' : 'Copy'}
+                {newKeyCopied ? tr("✓ Copied") : tr("Copy")}
               </button>
             </div>
-            <button onClick={() => setNewKeyValue(null)} className="text-xs text-emerald-700 hover:text-emerald-900 transition-colors">
-              I've saved it — dismiss
-            </button>
+            <button onClick={() => setNewKeyValue(null)} className="text-xs text-emerald-700 hover:text-emerald-900 transition-colors">{tr("I've saved it — dismiss")}</button>
           </div>
         )}
 
         {/* Generate new key */}
         <div className="flex flex-wrap gap-2">
           <input
-            type="text" placeholder="Key label (e.g. Navigator, My Script…)"
+            type="text" placeholder={tr("Key label (e.g. Navigator, My Script…)")}
             value={newKeyLabel} onChange={e => setNewKeyLabel(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && generateApiKey()}
             className="min-w-0 flex-1 basis-48 border border-border rounded-lg px-3 py-2 text-sm text-foreground bg-transparent focus:outline-none focus:ring-2 focus:ring-accent"
           />
           <button onClick={generateApiKey} disabled={generatingKey}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50 transition-colors whitespace-nowrap">
-            {generatingKey ? 'Generating…' : '+ Generate key'}
+            {generatingKey ? tr("Generating…") : tr("+ Generate key")}
           </button>
         </div>
 
         {/* Key list */}
         {keysLoading ? (
-          <p className="text-sm text-muted">Loading keys…</p>
+          <p className="text-sm text-muted">{tr("Loading keys…")}</p>
         ) : apiKeys.length === 0 ? (
-          <p className="text-sm text-muted italic">No API keys yet.</p>
+          <p className="text-sm text-muted italic">{tr("No API keys yet.")}</p>
         ) : (
           <div className="space-y-2">
             {apiKeys.map(k => (
               <div key={k.id} className="flex items-center gap-3 bg-gray-50 border border-border rounded-lg px-4 py-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground truncate">{k.label}</span>
+                    <span className="text-sm font-medium text-foreground truncate">{tr(k.label)}</span>
                     <code className="text-xs font-mono text-muted bg-gray-100 px-1.5 rounded">{k.key_prefix}</code>
                   </div>
-                  <div className="text-xs text-muted mt-0.5">
-                    Created {formatDate(k.created_at)} · Last used {formatDate(k.last_used_at)}
+                  <div className="text-xs text-muted mt-0.5">{tr("Created")}{" "}{formatDate(k.created_at)}{" "}{tr("· Last used")}{" "}{formatDate(k.last_used_at)}
                   </div>
                 </div>
                 <button
@@ -152,15 +146,14 @@ export default function SettingsPage() {
                   disabled={revokingId === k.id}
                   className="shrink-0 text-xs text-red-500 hover:text-red-700 font-medium transition-colors disabled:opacity-50"
                 >
-                  {revokingId === k.id ? 'Revoking…' : 'Revoke'}
+                  {revokingId === k.id ? tr("Revoking…") : tr("Revoke")}
                 </button>
               </div>
             ))}
           </div>
         )}
 
-        <p className="text-xs text-muted border-t border-border pt-3">
-          Maximum 10 active keys. Full API reference: <a href="/docs" className="text-accent hover:underline">/docs</a>
+        <p className="text-xs text-muted border-t border-border pt-3">{tr("Maximum 10 active keys. Full API reference:")}{" "}<a href="/docs" className="text-accent hover:underline">{tr("/docs")}</a>
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 
 export interface FlowNodeData {
@@ -17,14 +18,12 @@ export default function FlowNode({ data, selected }: NodeProps) {
       }`}
     >
       <div className="flex items-center gap-2 mb-1">
-        <div className="w-6 h-6 rounded bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">
-          FL
-        </div>
-        <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Flow</div>
+        <div className="w-6 h-6 rounded bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">{tr("FL")}</div>
+        <div className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">{tr("Flow")}</div>
       </div>
-      <div className="font-medium text-sm truncate">{d.label || 'Untitled Flow'}</div>
+      <div className="font-medium text-sm truncate">{d.label || tr("Untitled Flow")}</div>
       {d.description && (
-        <div className="text-xs text-gray-500 mt-1 line-clamp-2">{d.description}</div>
+        <div className="text-xs text-gray-500 mt-1 line-clamp-2">{tr(d.description)}</div>
       )}
       <Handle type="source" position={Position.Bottom} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />
       <Handle type="target" position={Position.Top} className="!bg-emerald-500 !w-3 !h-3 !border-2 !border-white" />

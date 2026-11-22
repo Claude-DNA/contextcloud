@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useCallback, useState, useContext, useMemo, useEffect, useRef } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
 import { NODE_TYPE_MAP, TYPED_HANDLES } from './nodeTypes';
@@ -91,7 +92,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
   const d = node?.data as Record<string, unknown> | undefined;
   const title = (d?.title as string) || '';
   const content = (d?.content as string) || '';
-  const label = (d?.label as string) || config?.label || '';
+  const label = tr((d?.label as string) || config?.label || '');
   const color = (d?.color as string) || config?.color || '#6b7280';
   const stateColor = (d?.stateColor as string) || '';
   const stateFormula = (d?.stateFormula as StateFormula) || null;
@@ -130,7 +131,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
         return {
           id: e.id,
           nodeId: e.source,
-          title: (sourceNode?.data?.title as string) || sourceConfig?.label || 'Untitled',
+          title: (sourceNode?.data?.title as string) || sourceConfig?.label || tr("Untitled"),
           type: sourceType,
           color: (sourceNode?.data?.color as string) || sourceConfig?.color || '#6b7280',
           handleId: e.targetHandle || null,
@@ -149,7 +150,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
         return {
           id: e.id,
           nodeId: e.target,
-          title: (targetNode?.data?.title as string) || targetConfig?.label || 'Untitled',
+          title: (targetNode?.data?.title as string) || targetConfig?.label || tr("Untitled"),
           type: targetType,
           color: (targetNode?.data?.color as string) || targetConfig?.color || '#6b7280',
         };
@@ -311,9 +312,9 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
               {/* LEFT COLUMN — INPUTS */}
               <div className="w-[200px] border-r border-gray-200 overflow-y-auto p-4 shrink-0">
-                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Inputs</div>
+                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">{tr("Inputs")}</div>
                 {incomingConnections.length === 0 ? (
-                  <p className="text-xs text-gray-300 italic">No inputs yet</p>
+                  <p className="text-xs text-gray-300 italic">{tr("No inputs yet")}</p>
                 ) : typedHandles ? (
                   // Grouped by handle for typed-handle nodes
                   typedHandles.map(h => {
@@ -321,7 +322,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                     return (
                       <div key={h.id} className="mb-3">
                         <div className="text-[9px] uppercase tracking-wider font-semibold mb-1" style={{ color: h.color }}>
-                          {h.label}
+                          {tr(h.label)}
                         </div>
                         {conns.length === 0 ? (
                           <p className="text-[10px] text-gray-300 italic ml-1">--</p>
@@ -351,13 +352,13 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 <input
                   value={isReference ? (externalTitle || title) : title}
                   onChange={handleTitleChange}
-                  placeholder="Untitled"
+                  placeholder={tr("Untitled")}
                   className="w-full text-lg font-semibold text-gray-900 placeholder-gray-300 bg-transparent focus:outline-none border-b border-transparent focus:border-gray-300 transition-colors pb-1"
                 />
 
                 {/* Type hint */}
                 {!isState && (
-                  <span className="text-[10px] text-gray-400">{CONTENT_HINTS[nodeType] || 'Add content...'}</span>
+                  <span className="text-[10px] text-gray-400">{tr(CONTENT_HINTS[nodeType]) || tr("Add content...")}</span>
                 )}
 
                 {/* Content textarea — regular nodes */}
@@ -365,7 +366,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                   <textarea
                     value={content}
                     onChange={handleContentChange}
-                    placeholder="Start writing..."
+                    placeholder={tr("Start writing...")}
                     className="flex-1 w-full bg-gray-50 text-gray-800 text-sm rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200 leading-relaxed"
                     style={{ minHeight: 200, resize: 'none' }}
                   />
@@ -374,11 +375,11 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {/* Content textarea — state nodes with text content (from auto-build) */}
                 {isState && (
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-gray-400">Emotional state / formula text</span>
+                    <span className="text-[10px] text-gray-400">{tr("Emotional state / formula text")}</span>
                     <textarea
                       value={content}
                       onChange={handleContentChange}
-                      placeholder="Describe the emotional state or formula, e.g. (Wonder + Joy) × Love..."
+                      placeholder={tr("Describe the emotional state or formula, e.g. (Wonder + Joy) × Love...")}
                       className="w-full bg-gray-50 text-gray-800 text-sm rounded-lg px-4 py-3 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200 leading-relaxed"
                       style={{ minHeight: 80, resize: 'vertical' }}
                     />
@@ -393,7 +394,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                       disabled={suggestionsLoading}
                       className="px-4 py-2 text-sm font-medium text-white bg-indigo-500 hover:bg-indigo-600 disabled:bg-indigo-300 rounded-lg transition-colors"
                     >
-                      {suggestionsLoading ? 'Getting suggestions...' : 'Get Suggestions \u2728'}
+                      {suggestionsLoading ? tr("Getting suggestions...") : tr("Get Suggestions ✨")}
                     </button>
 
                     {suggestionsOpen && suggestions.length > 0 && (
@@ -402,7 +403,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                           onClick={() => setSuggestionsOpen(!suggestionsOpen)}
                           className="w-full px-3 py-2 text-xs font-medium text-gray-500 hover:bg-gray-100 text-left flex items-center justify-between"
                         >
-                          <span>Suggestions ({suggestions.length})</span>
+                          <span>{tr("Suggestions (")}{suggestions.length})</span>
                           <span>{suggestionsOpen ? '\u25B2' : '\u25BC'}</span>
                         </button>
                         <div className="px-3 pb-3 space-y-2">
@@ -417,7 +418,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                   }
                                 }}
                                 className="mt-1 text-xs text-indigo-500 hover:text-indigo-700 font-medium"
-                              >Apply to content</button>
+                              >{tr("Apply to content")}</button>
                             </div>
                           ))}
                         </div>
@@ -431,18 +432,17 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                   <div className="space-y-4">
                     <AiModelPicker value={(d?.model as string) || ''} onChange={(v) => handleFieldChange('model', v)} />
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">System Prompt</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("System Prompt")}</label>
                       <textarea
                         value={(d?.systemPrompt as string) || ''}
                         onChange={(e) => handleFieldChange('systemPrompt', e.target.value)}
-                        placeholder="Custom system prompt (optional)"
+                        placeholder={tr("Custom system prompt (optional)")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 border border-gray-200 resize-y"
                         style={{ minHeight: 60 }}
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">
-                        Temperature: {((d?.temperature as number) ?? 0.7).toFixed(1)}
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Temperature:")}{" "}{((d?.temperature as number) ?? 0.7).toFixed(1)}
                       </label>
                       <input
                         type="range"
@@ -456,16 +456,16 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                         className="w-full accent-indigo-500"
                       />
                       <div className="flex justify-between text-[9px] text-gray-400">
-                        <span>Precise (0.0)</span>
-                        <span>Creative (1.0)</span>
+                        <span>{tr("Precise (0.0)")}</span>
+                        <span>{tr("Creative (1.0)")}</span>
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Instructions</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Instructions")}</label>
                       <textarea
                         value={(d?.instructions as string) || ''}
                         onChange={(e) => handleFieldChange('instructions', e.target.value)}
-                        placeholder="What should this AI agent do?"
+                        placeholder={tr("What should this AI agent do?")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 border border-gray-200 resize-y"
                         style={{ minHeight: 80 }}
                       />
@@ -477,26 +477,26 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {nodeType === 'motivation' && (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Trigger</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Trigger")}</label>
                       <input
                         value={(d?.trigger as string) || ''}
                         onChange={(e) => handleFieldChange('trigger', e.target.value)}
-                        placeholder="What event activated this state?"
+                        placeholder={tr("What event activated this state?")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 border border-gray-200"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Root Cause</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Root Cause")}</label>
                       <textarea
                         value={(d?.rootCause as string) || ''}
                         onChange={(e) => handleFieldChange('rootCause', e.target.value)}
-                        placeholder="What deeper wound or belief?"
+                        placeholder={tr("What deeper wound or belief?")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 border border-gray-200 resize-y"
                         style={{ minHeight: 80 }}
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Duration</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Duration")}</label>
                       <div className="flex gap-2">
                         {['Temporary', 'Evolving', 'Permanent'].map(opt => (
                           <button
@@ -514,11 +514,11 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                       </div>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Resolution</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Resolution")}</label>
                       <textarea
                         value={(d?.resolution as string) || ''}
                         onChange={(e) => handleFieldChange('resolution', e.target.value)}
-                        placeholder="What would shift this state?"
+                        placeholder={tr("What would shift this state?")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-amber-500/30 border border-gray-200 resize-y"
                         style={{ minHeight: 80 }}
                       />
@@ -586,7 +586,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                       if (unlockedTotal === 0) return { ...e, weight: Math.max(1, Math.round((remaining - lockedTotal) / unlocked.length)) };
                       return { ...e, weight: Math.max(1, Math.round(e.weight * (remaining - lockedTotal) / unlockedTotal)) };
                     });
-                    updated.push({ id: newId, text: 'New event', weight: newWeight, locked: false });
+                    updated.push({ id: newId, text: tr("New event"), weight: newWeight, locked: false });
 
                     // Re-normalize
                     const total = updated.reduce((s, e) => s + e.weight, 0);
@@ -656,11 +656,11 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                     <div className="space-y-3">
                       {/* Arc description */}
                       <div>
-                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Arc Description</label>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Arc Description")}</label>
                         <textarea
                           value={(d?.description as string) || ''}
                           onChange={(e) => handleFieldChange('description', e.target.value)}
-                          placeholder="Overall arc summary..."
+                          placeholder={tr("Overall arc summary...")}
                           className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500/30 border border-gray-200 resize-none"
                           rows={2}
                         />
@@ -668,23 +668,23 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
                       {/* Events header */}
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Narrative Events</label>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">{tr("Narrative Events")}</label>
                         <div className="flex gap-1.5">
                           <button
                             onClick={addEvent}
                             className="px-2.5 py-1 text-[11px] font-medium text-cyan-700 bg-cyan-50 hover:bg-cyan-100 rounded-lg border border-cyan-200 transition-colors"
-                          >+ Add</button>
+                          >{tr("+ Add")}</button>
                           <button
                             onClick={handleAutoWeights}
                             disabled={arcAutoLoading || events.length === 0}
                             className="px-2.5 py-1 text-[11px] font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50 rounded-lg border border-indigo-200 transition-colors"
-                          >{arcAutoLoading ? 'Analyzing...' : 'Auto \u2728'}</button>
+                          >{arcAutoLoading ? tr("Analyzing...") : tr("Auto ✨")}</button>
                         </div>
                       </div>
 
                       {/* Event list */}
                       {events.length === 0 ? (
-                        <p className="text-xs text-gray-300 italic">No events yet — click + Add to begin.</p>
+                        <p className="text-xs text-gray-300 italic">{tr("No events yet — click + Add to begin.")}</p>
                       ) : (
                         <div className="space-y-2">
                           {events.map(event => (
@@ -699,7 +699,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                   value={event.text}
                                   onChange={(e) => handleEventText(event.id, e.target.value)}
                                   className="flex-1 text-sm text-gray-700 bg-transparent focus:outline-none"
-                                  placeholder="Describe this narrative event..."
+                                  placeholder={tr("Describe this narrative event...")}
                                 />
                                 <span className="text-xs font-mono text-gray-400 w-8 text-right">{event.weight}%</span>
                                 <button onClick={() => deleteEvent(event.id)} className="text-gray-300 hover:text-red-400 flex-shrink-0 text-lg leading-none">&times;</button>
@@ -731,48 +731,48 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {isReference && (
                   <div className="space-y-3 flex-1">
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Content / Notes</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Content / Notes")}</label>
                       <textarea
                         value={content}
                         onChange={handleContentChange}
-                        placeholder="Notes about this reference..."
+                        placeholder={tr("Notes about this reference...")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2.5 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200 resize-y"
                         style={{ minHeight: 120 }}
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">External Title</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("External Title")}</label>
                       <input
                         value={externalTitle}
                         onChange={(e) => handleFieldChange('externalTitle', e.target.value)}
-                        placeholder="Title of the referenced work..."
+                        placeholder={tr("Title of the referenced work...")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">External URL</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("External URL")}</label>
                       <input
                         value={externalUrl}
                         onChange={(e) => handleFieldChange('externalUrl', e.target.value)}
-                        placeholder="https://..."
+                        placeholder={tr("https://...")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Source</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Source")}</label>
                       <input
                         value={source}
                         onChange={(e) => handleFieldChange('source', e.target.value)}
-                        placeholder="e.g. Spotify, Wikipedia..."
+                        placeholder={tr("e.g. Spotify, Wikipedia...")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200"
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Thumbnail URL</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Thumbnail URL")}</label>
                       <input
                         value={thumbnail}
                         onChange={(e) => handleFieldChange('thumbnail', e.target.value)}
-                        placeholder="https://image-url..."
+                        placeholder={tr("https://image-url...")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200"
                       />
                       {thumbnail && (
@@ -813,12 +813,12 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                   return (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">Ideas in this context</label>
+                        <label className="text-xs text-gray-500 uppercase tracking-wider font-medium">{tr("Ideas in this context")}</label>
                         <button
                           onClick={() => setIdeaPickerOpen(p => !p)}
                           className="text-[10px] font-medium text-yellow-700 bg-yellow-50 hover:bg-yellow-100 px-2 py-0.5 rounded-full border border-yellow-200 transition-colors"
                         >
-                          {ideaPickerOpen ? '▲ Close' : '+ Pick from Cloud'}
+                          {ideaPickerOpen ? tr("▲ Close") : tr("+ Pick from Cloud")}
                         </button>
                       </div>
 
@@ -826,13 +826,13 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                       {ideaPickerOpen && (
                         <div className="rounded-lg border border-yellow-200 bg-yellow-50 overflow-hidden">
                           <div className="px-3 py-1.5 border-b border-yellow-200 bg-yellow-100">
-                            <span className="text-[10px] text-yellow-800 font-semibold uppercase tracking-wider">💡 Ideas Cloud</span>
+                            <span className="text-[10px] text-yellow-800 font-semibold uppercase tracking-wider">{tr("💡 Ideas Cloud")}</span>
                           </div>
                           <div className="max-h-48 overflow-y-auto divide-y divide-yellow-100">
                             {!cloudIdeasLoaded ? (
-                              <div className="px-3 py-2 text-xs text-gray-400">Loading...</div>
+                              <div className="px-3 py-2 text-xs text-gray-400">{tr("Loading...")}</div>
                             ) : cloudIdeas.length === 0 ? (
-                              <div className="px-3 py-2 text-xs text-gray-400">No ideas in Ideas Cloud yet</div>
+                              <div className="px-3 py-2 text-xs text-gray-400">{tr("No ideas in Ideas Cloud yet")}</div>
                             ) : cloudIdeas.map(ci => (
                               <label key={ci.id} className="flex items-start gap-2.5 px-3 py-2 hover:bg-yellow-100 cursor-pointer">
                                 <input
@@ -843,7 +843,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                 />
                                 <div className="min-w-0">
                                   <span className="text-xs text-gray-800 leading-snug line-clamp-2">{ci.text}</span>
-                                  <span className="text-[9px] text-yellow-600 font-medium">{Math.round(ci.weight * 100)}% weight</span>
+                                  <span className="text-[9px] text-yellow-600 font-medium">{Math.round(ci.weight * 100)}{tr("% weight")}</span>
                                 </div>
                               </label>
                             ))}
@@ -853,7 +853,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
                       {/* Selected ideas list */}
                       {ideas.length === 0 && !ideaPickerOpen && (
-                        <p className="text-xs text-gray-300 italic">No ideas selected — click &quot;Pick from Cloud&quot;</p>
+                        <p className="text-xs text-gray-300 italic">{tr("No ideas selected — click \"Pick from Cloud\"")}</p>
                       )}
                       <div className="space-y-2">
                         {ideas.map((idea, idx) => (
@@ -863,16 +863,16 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                               <button
                                 onClick={() => setExpandedIdeaIdx(expandedIdeaIdx === idx ? null : idx)}
                                 className="text-[10px] text-blue-500 hover:text-blue-700 font-medium shrink-0"
-                              >{expandedIdeaIdx === idx ? 'Hide' : 'Transformation'}</button>
+                              >{expandedIdeaIdx === idx ? tr("Hide") : tr("Transformation")}</button>
                               <button
                                 onClick={() => updateIdeas(ideas.filter((_, i) => i !== idx))}
                                 className="text-red-400 hover:text-red-600 text-xs font-bold shrink-0"
-                                title="Remove"
+                                title={tr("Remove")}
                               >&times;</button>
                             </div>
                             {expandedIdeaIdx === idx && (
                               <div className="px-3 pb-2 pt-1 bg-white border-t border-gray-100">
-                                <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">How this idea evolves here</label>
+                                <label className="text-[10px] text-gray-400 uppercase tracking-wider block mb-1">{tr("How this idea evolves here")}</label>
                                 <textarea
                                   value={idea.transformation || ''}
                                   onChange={(e) => {
@@ -880,7 +880,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                     updated[idx] = { ...idea, transformation: e.target.value };
                                     updateIdeas(updated);
                                   }}
-                                  placeholder="Describe how this idea transforms in this Plot / Chapter..."
+                                  placeholder={tr("Describe how this idea transforms in this Plot / Chapter...")}
                                   rows={3}
                                   className="w-full text-xs text-gray-700 bg-gray-50 rounded px-2 py-1.5 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-yellow-400/30 resize-none"
                                 />
@@ -897,31 +897,31 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {isProxy && nodeType !== 'ideasProxy' && (
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">Source Cloud</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1 block font-medium">{tr("Source Cloud")}</label>
                       <input
                         value={(d?.sourceCloudId as string) || ''}
                         onChange={(e) => handleFieldChange('sourceCloudId', e.target.value)}
-                        placeholder="Cloud ID or name to pull from..."
+                        placeholder={tr("Cloud ID or name to pull from...")}
                         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/30 border border-gray-200"
                       />
                       {(d?.sourceCloudName as string) && (
-                        <span className="text-[10px] text-gray-400 mt-0.5 block">Cloud: {d.sourceCloudName as string}</span>
+                        <span className="text-[10px] text-gray-400 mt-0.5 block">{tr("Cloud:")}{" "}{d.sourceCloudName as string}</span>
                       )}
                     </div>
 
                     <div>
-                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block font-medium">Selected Elements</label>
+                      <label className="text-xs text-gray-500 uppercase tracking-wider mb-1.5 block font-medium">{tr("Selected Elements")}</label>
                       {(() => {
                         const elements = (d?.selectedElements as Array<{ id: string; label: string; note: string }>) || [];
                         return (
                           <>
                             {elements.length === 0 ? (
-                              <p className="text-xs text-gray-300 italic mb-2">No elements selected</p>
+                              <p className="text-xs text-gray-300 italic mb-2">{tr("No elements selected")}</p>
                             ) : (
                               <div className="space-y-1.5 mb-2">
                                 {elements.map((el, idx) => (
                                   <div key={el.id || idx} className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
-                                    <span className="text-sm text-gray-800 font-medium shrink-0">{el.label}</span>
+                                    <span className="text-sm text-gray-800 font-medium shrink-0">{tr(el.label)}</span>
                                     <input
                                       value={el.note || ''}
                                       onChange={(e) => {
@@ -929,7 +929,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                         updated[idx] = { ...el, note: e.target.value };
                                         if (node) onUpdate(node.id, 'selectedElements', updated);
                                       }}
-                                      placeholder="Add note..."
+                                      placeholder={tr("Add note...")}
                                       className="flex-1 text-xs text-gray-500 bg-transparent border-b border-gray-200 focus:border-blue-400 focus:outline-none px-1 py-0.5"
                                     />
                                     <button
@@ -938,7 +938,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                         if (node) onUpdate(node.id, 'selectedElements', updated);
                                       }}
                                       className="text-red-400 hover:text-red-600 text-xs font-bold shrink-0"
-                                      title="Remove"
+                                      title={tr("Remove")}
                                     >&times;</button>
                                   </div>
                                 ))}
@@ -950,14 +950,14 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                 <input
                                   value={newElementLabel}
                                   onChange={(e) => setNewElementLabel(e.target.value)}
-                                  placeholder="Element label..."
+                                  placeholder={tr("Element label...")}
                                   className="w-full text-sm bg-white rounded px-2 py-1.5 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                                   autoFocus
                                 />
                                 <input
                                   value={newElementNote}
                                   onChange={(e) => setNewElementNote(e.target.value)}
-                                  placeholder="Optional note..."
+                                  placeholder={tr("Optional note...")}
                                   className="w-full text-xs bg-white rounded px-2 py-1 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
                                 />
                                 <div className="flex gap-2">
@@ -976,18 +976,18 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                                       }
                                     }}
                                     className="px-3 py-1 text-xs font-medium bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
-                                  >Add</button>
+                                  >{tr("Add")}</button>
                                   <button
                                     onClick={() => { setAddingElement(false); setNewElementLabel(''); setNewElementNote(''); }}
                                     className="px-3 py-1 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
-                                  >Cancel</button>
+                                  >{tr("Cancel")}</button>
                                 </div>
                               </div>
                             ) : (
                               <button
                                 onClick={() => setAddingElement(true)}
                                 className="w-full py-1.5 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
-                              >+ Add element</button>
+                              >{tr("+ Add element")}</button>
                             )}
                           </>
                         );
@@ -999,7 +999,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                 {/* Settings (bottom of center column) */}
                 <div className="mt-auto pt-4 border-t border-gray-100 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-500 font-medium">Node color</span>
+                    <span className="text-xs text-gray-500 font-medium">{tr("Node color")}</span>
                     <input
                       type="color"
                       value={color}
@@ -1011,7 +1011,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                     onClick={handleCopyId}
                     className="w-full py-1.5 text-xs font-medium text-gray-600 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
                   >
-                    {copiedId ? 'Copied!' : 'Copy node ID'}
+                    {copiedId ? tr("Copied!") : tr("Copy node ID")}
                   </button>
                   {onDelete && (
                     <button
@@ -1023,7 +1023,7 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
                           : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200'
                       }`}
                     >
-                      {confirmDelete ? 'Click again to confirm' : 'Delete node'}
+                      {confirmDelete ? tr("Click again to confirm") : tr("Delete node")}
                     </button>
                   )}
                 </div>
@@ -1031,9 +1031,9 @@ export default function NodePanel({ node, nodes, edges, onClose, onUpdate, onDel
 
               {/* RIGHT COLUMN — OUTPUTS */}
               <div className="w-[200px] border-l border-gray-200 overflow-y-auto p-4 shrink-0">
-                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">Outputs</div>
+                <div className="text-[10px] uppercase tracking-wider text-gray-400 font-semibold mb-3">{tr("Outputs")}</div>
                 {outgoingConnections.length === 0 ? (
-                  <p className="text-xs text-gray-300 italic">No outputs yet</p>
+                  <p className="text-xs text-gray-300 italic">{tr("No outputs yet")}</p>
                 ) : (
                   outgoingConnections.map(c => (
                     <div key={c.id} className="flex items-center gap-1.5 py-1.5 pr-1" style={{ borderRight: `3px solid ${c.color}` }}>
@@ -1070,14 +1070,14 @@ function AiModelPicker({ value, onChange }: { value: string; onChange: (v: strin
   }, []);
   return (
     <div>
-      <label htmlFor="ai-node-model" className="text-xs text-gray-500 mb-1.5 block font-medium">Model</label>
+      <label htmlFor="ai-node-model" className="text-xs text-gray-500 mb-1.5 block font-medium">{tr("Model")}</label>
       <select
         id="ai-node-model"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="w-full bg-gray-50 text-gray-700 text-sm rounded-lg px-3 py-2 border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
       >
-        <option value="">Default from Settings{state.model ? ` (${state.model})` : ''}</option>
+        <option value="">{tr("Default from Settings")}{state.model ? ` (${state.model})` : ''}</option>
         {value && !state.models.some((m) => m.id === value) && <option value={value}>{value}</option>}
         {state.models.map((m) => (
           <option key={m.id} value={m.id}>{m.name === m.id ? m.id : `${m.name} (${m.id})`}</option>
@@ -1085,8 +1085,8 @@ function AiModelPicker({ value, onChange }: { value: string; onChange: (v: strin
       </select>
       <p className="text-[11px] text-gray-500 mt-1">
         {state.error
-          ? <>No models: {state.error} <a href="/workspace/settings" className="text-indigo-600 hover:underline">Open Settings</a></>
-          : <>Uses the provider and key from <a href="/workspace/settings" className="text-indigo-600 hover:underline">Settings</a>.</>}
+          ? <>{tr("No models:")}{" "}{state.error} <a href="/workspace/settings" className="text-indigo-600 hover:underline">{tr("Open Settings")}</a></>
+          : <>{tr("Uses the provider and key from")}{" "}<a href="/workspace/settings" className="text-indigo-600 hover:underline">{tr("Settings")}</a>.</>}
       </p>
     </div>
   );

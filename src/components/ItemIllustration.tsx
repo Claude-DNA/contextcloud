@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState } from 'react';
 
 export interface ItemImage { url: string; alt?: string; credit?: string; source?: string; kind?: 'generated' | 'public_domain' | 'upload' }
@@ -59,8 +60,8 @@ export default function ItemIllustration({ itemId, title, image, onChange, compa
           <img src={image.url} alt={image.alt || title} className={`w-full rounded-lg object-cover bg-gray-100 ${compact ? 'max-h-40' : 'aspect-[3/2]'}`} loading="lazy" />
           {image.credit && (
             <figcaption className="mt-1 text-[11px] text-muted">
-              {image.kind === 'generated' ? 'Generated. ' : ''}{image.credit}{' '}
-              {image.source && <a href={image.source} target="_blank" rel="noopener noreferrer" className="hover:underline">Source</a>}
+              {image.kind === 'generated' ? tr("Generated. ") : ''}{image.credit}{' '}
+              {image.source && <a href={image.source} target="_blank" rel="noopener noreferrer" className="hover:underline">{tr("Source")}</a>}
             </figcaption>
           )}
         </figure>
@@ -70,18 +71,18 @@ export default function ItemIllustration({ itemId, title, image, onChange, compa
           <span className="text-xs text-muted" role="status">{busy}</span>
         ) : image?.url ? (
           <>
-            <button type="button" className={btn} onClick={() => illustrate('generate')}>Draw a new one</button>
-            <button type="button" className={btn} onClick={findPublicDomain}>Choose a public-domain picture</button>
-            <button type="button" className="text-xs text-red-600 hover:underline" onClick={remove}>Remove picture</button>
+            <button type="button" className={btn} onClick={() => illustrate('generate')}>{tr("Draw a new one")}</button>
+            <button type="button" className={btn} onClick={findPublicDomain}>{tr("Choose a public-domain picture")}</button>
+            <button type="button" className="text-xs text-red-600 hover:underline" onClick={remove}>{tr("Remove picture")}</button>
           </>
         ) : (
           <>
-            <button type="button" className={btn} onClick={() => illustrate('auto')}>Illustrate</button>
-            <button type="button" className={btn} onClick={findPublicDomain}>Choose a public-domain picture</button>
+            <button type="button" className={btn} onClick={() => illustrate('auto')}>{tr("Illustrate")}</button>
+            <button type="button" className={btn} onClick={findPublicDomain}>{tr("Choose a public-domain picture")}</button>
           </>
         )}
       </div>
-      {error && <p className="text-xs text-red-600" role="alert">{error}</p>}
+      {error && <p className="text-xs text-red-600" role="alert">{tr(error)}</p>}
 
       {picker && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" role="dialog" aria-modal="true" aria-labelledby={`pick-${itemId}`}
@@ -89,13 +90,13 @@ export default function ItemIllustration({ itemId, title, image, onChange, compa
           <div className="max-h-[85vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-5 shadow-xl">
             <div className="mb-3 flex items-start justify-between gap-4">
               <div>
-                <h2 id={`pick-${itemId}`} className="font-semibold text-foreground">Public-domain pictures for “{title}”</h2>
-                {picker.visual && <p className="mt-1 text-sm text-muted">Looking for: {picker.visual}</p>}
+                <h2 id={`pick-${itemId}`} className="font-semibold text-foreground">{tr("Public-domain pictures for “")}{title}”</h2>
+                {picker.visual && <p className="mt-1 text-sm text-muted">{tr("Looking for:")}{" "}{picker.visual}</p>}
               </div>
-              <button type="button" onClick={() => setPicker(null)} className="text-sm text-muted hover:text-foreground">Close</button>
+              <button type="button" onClick={() => setPicker(null)} className="text-sm text-muted hover:text-foreground">{tr("Close")}</button>
             </div>
             {picker.candidates.length === 0 ? (
-              <p className="text-sm text-muted">Nothing found in The Met, the Art Institute of Chicago or NASA. Use Illustrate to draw one instead.</p>
+              <p className="text-sm text-muted">{tr("Nothing found in The Met, the Art Institute of Chicago or NASA. Use Illustrate to draw one instead.")}</p>
             ) : (
               <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
                 {picker.candidates.map((c) => (

@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -32,7 +33,7 @@ export default function DraftsList({ filter }: { filter: 'draft' | 'published' }
   }, [status, filter]);
 
   async function handleDelete(id: string) {
-    if (!confirm('Delete this draft?')) return;
+    if (!confirm(tr("Delete this draft?"))) return;
     await fetch('/api/v1/drafts', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -41,11 +42,11 @@ export default function DraftsList({ filter }: { filter: 'draft' | 'published' }
     setDrafts(drafts.filter((d) => d.id !== id));
   }
 
-  const heading = filter === 'draft' ? 'Drafts' : 'Published';
+  const heading = filter === 'draft' ? tr("Drafts") : tr("Published");
 
   if (!session && status !== 'loading') {
     return (
-      <div className="p-8 text-center text-muted">Please sign in to view your {heading.toLowerCase()}.</div>
+      <div className="p-8 text-center text-muted">{tr("Please sign in to view your")}{" "}{heading.toLowerCase()}.</div>
     );
   }
 
@@ -61,7 +62,7 @@ export default function DraftsList({ filter }: { filter: 'draft' | 'published' }
         </div>
       ) : drafts.length === 0 ? (
         <div className="text-sm text-muted py-12 text-center border border-dashed border-border rounded-xl">
-          {filter === 'draft' ? 'No drafts yet.' : 'Nothing published yet.'}
+          {filter === 'draft' ? tr("No drafts yet.") : tr("Nothing published yet.")}
         </div>
       ) : (
         <div className="space-y-3">
@@ -77,11 +78,11 @@ export default function DraftsList({ filter }: { filter: 'draft' | 'published' }
                     : 'bg-emerald-50 text-emerald-600'
                 }`}
               >
-                {d.type === 'cloud' ? 'CL' : 'FL'}
+                {d.type === 'cloud' ? tr("CL") : tr("FL")}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="font-medium text-sm truncate">{d.title || 'Untitled'}</div>
-                <div className="text-xs text-muted truncate">{d.description || 'No description'}</div>
+                <div className="font-medium text-sm truncate">{d.title || tr("Untitled")}</div>
+                <div className="text-xs text-muted truncate">{d.description || tr("No description")}</div>
               </div>
               <div className="text-xs text-muted whitespace-nowrap">
                 {new Date(d.updated_at).toLocaleDateString()}
@@ -90,26 +91,20 @@ export default function DraftsList({ filter }: { filter: 'draft' | 'published' }
                 <Link
                   href={`/workspace/traditional?id=${d.id}`}
                   className="px-3 py-1 text-xs border border-border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Edit
-                </Link>
+                >{tr("Edit")}</Link>
                 {d.tube_id && (
                   <a
                     href={`https://contextube.ai/content/${d.tube_id}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="px-3 py-1 text-xs text-accent border border-accent/20 rounded-lg hover:bg-accent/5 transition-colors"
-                  >
-                    View
-                  </a>
+                  >{tr("View")}</a>
                 )}
                 {filter === 'draft' && (
                   <button
                     onClick={() => handleDelete(d.id)}
                     className="px-3 py-1 text-xs text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
-                  >
-                    Delete
-                  </button>
+                  >{tr("Delete")}</button>
                 )}
               </div>
             </div>

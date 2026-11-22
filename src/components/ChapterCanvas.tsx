@@ -1,5 +1,7 @@
 'use client';
 
+import { tr } from '@/i18n/client';
+import { flowAriaLabels } from '@/i18n/flow-labels';
 import { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { useSession } from 'next-auth/react';
 import Link from 'next/link';
@@ -150,7 +152,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
         position: { x: px, y: PLOT_Y },
         dragging: false, selected: false,
         data: makeNodeData('chapterPlot', {
-          title: plot.name || plot.title || `Plot ${i + 1}`,
+          title: plot.name || plot.title || tr("Plot {value}", { value: i + 1 }),
           content: plot.content || '',
         }),
       });
@@ -323,7 +325,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
     setSaving(true);
     try {
       const cleanNodes = cleanNodesForSave(nodes);
-      const method = draftId ? 'PUT' : 'POST';
+      const method = draftId ? tr("PUT") : tr("POST");
       const body = {
         ...(draftId ? { id: draftId } : {}),
         title: `chapter:${chapterId}`,
@@ -334,9 +336,9 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
       const res = await fetch('/api/v1/drafts', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       const data = await res.json();
       if (data.draft?.id) setDraftId(data.draft.id);
-      showToast('Saved');
+      showToast(tr("Saved"));
     } catch {
-      showToast('Save failed');
+      showToast(tr("Save failed"));
     }
     setSaving(false);
   }, [session, nodes, edges, draftId, chapterId, cleanNodesForSave, showToast]);
@@ -372,15 +374,11 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
   }), []);
 
   if (!session) return (
-    <div className="flex items-center justify-center h-[calc(100vh-3.5rem)] text-gray-500">
-      Please sign in.
-    </div>
+    <div className="flex items-center justify-center h-[calc(100vh-3.5rem)] text-gray-500">{tr("Please sign in.")}</div>
   );
 
   if (!initialized) return (
-    <div className="flex items-center justify-center h-[calc(100vh-3.5rem)] text-gray-400">
-      Loading chapter...
-    </div>
+    <div className="flex items-center justify-center h-[calc(100vh-3.5rem)] text-gray-400">{tr("Loading chapter...")}</div>
   );
 
   return (
@@ -395,31 +393,29 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
           <Link
             href="/workspace/visual"
             className="flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-800 mb-3 font-medium"
-          >
-            ← Back to Canvas
-          </Link>
+          >{tr("← Back to Canvas")}</Link>
 
           {/* Chapter name */}
           <div className="mb-3 px-2 py-2 rounded-lg bg-indigo-50 border border-indigo-100">
             <div className="text-[9px] uppercase tracking-wider text-indigo-400 font-medium mb-0.5">
-              {chapterInfo?.arc_name || 'Arc'}
+              {chapterInfo?.arc_name || tr("Arc")}
             </div>
             <div className="text-xs font-semibold text-indigo-800 truncate">
-              {chapterInfo?.name || 'Chapter'}
+              {chapterInfo?.name || tr("Chapter")}
             </div>
           </div>
 
-          <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
+          <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">{tr("Add Node")}</div>
 
           {/* Proxy nodes */}
           {categorized.proxy.length > 0 && (
             <div className="mb-4">
-              <div className="text-xs text-yellow-600 font-medium mb-1.5">Cloud Proxies</div>
+              <div className="text-xs text-yellow-600 font-medium mb-1.5">{tr("Cloud Proxies")}</div>
               <div className="space-y-0.5">
                 {categorized.proxy.map(nt => (
                   <button key={nt.type} onClick={() => addNode(nt)}
                     className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-yellow-50 transition-colors flex items-center gap-2 text-gray-700">
-                    <span>{nt.emoji}</span><span>{nt.label}</span>
+                    <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                   </button>
                 ))}
               </div>
@@ -429,12 +425,12 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
           {/* Content nodes */}
           {categorized.content.length > 0 && (
             <div className="mb-4">
-              <div className="text-xs text-blue-600 font-medium mb-1.5">Content</div>
+              <div className="text-xs text-blue-600 font-medium mb-1.5">{tr("Content")}</div>
               <div className="space-y-0.5">
                 {categorized.content.map(nt => (
                   <button key={nt.type} onClick={() => addNode(nt)}
                     className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-blue-50 transition-colors flex items-center gap-2 text-gray-700">
-                    <span>{nt.emoji}</span><span>{nt.label}</span>
+                    <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                   </button>
                 ))}
               </div>
@@ -444,12 +440,12 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
           {/* Reference nodes */}
           {categorized.reference.length > 0 && (
             <div className="mb-4">
-              <div className="text-xs text-amber-600 font-medium mb-1.5">Reference</div>
+              <div className="text-xs text-amber-600 font-medium mb-1.5">{tr("Reference")}</div>
               <div className="space-y-0.5">
                 {categorized.reference.map(nt => (
                   <button key={nt.type} onClick={() => addNode(nt)}
                     className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-amber-50 transition-colors flex items-center gap-2 text-gray-700">
-                    <span>{nt.emoji}</span><span>{nt.label}</span>
+                    <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                   </button>
                 ))}
               </div>
@@ -459,12 +455,12 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
           {/* Meta nodes */}
           {categorized.meta.length > 0 && (
             <div className="mb-4">
-              <div className="text-xs text-purple-600 font-medium mb-1.5">Meta</div>
+              <div className="text-xs text-purple-600 font-medium mb-1.5">{tr("Meta")}</div>
               <div className="space-y-0.5">
                 {categorized.meta.map(nt => (
                   <button key={nt.type} onClick={() => addNode(nt)}
                     className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-purple-50 transition-colors flex items-center gap-2 text-gray-700">
-                    <span>{nt.emoji}</span><span>{nt.label}</span>
+                    <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                     {nt.type === 'state' && (
                       <span className="flex gap-0.5 ml-auto">
                         {Object.values(STATE_COLORS).map(({ hex }, i) => (
@@ -486,6 +482,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
           setNodes(nds => nds.map(n => n.id === nodeId ? { ...n, data: { ...n.data, parentNodeId, parentLabel } } : n));
         }}}>
           <ReactFlow
+              ariaLabelConfig={flowAriaLabels()}
             nodes={nodes}
             edges={edges}
             onNodesChange={onNodesChange}
@@ -508,7 +505,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
             <div style={{ position: 'absolute', top: 12, left: 12, zIndex: 10 }}>
               <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-2 flex items-center gap-2">
                 <span className="text-xs text-gray-500 font-medium px-1">
-                  📑 {chapterInfo?.name || 'Chapter'}
+                  📑 {chapterInfo?.name || tr("Chapter")}
                 </span>
                 <div className="w-px h-5 bg-gray-200" />
                 <button
@@ -521,20 +518,18 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
                       setNodes(newNodes);
                       setEdges(newEdges);
                       setDraftId(null); // clear saved draft reference
-                      showToast('Reloaded from Arc Cloud');
+                      showToast(tr("Reloaded from Arc Cloud"));
                       setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.1 }), 200);
-                    } catch { showToast('Reload failed'); }
+                    } catch { showToast(tr("Reload failed")); }
                   }}
                   className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
-                >
-                  ↺ Reload
-                </button>
+                >{tr("↺ Reload")}</button>
                 <button
                   onClick={save}
                   disabled={saving}
                   className="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-white transition-colors"
                 >
-                  {saving ? 'Saving…' : 'Save'}
+                  {saving ? tr("Saving…") : tr("Save")}
                 </button>
               </div>
             </div>
@@ -554,7 +549,7 @@ export default function ChapterCanvas({ chapterId }: { chapterId: string }) {
 
       {toast && (
         <div className="fixed top-20 right-4 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-md text-sm z-50 text-gray-800">
-          {toast}
+          {tr(toast)}
         </div>
       )}
     </div>

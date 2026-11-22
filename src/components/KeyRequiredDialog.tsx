@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -102,27 +103,23 @@ export default function KeyRequiredDialog() {
             </span>
             <div className="space-y-1">
               <h2 id="key-required-title" className="text-base font-semibold">
-                {image ? 'Pictures need a picture key' : `${need.feature} needs an AI key`}
+                {image ? tr("Pictures need a picture key") : tr("{feature} needs an AI key", { feature: tr(need.feature) })}
               </h2>
               <p id="key-required-body" className="text-sm leading-relaxed text-muted">
                 {image
-                  ? 'Studio draws pictures with an AI company of your choice. Add a key from Google, OpenAI or OpenRouter in Settings, then try again.'
-                  : 'Studio uses an AI from a company you choose, like Google or OpenAI. Add your key and pick a model in Settings, then try again. It takes about five minutes, and Google Gemini is free to start.'}
+                  ? tr("Studio draws pictures with an AI company of your choice. Add a key from Google, OpenAI or OpenRouter in Settings, then try again.")
+                  : tr("Studio uses an AI from a company you choose, like Google or OpenAI. Add your key and pick a model in Settings, then try again. It takes about five minutes, and Google Gemini is free to start.")}
               </p>
             </div>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" onClick={close} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50">
-              Not now
-            </button>
+            <button type="button" onClick={close} className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-gray-50">{tr("Not now")}</button>
             <Link
               ref={goButton}
               href={`/workspace/settings#${image ? 'illustrations' : 'ai-model'}`}
               onClick={close}
               className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white hover:bg-accent-hover"
-            >
-              Go to Settings
-            </Link>
+            >{tr("Go to Settings")}</Link>
           </div>
         </div>
       )}

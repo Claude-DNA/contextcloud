@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect } from 'react';
 
 interface WeightEntry {
@@ -52,7 +53,7 @@ export default function WeightEditorModal({ ideas, onClose, onSave }: WeightEdit
       <div className="bg-card-bg rounded-2xl shadow-2xl p-6 w-full max-w-2xl max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-foreground">Weight Editor</h2>
+          <h2 className="text-lg font-semibold text-foreground">{tr("Weight Editor")}</h2>
           <button
             onClick={onClose}
             className="text-muted hover:text-foreground transition-colors text-xl leading-none"
@@ -64,7 +65,7 @@ export default function WeightEditorModal({ ideas, onClose, onSave }: WeightEdit
         {/* Body */}
         <div className="flex-1 overflow-y-auto space-y-4">
           {entries.length === 0 ? (
-            <p className="text-center text-muted text-sm py-8">No ideas to weight</p>
+            <p className="text-center text-muted text-sm py-8">{tr("No ideas to weight")}</p>
           ) : (
             entries.map((entry) => {
               const pct =
@@ -100,9 +101,7 @@ export default function WeightEditorModal({ ideas, onClose, onSave }: WeightEdit
                         checked={entry.locked}
                         onChange={() => handleLockToggle(entry.id)}
                         className="accent-[var(--accent)]"
-                      />
-                      Lock
-                    </label>
+                      />{tr("Lock")}</label>
                   </div>
                 </div>
               );
@@ -115,15 +114,11 @@ export default function WeightEditorModal({ ideas, onClose, onSave }: WeightEdit
           <button
             onClick={onClose}
             className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
+          >{tr("Cancel")}</button>
           <button
             onClick={handleSave}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
-          >
-            Save
-          </button>
+          >{tr("Save")}</button>
         </div>
       </div>
     </div>

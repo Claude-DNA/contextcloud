@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState } from 'react';
 import { useProject } from '@/context/ProjectContext';
 
@@ -20,7 +21,7 @@ export default function PublishCloud() {
   const [result, setResult] = useState<{ ok: boolean; text: string; url?: string } | null>(null);
 
   if (!project) return null;
-  const published = project.cloud_slug ? `${TUBE}/cloud/${project.cloud_slug}` : null;
+  const published = project.cloud_slug ? tr("{TUBE}/cloud/{cloudslug}", { TUBE: TUBE, cloudslug: project.cloud_slug }) : null;
 
   const start = () => {
     setTitle(project.title);
@@ -40,7 +41,7 @@ export default function PublishCloud() {
       });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || 'Publishing failed');
-      setResult({ ok: true, text: `Published: ${d.published.element_count} elements.`, url: d.published.url });
+      setResult({ ok: true, text: tr("Published: {elementcount} elements.", { elementcount: d.published.element_count }), url: d.published.url });
       await refreshProjects();
     } catch (e) {
       setResult({ ok: false, text: e instanceof Error ? e.message : String(e) });
@@ -53,47 +54,45 @@ export default function PublishCloud() {
     <div className="relative">
       <div className="flex items-center gap-3">
         {published && !open && (
-          <a href={published} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline whitespace-nowrap">View on ConteXtube</a>
+          <a href={published} target="_blank" rel="noopener noreferrer" className="text-sm text-accent hover:underline whitespace-nowrap">{tr("View on ConteXtube")}</a>
         )}
         <button type="button" onClick={open ? () => setOpen(false) : start}
           className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
           aria-expanded={open}>
-          {published ? 'Publish cloud again' : 'Publish cloud'}
+          {published ? tr("Publish cloud again") : tr("Publish cloud")}
         </button>
       </div>
       {open && (
         <div className="absolute right-0 top-full z-20 mt-2 w-[22rem] max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-border bg-white p-4 shadow-lg">
-          <p className="text-sm text-muted">
-            Puts this project&apos;s cloud on ConteXtube: plot, characters, places, world, ideas and references, with their quotes and images.
-            {published ? ' This updates the page already there.' : ''}
+          <p className="text-sm text-muted">{tr("Puts this project's cloud on ConteXtube: plot, characters, places, world, ideas and references, with their quotes and images.")}{published ? tr(" This updates the page already there.") : ''}
           </p>
           <div>
-            <label htmlFor="pc-title" className="block text-xs font-medium text-foreground mb-1">Title</label>
+            <label htmlFor="pc-title" className="block text-xs font-medium text-foreground mb-1">{tr("Title")}</label>
             <input id="pc-title" value={title} onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
           <div>
-            <label htmlFor="pc-desc" className="block text-xs font-medium text-foreground mb-1">Description</label>
+            <label htmlFor="pc-desc" className="block text-xs font-medium text-foreground mb-1">{tr("Description")}</label>
             <textarea id="pc-desc" rows={3} value={description} onChange={(e) => setDescription(e.target.value)}
-              placeholder="One or two sentences about the work"
+              placeholder={tr("One or two sentences about the work")}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
           <div>
-            <label htmlFor="pc-genre" className="block text-xs font-medium text-foreground mb-1">Genre</label>
-            <input id="pc-genre" value={genre} onChange={(e) => setGenre(e.target.value)} placeholder="e.g. Science Fiction"
+            <label htmlFor="pc-genre" className="block text-xs font-medium text-foreground mb-1">{tr("Genre")}</label>
+            <input id="pc-genre" value={genre} onChange={(e) => setGenre(e.target.value)} placeholder={tr("e.g. Science Fiction")}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
           </div>
           <div className="flex items-center justify-end gap-2 pt-1">
-            <button type="button" onClick={() => setOpen(false)} className="px-3 py-2 text-sm text-muted hover:text-foreground">Cancel</button>
+            <button type="button" onClick={() => setOpen(false)} className="px-3 py-2 text-sm text-muted hover:text-foreground">{tr("Cancel")}</button>
             <button type="button" onClick={publish} disabled={busy || !title.trim()}
               className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50">
-              {busy ? 'Publishing…' : 'Publish'}
+              {busy ? tr("Publishing…") : tr("Publish")}
             </button>
           </div>
           {result && (
             <p role="status" className={`text-sm ${result.ok ? 'text-emerald-700' : 'text-red-600'}`}>
-              {result.text}{' '}
-              {result.url && <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">Open it</a>}
+              {tr(result.text)}{' '}
+              {result.url && <a href={result.url} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">{tr("Open it")}</a>}
             </p>
           )}
         </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { useState, useEffect, useCallback } from 'react';
 import DimensionEQMixer from './DimensionEQMixer';
 
@@ -87,7 +88,7 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
       });
       const data = await res.json();
       if (!res.ok) {
-        setGenerateError(data.error || 'Generation failed');
+        setGenerateError(data.error || tr("Generation failed"));
         return;
       }
       setGeneratedContent(data.content || '');
@@ -144,7 +145,7 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
       <div className="bg-card-bg rounded-2xl shadow-2xl max-w-7xl w-full mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          <h2 className="text-lg font-semibold text-foreground">Plot Editor</h2>
+          <h2 className="text-lg font-semibold text-foreground">{tr("Plot Editor")}</h2>
           <button onClick={onClose} className="text-muted hover:text-foreground transition-colors text-xl leading-none">&times;</button>
         </div>
 
@@ -153,28 +154,28 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
 
           {/* LEFT: Input context */}
           <div className="border-r border-border p-4 overflow-y-auto space-y-4">
-            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Input Context</h3>
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{tr("Input Context")}</h3>
 
             <div className="space-y-1">
-              <p className="text-xs font-medium text-foreground">Previous Plot</p>
+              <p className="text-xs font-medium text-foreground">{tr("Previous Plot")}</p>
               {prevPlot ? (
                 <div className="border border-border rounded-lg p-3 bg-gray-50">
                   <p className="text-xs font-medium text-foreground mb-1">{prevPlot.name}</p>
                   <p className="text-xs text-muted line-clamp-4">
-                    {prevPlot.content ? prevPlot.content.substring(0, 200) + (prevPlot.content.length > 200 ? '...' : '') : 'No content'}
+                    {prevPlot.content ? prevPlot.content.substring(0, 200) + (prevPlot.content.length > 200 ? '...' : '') : tr("No content")}
                   </p>
                 </div>
               ) : (
-                <p className="text-xs text-muted italic">No previous plot</p>
+                <p className="text-xs text-muted italic">{tr("No previous plot")}</p>
               )}
             </div>
 
             <div className="space-y-1">
-              <p className="text-xs font-medium text-foreground">Ideas</p>
+              <p className="text-xs font-medium text-foreground">{tr("Ideas")}</p>
               {ideasLoading ? (
-                <p className="text-xs text-muted italic">Loading...</p>
+                <p className="text-xs text-muted italic">{tr("Loading...")}</p>
               ) : ideas.length === 0 ? (
-                <p className="text-xs text-muted italic">No ideas yet</p>
+                <p className="text-xs text-muted italic">{tr("No ideas yet")}</p>
               ) : (
                 <div className="space-y-1.5 max-h-60 overflow-y-auto">
                   {ideas.map(idea => {
@@ -193,20 +194,20 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
 
           {/* MIDDLE: Edit */}
           <div className="border-r border-border p-4 overflow-y-auto space-y-4">
-            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Edit</h3>
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{tr("Edit")}</h3>
 
             <input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              placeholder="Plot name"
+              placeholder={tr("Plot name")}
               className="w-full px-3 py-2 border border-border rounded-lg text-sm font-medium text-foreground bg-card-bg focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
             />
 
             <textarea
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder="Write plot content..."
+              placeholder={tr("Write plot content...")}
               className="w-full h-48 px-3 py-2 border border-border rounded-lg text-sm text-foreground bg-card-bg resize-none focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent leading-relaxed"
             />
 
@@ -216,7 +217,7 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
               disabled={suggesting}
               className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors disabled:opacity-50 w-full"
             >
-              {suggesting ? 'Getting suggestions...' : 'AI Suggest'}
+              {suggesting ? tr("Getting suggestions...") : tr("AI Suggest")}
             </button>
 
             {suggestions.length > 0 && (
@@ -241,20 +242,20 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
 
           {/* RIGHT: Output / Generate */}
           <div className="p-4 overflow-y-auto space-y-4">
-            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">Output</h3>
+            <h3 className="text-xs font-semibold text-muted uppercase tracking-wider">{tr("Output")}</h3>
 
             {/* Next plot */}
             <div className="space-y-1">
-              <p className="text-xs font-medium text-foreground">Next Plot</p>
+              <p className="text-xs font-medium text-foreground">{tr("Next Plot")}</p>
               {nextPlot ? (
                 <div className="border border-border rounded-lg p-3 bg-gray-50">
                   <p className="text-xs font-medium text-foreground mb-1">{nextPlot.name}</p>
                   <p className="text-xs text-muted line-clamp-3">
-                    {nextPlot.content ? nextPlot.content.substring(0, 150) + (nextPlot.content.length > 150 ? '...' : '') : 'No content'}
+                    {nextPlot.content ? nextPlot.content.substring(0, 150) + (nextPlot.content.length > 150 ? '...' : '') : tr("No content")}
                   </p>
                 </div>
               ) : (
-                <p className="text-xs text-muted italic">Last plot in arc</p>
+                <p className="text-xs text-muted italic">{tr("Last plot in arc")}</p>
               )}
             </div>
 
@@ -273,10 +274,8 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
             >
               {generating ? (
                 <>
-                  <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating...
-                </>
-              ) : 'Generate'}
+                  <span className="inline-block w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />{tr("Generating...")}</>
+              ) : tr("Generate")}
             </button>
 
             {generateError && (
@@ -293,14 +292,12 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
                   <button
                     onClick={handleApply}
                     className="flex-1 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition-colors"
-                  >
-                    Apply →
-                  </button>
+                  >{tr("Apply →")}</button>
                   <button
                     onClick={() => setShowPrompt(v => !v)}
                     className="px-3 py-1.5 rounded-lg text-xs font-medium border border-border text-muted hover:text-foreground transition-colors"
                   >
-                    {showPrompt ? 'Hide Prompt ▴' : 'Show Prompt ▾'}
+                    {showPrompt ? tr("Hide Prompt ▴") : tr("Show Prompt ▾")}
                   </button>
                 </div>
 
@@ -314,9 +311,7 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
 
             {!generatedContent && !generating && (
               <div className="border border-dashed border-border rounded-lg p-4 min-h-[100px] flex items-center justify-center">
-                <p className="text-xs text-muted italic text-center">
-                  Set weights in the Edit panel,<br />then click Generate
-                </p>
+                <p className="text-xs text-muted italic text-center">{tr("Set weights in the Edit panel,")}<br />{tr("then click Generate")}</p>
               </div>
             )}
           </div>
@@ -324,11 +319,9 @@ export default function PlotEditorModal({ plot, allPlots, onClose, onSave }: Plo
 
         {/* Footer */}
         <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border shrink-0">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors">
-            Cancel
-          </button>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors">{tr("Cancel")}</button>
           <button onClick={handleSave} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? tr("Saving...") : tr("Save")}
           </button>
         </div>
       </div>

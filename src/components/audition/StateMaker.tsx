@@ -1,5 +1,6 @@
 'use client';
 
+import { tr, trFormula } from '@/i18n/client';
 import { useState } from 'react';
 import type { LibraryState } from '@/lib/state-maker';
 
@@ -31,11 +32,11 @@ export default function StateMaker({ onSaved, onCast, canCast }: { onSaved: (sav
     try {
       const res = await fetch('/api/v1/states/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ work, character, motivation }) });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(d.message || d.error || 'The states could not be made.'); return; }
-      setNote(d.note || (d.known ? '' : 'The AI does not know this story or character well enough to place moments in it. Try the full title, or add the author or year.'));
+      if (!res.ok) { setError(d.message || d.error || tr("The states could not be made.")); return; }
+      setNote(d.note || (d.known ? '' : tr("The AI does not know this story or character well enough to place moments in it. Try the full title, or add the author or year.")));
       setOptions((d.options as LibraryState[]).map((state) => ({ state, library: true, submit: true })));
     } catch {
-      setError('Studio could not be reached. Check your connection and try again.');
+      setError(tr("Studio could not be reached. Check your connection and try again."));
     } finally { setBusy(null); }
   };
 
@@ -47,15 +48,15 @@ export default function StateMaker({ onSaved, onCast, canCast }: { onSaved: (sav
     try {
       const res = await fetch('/api/v1/states', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ states: chosen }) });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { setError(d.message || d.error || 'The states could not be saved.'); return; }
+      if (!res.ok) { setError(d.message || d.error || tr("The states could not be saved.")); return; }
       const saved = d.saved as LibraryState[];
       onSaved(saved);
       const kept = chosen.filter((o) => o.library).length;
       const sent = chosen.filter((o) => o.submit).length;
-      setDone([kept && `${kept} added to your library`, sent && `${sent} sent to the Studio library for review`].filter(Boolean).join('; ') + '.');
+      setDone([kept && tr('{n} added to your library', { n: kept }), sent && tr('{n} sent to the Studio library for review', { n: sent })].filter(Boolean).join('; ') + '.');
       setOptions([]); setNote('');
     } catch {
-      setError('Studio could not be reached. Check your connection and try again.');
+      setError(tr("Studio could not be reached. Check your connection and try again."));
     } finally { setBusy(null); }
   };
 
@@ -64,26 +65,26 @@ export default function StateMaker({ onSaved, onCast, canCast }: { onSaved: (sav
       <form onSubmit={find} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="mk-work" className={label}>Story</label>
-            <input id="mk-work" value={work} onChange={(e) => setWork(e.target.value)} required minLength={2} placeholder="A book, film, series or play" className={field} />
+            <label htmlFor="mk-work" className={label}>{tr("Story")}</label>
+            <input id="mk-work" value={work} onChange={(e) => setWork(e.target.value)} required minLength={2} placeholder={tr("A book, film, series or play")} className={field} />
           </div>
           <div>
-            <label htmlFor="mk-char" className={label}>Character</label>
-            <input id="mk-char" value={character} onChange={(e) => setCharacter(e.target.value)} required minLength={2} placeholder="Their name in the story" className={field} />
+            <label htmlFor="mk-char" className={label}>{tr("Character")}</label>
+            <input id="mk-char" value={character} onChange={(e) => setCharacter(e.target.value)} required minLength={2} placeholder={tr("Their name in the story")} className={field} />
           </div>
         </div>
         <div>
-          <label htmlFor="mk-motive" className={label}>Motivation: what others see</label>
-          <input id="mk-motive" value={motivation} onChange={(e) => setMotivation(e.target.value)} placeholder="Calm and polite, while he is plotting to take the company" className={field} />
-          <p className="mt-1 text-xs text-muted">Optional. How the character comes across, or what seems to drive them. Studio looks for moments where it shows.</p>
+          <label htmlFor="mk-motive" className={label}>{tr("Motivation: what others see")}</label>
+          <input id="mk-motive" value={motivation} onChange={(e) => setMotivation(e.target.value)} placeholder={tr("Calm and polite, while he is plotting to take the company")} className={field} />
+          <p className="mt-1 text-xs text-muted">{tr("Optional. How the character comes across, or what seems to drive them. Studio looks for moments where it shows.")}</p>
         </div>
         <button type="submit" disabled={!!busy} className={`${button} bg-accent text-white hover:bg-accent-hover`}>
-          {busy === 'find' ? 'Finding states…' : options.length ? 'Find other states' : 'Find states'}
+          {busy === 'find' ? tr("Finding states…") : options.length ? tr("Find other states") : tr("Find states")}
         </button>
       </form>
 
       <div aria-live="polite" className="space-y-3">
-        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{tr(error)}</p>}
         {done && <p className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">{done}</p>}
         {note && <p className="text-sm text-muted">{note}</p>}
       </div>
@@ -96,36 +97,32 @@ export default function StateMaker({ onSaved, onCast, canCast }: { onSaved: (sav
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-foreground">{o.state.character}, {o.state.moment}</p>
-                    <p className="text-xs text-muted">{o.state.formula} · {o.state.work}</p>
+                    <p className="text-xs text-muted">{trFormula(o.state.formula)} · {o.state.work}</p>
                   </div>
                   {canCast && (
-                    <button type="button" onClick={() => onCast(o.state)} className="shrink-0 text-xs font-medium text-accent hover:underline">Cast now</button>
+                    <button type="button" onClick={() => onCast(o.state)} className="shrink-0 text-xs font-medium text-accent hover:underline">{tr("Cast now")}</button>
                   )}
                 </div>
                 <p className="mt-2 text-xs text-foreground">{o.state.situation}</p>
                 <details className="mt-1 text-xs text-muted">
-                  <summary className="cursor-pointer hover:text-foreground">Inside and outside</summary>
-                  <p className="mt-1"><span className="font-medium">Inside:</span> {o.state.inside}</p>
-                  <p className="mt-1"><span className="font-medium">Outside:</span> {o.state.outside}</p>
+                  <summary className="cursor-pointer hover:text-foreground">{tr("Inside and outside")}</summary>
+                  <p className="mt-1"><span className="font-medium">{tr("Inside:")}</span> {o.state.inside}</p>
+                  <p className="mt-1"><span className="font-medium">{tr("Outside:")}</span> {o.state.outside}</p>
                 </details>
                 <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-foreground">
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" checked={o.library} onChange={(e) => set(i, { library: e.target.checked })} className="accent-indigo-500" />
-                    Add to My Library
-                  </label>
+                    <input type="checkbox" checked={o.library} onChange={(e) => set(i, { library: e.target.checked })} className="accent-indigo-500" />{tr("Add to My Library")}</label>
                   <label className="flex items-center gap-1.5">
-                    <input type="checkbox" checked={o.submit} onChange={(e) => set(i, { submit: e.target.checked })} className="accent-indigo-500" />
-                    Submit to Studio Library
-                  </label>
+                    <input type="checkbox" checked={o.submit} onChange={(e) => set(i, { submit: e.target.checked })} className="accent-indigo-500" />{tr("Submit to Studio Library")}</label>
                 </div>
               </li>
             ))}
           </ul>
           <div className="flex flex-wrap items-center gap-3">
             <button type="button" onClick={save} disabled={!!busy || chosen.length === 0} className={`${button} bg-accent text-white hover:bg-accent-hover`}>
-              {busy === 'save' ? 'Saving…' : chosen.length === 0 ? 'Nothing ticked' : `Save ${chosen.length} ${chosen.length === 1 ? 'state' : 'states'}`}
+              {busy === 'save' ? tr("Saving…") : chosen.length === 0 ? tr("Nothing ticked") : (chosen.length === 1 ? tr("Save 1 state") : tr("Save {n} states", { n: chosen.length }))}
             </button>
-            <p className="text-xs text-muted">The AI writes from what it knows of the story; check each state before you keep it. Studio Library states are reviewed before every writer can use them.</p>
+            <p className="text-xs text-muted">{tr("The AI writes from what it knows of the story; check each state before you keep it. Studio Library states are reviewed before every writer can use them.")}</p>
           </div>
         </div>
       )}

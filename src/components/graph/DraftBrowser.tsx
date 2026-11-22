@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect } from 'react';
 import { type Node, type Edge } from '@xyflow/react';
 
@@ -51,7 +52,7 @@ function layersToNodes(draft: {
       position: { x, y },
       data: {
         type: layerTypeToNodeType(layer.type),
-        title: layer.name || `Layer ${i + 1}`,
+        title: layer.name || tr("Layer {value}", { value: i + 1 }),
         content: layer.content || '',
         color: layerTypeToColor(layer.type),
       },
@@ -146,15 +147,15 @@ export default function DraftBrowser({ onLoad, onClose }: DraftBrowserProps) {
     <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h2 className="text-base font-semibold text-gray-900">Open Draft</h2>
+          <h2 className="text-base font-semibold text-gray-900">{tr("Open Draft")}</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {loading ? (
-            <p className="text-sm text-gray-400 text-center py-8">Loading drafts...</p>
+            <p className="text-sm text-gray-400 text-center py-8">{tr("Loading drafts...")}</p>
           ) : drafts.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-8">No drafts yet</p>
+            <p className="text-sm text-gray-400 text-center py-8">{tr("No drafts yet")}</p>
           ) : (
             drafts.map(draft => (
               <button
@@ -164,18 +165,18 @@ export default function DraftBrowser({ onLoad, onClose }: DraftBrowserProps) {
                 className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition-colors disabled:opacity-50 space-y-1"
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-gray-900 truncate">{draft.title || 'Untitled'}</span>
+                  <span className="text-sm font-medium text-gray-900 truncate">{draft.title || tr("Untitled")}</span>
                   <span className={`shrink-0 px-2 py-0.5 rounded-full text-[11px] font-medium ${typeBadgeColor(draft.type)}`}>
                     {typeLabel(draft.type)}
                   </span>
                 </div>
                 {draft.description && (
-                  <p className="text-xs text-gray-500 truncate">{draft.description}</p>
+                  <p className="text-xs text-gray-500 truncate">{tr(draft.description)}</p>
                 )}
                 <p className="text-[10px] text-gray-400">
                   {new Date(draft.updated_at).toLocaleDateString()}
                   {draft.type !== 'graph' && (
-                    <span className="ml-2 text-amber-600">→ will convert layers to nodes</span>
+                    <span className="ml-2 text-amber-600">{tr("→ will convert layers to nodes")}</span>
                   )}
                 </p>
               </button>

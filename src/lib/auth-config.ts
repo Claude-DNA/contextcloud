@@ -6,6 +6,41 @@ import bcrypt from 'bcryptjs';
 import { query, isDbAvailable } from '@/lib/db';
 import { getAppleClientSecret } from '@/lib/apple-secret';
 
+/**
+ * contextcloud.studio and ru.contextcloud.studio are one app in two languages. Sign-in cookies are set
+ * for the parent domain so one sign-in works on both, and Google/Apple (registered for the main domain
+ * only) can finish there and send a Russian-site visitor back to ru. Elsewhere (local, previews) cookies
+ * stay host-only, as before.
+ */
+const SITE_DOMAIN = 'contextcloud.studio';
+const authHost = (() => {
+  try { return new URL(process.env.NEXTAUTH_URL || process.env.AUTH_URL || '').hostname; } catch { return ''; }
+})();
+const sharedCookies = authHost === SITE_DOMAIN || authHost.endsWith('.' + SITE_DOMAIN);
+const cookieOptions = { httpOnly: true, sameSite: 'lax' as const, path: '/', secure: true, domain: '.' + SITE_DOMAIN };
+const sharedCookieConfig = sharedCookies
+  ? {
+      sessionToken: { name: '__Secure-cc.session-token', options: cookieOptions },
+      callbackUrl: { name: '__Secure-cc.callback-url', options: cookieOptions },
+      csrfToken: { name: '__Secure-cc.csrf-token', options: cookieOptions },
+      pkceCodeVerifier: { name: '__Secure-cc.pkce.code_verifier', options: { ...cookieOptions, maxAge: 900 } },
+      state: { name: '__Secure-cc.state', options: { ...cookieOptions, maxAge: 900 } },
+      nonce: { name: '__Secure-cc.nonce', options: cookieOptions },
+    }
+  : undefined;
+
+/** Addresses we may send someone to after sign-in: this site and its language subdomains. */
+function allowedRedirect(url: string, baseUrl: string): string {
+  if (url.startsWith('/') && !url.startsWith('//')) return baseUrl + url;
+  try {
+    const u = new URL(url);
+    const base = new URL(baseUrl);
+    if (u.origin === base.origin) return url;
+    if (u.protocol === 'https:' && (u.hostname === SITE_DOMAIN || u.hostname.endsWith('.' + SITE_DOMAIN))) return url;
+  } catch { /* fall through */ }
+  return baseUrl;
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
@@ -59,7 +94,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   pages: {
     signIn: '/auth/signin',
   },
+  ...(sharedCookieConfig ? { cookies: sharedCookieConfig } : {}),
   callbacks: {
+    async redirect({ url, baseUrl }) {
+      return allowedRedirect(url, baseUrl);
+    },
     async jwt({ token, user, account }) {
       if (user && account) {
         if (account.provider !== 'credentials' && user.email) {

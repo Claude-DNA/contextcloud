@@ -1,5 +1,7 @@
 'use client';
 
+import { tr } from '@/i18n/client';
+import { flowAriaLabels } from '@/i18n/flow-labels';
 import { useCallback, useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -82,7 +84,7 @@ function serializeGraphForAI(title: string, nodes: Node[], edges: Edge[]): strin
     const c = (node.data?.content as string) || '';
     const line =
       config.category === 'reference'
-        ? `${config.emoji} ${config.label.toUpperCase()}: ${t}${c ? ' — ' + c : ''}`
+        ? tr("{emoji} {label}: {t}{value}", { emoji: config.emoji, label: config.label.toUpperCase(), t: t, value: c ? ' — ' + c : '' })
         : config.category === 'meta'
           ? `${config.emoji} ${config.label.toUpperCase()}: ${c || t}`
           : `${config.emoji} ${config.label.toUpperCase()}: ${t}\n${c}`;
@@ -438,7 +440,7 @@ export default function VisualCanvas() {
     setSelectedNodeId(null);
     setSelectedCount(0);
     setShowClearConfirm(false);
-    showToast('Canvas cleared — Ctrl+Z to undo');
+    showToast(tr("Canvas cleared — Ctrl+Z to undo"));
   }, [captureBeforeAction, setNodes, setEdges, showToast]);
 
   // Sync ref — filled later, called by title/content change handlers
@@ -638,7 +640,7 @@ export default function VisualCanvas() {
       cloudNodes: Array<{ id: string; type: string; title: string; content: string; position: { x: number; y: number } }>,
       hubTitle?: string
     ) => {
-      if (!cloudNodes.length) { showToast('No items to load'); return; }
+      if (!cloudNodes.length) { showToast(tr("No items to load")); return; }
       captureBeforeAction();
 
       const newNodes: Node[] = cloudNodes.map(cn =>
@@ -689,7 +691,7 @@ export default function VisualCanvas() {
         }, 80);
       }
 
-      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded${hubTitle ? ' for scene' : ' from Cloud'}`);
+      showToast(tr("{length} item{value} loaded{value2}", { length: newNodes.length, value: newNodes.length !== 1 ? 's' : '', value2: hubTitle ? tr(' for scene') : tr(' from Cloud') }));
       if (!hubTitle) {
         setTimeout(() => reactFlowInstance.fitView({ duration: 500, padding: 0.15 }), 800);
       }
@@ -765,7 +767,7 @@ export default function VisualCanvas() {
       setCloudLoadChecked(new Set(allNodes.map(n => n.id)));
       setCloudLoadCollapsed(new Set());
     } catch {
-      showToast('Failed to fetch cloud items');
+      showToast(tr("Failed to fetch cloud items"));
     } finally {
       setCloudLoadLoading(false);
     }
@@ -833,7 +835,7 @@ export default function VisualCanvas() {
         }));
 
       if (!allNodes.length) {
-        showToast('No cloud items found — add items to your Clouds first');
+        showToast(tr("No cloud items found — add items to your Clouds first"));
         setSceneLoadLoading(false);
         return;
       }
@@ -847,7 +849,7 @@ export default function VisualCanvas() {
       setSceneChecklistChecked(smartPreselect(allNodes, sceneTitle, sceneContent));
       setSceneChecklistForScene({ id: sId, title: sceneTitle });
     } catch {
-      showToast('Failed to load scene');
+      showToast(tr("Failed to load scene"));
     }
     setSceneLoadLoading(false);
   }, [cloudItemsUrl, loadCloudNodesToCanvas, showToast, scenesList]);
@@ -908,7 +910,7 @@ export default function VisualCanvas() {
       if (!items.length) {
         // No attachments yet — fall back to AI graph build focused on this arc scene
         setImportingCloud(false);
-        showToast('No items attached yet — building graph from your clouds...');
+        showToast(tr("No items attached yet — building graph from your clouds..."));
         handleAutoBuildRef.current([sceneId]);
         return;
       }
@@ -943,7 +945,7 @@ export default function VisualCanvas() {
       const centerX = (Math.min(...xs) + Math.max(...xs)) / 2;
       const hubId = `scene_hub_${sceneId}`;
       const hub = makeNode(hubId, 'chapterAct', { x: centerX - 60, y: -200 },
-        { title: sceneName || 'Scene' });
+        { title: sceneName || tr("Scene") });
 
       const allNodes = [hub, ...newNodes];
       setNodes(allNodes);
@@ -965,10 +967,10 @@ export default function VisualCanvas() {
       setCanUndo(false);
       setCanRedo(false);
 
-      showToast(`${newNodes.length} item${newNodes.length !== 1 ? 's' : ''} loaded for scene`);
+      showToast(tr("{length} item{value} loaded for scene", { length: newNodes.length, value: newNodes.length !== 1 ? 's' : '' }));
       setTimeout(() => reactFlowInstance.fitView({ duration: 600, padding: 0.18 }), 300);
     } catch {
-      showToast('Failed to load scene items');
+      showToast(tr("Failed to load scene items"));
     } finally {
       setImportingCloud(false);
     }
@@ -1007,7 +1009,7 @@ export default function VisualCanvas() {
           body: JSON.stringify(changes),
         })
       )
-    ).catch(() => showToast('Some cloud syncs failed'));
+    ).catch(() => showToast(tr("Some cloud syncs failed")));
     return entries.length;
   }, [showToast]);
 
@@ -1100,7 +1102,7 @@ export default function VisualCanvas() {
     const synced = flushSync();
     try {
       const cleanNodes = cleanNodesForSave(graph?.nodes ?? nodes);
-      const method = draftId ? 'PUT' : 'POST';
+      const method = draftId ? tr("PUT") : tr("POST");
       const body = {
         ...(draftId ? { id: draftId } : {}),
         title: graph?.title ?? title,
@@ -1114,15 +1116,15 @@ export default function VisualCanvas() {
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      if (!res.ok) { showToast(data.error || 'Save failed'); return; }
+      if (!res.ok) { showToast(data.error || tr("Save failed")); return; }
       if (!draftId && data.draft?.id) setDraftId(data.draft.id);
       if (!graph?.quiet) showToast(
         synced > 0
-          ? `Saved! (${synced} cloud item${synced > 1 ? 's' : ''} synced)`
-          : 'Saved!'
+          ? tr("Saved! ({synced} cloud item{value} synced)", { synced: synced, value: synced > 1 ? 's' : '' })
+          : tr("Saved!")
       );
     } catch {
-      showToast('Save failed');
+      showToast(tr("Save failed"));
     }
     setSaving(false);
   }, [session, draftId, title, nodes, edges, showToast, cleanNodesForSave, flushSync]);
@@ -1143,7 +1145,7 @@ export default function VisualCanvas() {
       if (cached?.nodes?.length) {
         setNodes(cached.nodes.map(hydrateNode));
         setEdges(cached.edges ?? []);
-        setTitle(cached.title || 'Untitled Graph');
+        setTitle(cached.title || tr("Untitled Graph"));
         setDraftId(cached.draftId ?? null);
         setTimeout(() => reactFlowInstance.fitView({ duration: 400, padding: 0.15 }), 200);
         return;
@@ -1151,7 +1153,7 @@ export default function VisualCanvas() {
     } catch { /* a copy that cannot be read is skipped */ }
     if (switching) {
       // Another project: its own graph, or a clean canvas. The previous project's graph stays in its copy.
-      setNodes([]); setEdges([]); setDraftId(null); setTitle('Untitled Graph');
+      setNodes([]); setEdges([]); setDraftId(null); setTitle(tr("Untitled Graph"));
     }
   }, [projectReady, cacheKey, sceneId, searchParams, hydrateNode, setNodes, setEdges, reactFlowInstance]);
 
@@ -1182,7 +1184,7 @@ export default function VisualCanvas() {
   // ── Copy for AI ─────────────────────────────────────────────────────────────
   const copyForAI = useCallback(() => {
     const text = serializeGraphForAI(title, nodes, edges);
-    navigator.clipboard.writeText(text).then(() => showToast('Copied to clipboard!'));
+    navigator.clipboard.writeText(text).then(() => showToast(tr("Copied to clipboard!")));
   }, [title, nodes, edges, showToast]);
 
   // ── Open Build Graph modal ───────────────────────────────────────────────────
@@ -1225,7 +1227,7 @@ export default function VisualCanvas() {
       };
 
       if (!res.ok || data.error) {
-        showToast(data.error || 'Auto-build failed');
+        showToast(data.error || tr("Auto-build failed"));
         return;
       }
 
@@ -1235,8 +1237,8 @@ export default function VisualCanvas() {
       if (!incomingNodes.length) {
         const rawCount = (data.nodes as unknown[])?.length ?? 0;
         showToast(rawCount > 0
-          ? `AI returned ${rawCount} nodes but all had invalid types — check console`
-          : 'AI returned an empty graph. Add items to your clouds first.'
+          ? tr("AI returned {rawCount} nodes but all had invalid types — check console", { rawCount: rawCount })
+          : tr("AI returned an empty graph. Add items to your clouds first.")
         );
         console.warn('[graph-build] raw:', data);
         return;
@@ -1253,7 +1255,7 @@ export default function VisualCanvas() {
       setTimeout(() => setEdges(incomingEdges), 80);
       // A build costs AI time; it goes to the account's drafts at once, not only when Save is pressed.
       const project = projects.find(p => p.id === activeProjectId);
-      const graphTitle = title === 'Untitled Graph' && project?.title ? `${project.title} graph` : title;
+      const graphTitle = title === 'Untitled Graph' && project?.title ? tr("{title} graph", { title: project.title }) : title;
       setTitle(graphTitle);
       void saveRef.current({ nodes: builtNodes, edges: incomingEdges as Edge[], quiet: true, title: graphTitle });
       // Fit view after nodes + edges are committed
@@ -1261,11 +1263,11 @@ export default function VisualCanvas() {
 
       showToast(
         data.meta?.partial || data.meta?.scenesFailed
-          ? `⚠️ Graph built for ${data.meta.scenesBuilt} of ${data.meta.scenes} scenes${data.meta.partial ? ' (time limit reached; select fewer scenes to build the rest)' : ''}${data.meta.scenesFailed ? `, ${data.meta.scenesFailed} failed` : ''}`
-          : `✨ Graph built and saved to your drafts: ${data.meta?.scenes ?? ''} scenes, ${incomingNodes.length} nodes, ${incomingEdges.length} edges`
+          ? tr("⚠️ Graph built for {scenesBuilt} of {scenes} scenes{value}{value2}", { scenesBuilt: data.meta.scenesBuilt, scenes: data.meta.scenes, value: data.meta.partial ? ' (time limit reached; select fewer scenes to build the rest)' : '', value2: data.meta.scenesFailed ? `, ${data.meta.scenesFailed} failed` : '' })
+          : tr("✨ Graph built and saved to your drafts: {value} scenes, {length} nodes, {length2} edges", { value: data.meta?.scenes ?? '', length: incomingNodes.length, length2: incomingEdges.length })
       );
     } catch (err) {
-      showToast(`Auto-build error: ${err}`);
+      showToast(tr("Auto-build error: {err}", { err: tr(String(err)) }));
     } finally {
       setAutoBuilding(false);
     }
@@ -1301,7 +1303,7 @@ export default function VisualCanvas() {
         if (activeProjectId) formData.append('project_id', activeProjectId);
         const res = await fetch('/api/v1/import', { method: 'POST', body: formData });
         const data = await res.json();
-        if (!res.ok) { showToast(data.error || 'Import failed'); setImporting(false); return; }
+        if (!res.ok) { showToast(data.error || tr("Import failed")); setImporting(false); return; }
         totalSaved   += data.saved   ?? 0;
         totalSkipped += data.skipped ?? 0;
         const c = data.coverage as { parts_total: number; parts_extracted: number; parts_failed: number; truncated: boolean; consolidation?: { merged: number; whole_work_ideas: number } | null; quotes?: { dropped: number } } | undefined;
@@ -1312,20 +1314,20 @@ export default function VisualCanvas() {
       }
       if (gaps.length) showToast(`⚠️ ${gaps.join('. ')}`);
       if (totalSaved > 0) {
-        const skipped = totalSkipped > 0 ? ` (${totalSkipped} already existed)` : '';
-        if (!gaps.length) showToast(`✅ ${totalSaved} new items saved${skipped}${notes.length ? ` (${notes.join('; ')})` : ''} — building graph...`);
+        const skipped = totalSkipped > 0 ? tr(" ({totalSkipped} already existed)", { totalSkipped: totalSkipped }) : '';
+        if (!gaps.length) showToast(tr("✅ {totalSaved} new items saved{skipped}{value} — building graph...", { totalSaved: totalSaved, skipped: skipped, value: notes.length ? ` (${notes.join('; ')})` : '' }));
         setImporting(false);
         handleAutoBuild();
         return;
       } else if (totalSkipped > 0) {
-        showToast(`All ${totalSkipped} items already in your clouds — building graph...`);
+        showToast(tr("All {totalSkipped} items already in your clouds — building graph...", { totalSkipped: totalSkipped }));
         setImporting(false);
         handleAutoBuild();
         return;
       } else {
-        showToast('⚠️ No items could be extracted. Try a richer document.');
+        showToast(tr("⚠️ No items could be extracted. Try a richer document."));
       }
-    } catch { showToast('Import failed'); }
+    } catch { showToast(tr("Import failed")); }
     setImporting(false);
   }, [showToast, handleAutoBuild, activeProjectId]);
 
@@ -1350,9 +1352,7 @@ export default function VisualCanvas() {
 
   if (!session) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)] text-muted">
-        Please sign in to use the visual editor.
-      </div>
+      <div className="flex items-center justify-center h-[calc(100vh-3.5rem)] text-muted">{tr("Please sign in to use the visual editor.")}</div>
     );
   }
 
@@ -1372,10 +1372,8 @@ export default function VisualCanvas() {
       {/* Standalone mode banner */}
       {!sceneId && (
         <div className="flex items-center justify-between px-4 py-1.5 bg-gray-50 border-b border-gray-200 text-xs text-gray-500 shrink-0">
-          <span>Visual Editor — standalone mode</span>
-          <a href="/workspace/arc-cloud" className="text-accent hover:underline">
-            Go to Arc Cloud →
-          </a>
+          <span>{tr("Visual Editor — standalone mode")}</span>
+          <a href="/workspace/arc-cloud" className="text-accent hover:underline">{tr("Go to Arc Cloud →")}</a>
         </div>
       )}
 
@@ -1392,20 +1390,20 @@ export default function VisualCanvas() {
                   value={title}
                   onChange={e => setTitle(e.target.value)}
                   className="w-full bg-gray-50 text-gray-800 text-sm font-medium rounded px-2 py-1.5 placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-200"
-                  placeholder="Graph title..."
+                  placeholder={tr("Graph title...")}
                 />
               </div>
-              <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">Add Node</div>
+              <div className="text-xs uppercase tracking-wider text-gray-400 mb-3 font-medium">{tr("Add Node")}</div>
 
               {/* Story nodes */}
               {categorized.story.length > 0 && (
                 <div className="mb-4">
-                  <div className="text-xs text-blue-600 font-semibold mb-2 uppercase tracking-wide">Story</div>
+                  <div className="text-xs text-blue-600 font-semibold mb-2 uppercase tracking-wide">{tr("Story")}</div>
                   <div className="space-y-0.5">
                     {categorized.story.map(nt => (
                       <button key={nt.type} onClick={() => addNode(nt)}
                         className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                        <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                       </button>
                     ))}
                   </div>
@@ -1414,12 +1412,12 @@ export default function VisualCanvas() {
               {/* Character pattern nodes */}
               {categorized.character.length > 0 && (
                 <div className="mb-4">
-                  <div className="text-xs text-violet-600 font-semibold mb-2 uppercase tracking-wide">Character</div>
+                  <div className="text-xs text-violet-600 font-semibold mb-2 uppercase tracking-wide">{tr("Character")}</div>
                   <div className="space-y-0.5">
                     {categorized.character.map(nt => (
                       <button key={nt.type} onClick={() => addNode(nt)}
                         className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                        <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                         {nt.type === 'state' && (
                           <span className="flex gap-0.5 ml-auto">
                             {Object.values(STATE_COLORS).map(({ hex }, i) => (
@@ -1435,12 +1433,12 @@ export default function VisualCanvas() {
               {/* Reference nodes */}
               {categorized.reference.length > 0 && (
                 <div className="mb-4">
-                  <div className="text-xs text-amber-600 font-semibold mb-2 uppercase tracking-wide">References</div>
+                  <div className="text-xs text-amber-600 font-semibold mb-2 uppercase tracking-wide">{tr("References")}</div>
                   <div className="space-y-0.5">
                     {categorized.reference.map(nt => (
                       <button key={nt.type} onClick={() => addNode(nt)}
                         className="w-full text-left px-2 py-1.5 rounded text-xs hover:bg-gray-100 transition-colors flex items-center gap-2 text-gray-700">
-                        <span>{nt.emoji}</span><span>{nt.label}</span>
+                        <span>{nt.emoji}</span><span>{tr(nt.label)}</span>
                       </button>
                     ))}
                   </div>
@@ -1454,6 +1452,7 @@ export default function VisualCanvas() {
         <div className="flex-1 relative">
           <GraphContext.Provider value={{ bigNodes, onParentChange: handleParentChange }}>
             <ReactFlow
+              ariaLabelConfig={flowAriaLabels()}
               minZoom={0.1}
               nodes={nodes}
               edges={edges}
@@ -1492,14 +1491,12 @@ export default function VisualCanvas() {
               {sceneId && (
                 <Panel position="top-center" className="!m-0">
                   <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-3 text-sm shadow-sm rounded-b-lg">
-                    <span className="text-gray-500">Scene:</span>
-                    <span className="font-medium text-gray-800">{sceneName || 'Loading...'}</span>
+                    <span className="text-gray-500">{tr("Scene:")}</span>
+                    <span className="font-medium text-gray-800">{sceneName || tr("Loading...")}</span>
                     <a
                       href="/workspace/arc-cloud"
                       className="ml-3 text-xs text-indigo-600 hover:text-indigo-800 hover:underline transition-colors"
-                    >
-                      ← Back to Arc Cloud
-                    </a>
+                    >{tr("← Back to Arc Cloud")}</a>
                   </div>
                 </Panel>
               )}
@@ -1511,10 +1508,9 @@ export default function VisualCanvas() {
                   <button
                     onClick={() => setSidebarOpen(s => !s)}
                     className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-                    title="Toggle node palette"
+                    title={tr("Toggle node palette")}
                   >
-                    {sidebarOpen ? '◀' : '▶'} Nodes
-                  </button>
+                    {sidebarOpen ? '◀' : '▶'}{" "}{tr("Nodes")}</button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
                   {/* History: Undo / Redo */}
@@ -1522,28 +1518,22 @@ export default function VisualCanvas() {
                     onClick={undo}
                     disabled={!canUndo}
                     className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Undo (Ctrl+Z)"
-                  >
-                    ↩ Undo
-                  </button>
+                    title={tr("Undo (Ctrl+Z)")}
+                  >{tr("↩ Undo")}</button>
                   <button
                     onClick={redo}
                     disabled={!canRedo}
                     className="px-2 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                    title="Redo (Ctrl+Y)"
-                  >
-                    ↪ Redo
-                  </button>
+                    title={tr("Redo (Ctrl+Y)")}
+                  >{tr("↪ Redo")}</button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
                   {/* Open draft */}
                   <button
                     onClick={() => setShowDraftBrowser(true)}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
-                    title="Open existing draft"
-                  >
-                    Open
-                  </button>
+                    title={tr("Open existing draft")}
+                  >{tr("Open")}</button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
                   {/* Save (flushes cloud sync too) */}
@@ -1551,16 +1541,16 @@ export default function VisualCanvas() {
                     onClick={() => save()}
                     disabled={saving}
                     className="px-3 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 rounded-lg text-white transition-colors"
-                    title="Save draft + sync changes to Clouds"
+                    title={tr("Save draft + sync changes to Clouds")}
                   >
-                    {saving ? 'Saving...' : '💾 Save'}
+                    {saving ? tr("Saving...") : tr("💾 Save")}
                   </button>
                   <button
                     onClick={publish}
                     disabled={publishing}
                     className="px-3 py-1.5 text-xs font-medium bg-indigo-500 hover:bg-indigo-600 disabled:opacity-50 rounded-lg text-white transition-colors"
                   >
-                    {publishing ? 'Saving...' : 'Make a flow'}
+                    {publishing ? tr("Saving...") : tr("Make a flow")}
                   </button>
 
                   {/* Runway export */}
@@ -1589,9 +1579,9 @@ export default function VisualCanvas() {
                     }}
                     disabled={exportingRunway}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                    title="Export manifest for Runway"
+                    title={tr("Export manifest for Runway")}
                   >
-                    {exportingRunway ? 'Exporting...' : '🎬 Runway'}
+                    {exportingRunway ? tr("Exporting...") : tr("🎬 Runway")}
                   </button>
 
                   {/* Delete selected */}
@@ -1601,9 +1591,8 @@ export default function VisualCanvas() {
                       <button
                         onClick={handleDeleteSelected}
                         className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-600 bg-red-50 hover:bg-red-100 transition-colors flex items-center gap-1"
-                        title={`Delete ${selectedCount} selected node${selectedCount > 1 ? 's' : ''}`}
-                      >
-                        🗑 Delete {selectedCount}
+                        title={tr("Delete {selectedCount} selected node{value}", { selectedCount: selectedCount, value: selectedCount > 1 ? 's' : '' })}
+                      >{tr("🗑 Delete")}{" "}{selectedCount}
                       </button>
                     </>
                   )}
@@ -1613,19 +1602,17 @@ export default function VisualCanvas() {
                   <button
                     onClick={copyForAI}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-indigo-600 hover:bg-gray-100 transition-colors"
-                    title="Copy graph as text for AI"
-                  >
-                    📋 Copy for AI
-                  </button>
+                    title={tr("Copy graph as text for AI")}
+                  >{tr("📋 Copy for AI")}</button>
 
                   {/* Load from Cloud — opens scene selector, then AI builds graph */}
                   <button
                     onClick={sceneId ? loadSceneItems : openBuildModal}
                     disabled={autoBuilding || importingCloud}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={sceneId ? 'Reload scene items' : 'Select scenes and build a connected graph with AI'}
+                    title={sceneId ? tr("Reload scene items") : tr("Select scenes and build a connected graph with AI")}
                   >
-                    {autoBuilding ? '⏳ Building…' : importingCloud ? '☁️ Loading…' : sceneId ? '☁️ Reload Scene' : '✨ Build graph'}
+                    {autoBuilding ? tr("⏳ Building…") : importingCloud ? tr("☁️ Loading…") : sceneId ? tr("☁️ Reload Scene") : tr("✨ Build graph")}
                   </button>
                   <div className="w-px h-6 bg-gray-200 mx-1" />
 
@@ -1634,9 +1621,9 @@ export default function VisualCanvas() {
                     onClick={() => setShowWizard(true)}
                     disabled={importing}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-gray-600 hover:bg-gray-100 transition-colors disabled:opacity-50"
-                    title="Upload files — choose structure & temperature"
+                    title={tr("Upload files — choose structure & temperature")}
                   >
-                    {importing ? '⏳ Uploading...' : '📤 Upload File'}
+                    {importing ? tr("⏳ Uploading...") : tr("📤 Upload File")}
                   </button>
                   <input
                     ref={fileInputRef}
@@ -1651,10 +1638,8 @@ export default function VisualCanvas() {
                   <button
                     onClick={() => setShowClearConfirm(true)}
                     className="px-2.5 py-1.5 text-xs font-medium rounded-lg text-red-500 hover:bg-red-50 hover:text-red-600 transition-colors"
-                    title="Clear all nodes and edges from canvas"
-                  >
-                    🗑 Clear
-                  </button>
+                    title={tr("Clear all nodes and edges from canvas")}
+                  >{tr("🗑 Clear")}</button>
                 </div>
               </Panel>
 
@@ -1664,22 +1649,18 @@ export default function VisualCanvas() {
                 <Panel position="top-center" className="!mt-16 !z-50">
                   <div className="bg-white rounded-2xl border border-gray-200 shadow-xl p-6 w-96">
                     <div className="mb-4">
-                      <p className="text-sm font-semibold text-gray-800">Build graph</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        The AI builds the graph one story beat at a time: what each beat changes for the characters, places and world rules in it, and which themes and references it touches.
-                      </p>
+                      <p className="text-sm font-semibold text-gray-800">{tr("Build graph")}</p>
+                      <p className="text-xs text-gray-500 mt-1">{tr("The AI builds the graph one story beat at a time: what each beat changes for the characters, places and world rules in it, and which themes and references it touches.")}</p>
                     </div>
 
                     {loadingBuildScenes ? (
-                      <div className="text-xs text-gray-400 py-4 text-center">Loading scenes...</div>
+                      <div className="text-xs text-gray-400 py-4 text-center">{tr("Loading scenes...")}</div>
                     ) : buildScenesList.length === 0 ? (
-                      <div className="text-xs text-gray-500 py-2 mb-4">
-                        This project has no story beats yet. Upload a text, or add beats on the Arc Cloud page, then build the graph.
-                      </div>
+                      <div className="text-xs text-gray-500 py-2 mb-4">{tr("This project has no story beats yet. Upload a text, or add beats on the Arc Cloud page, then build the graph.")}</div>
                     ) : (
                       <div className="mb-4">
                         <div className="flex items-center justify-between mb-2">
-                          <p className="text-xs font-medium text-gray-600">Beats to include ({buildScenesChecked.size}/{buildScenesList.length})</p>
+                          <p className="text-xs font-medium text-gray-600">{tr("Beats to include (")}{buildScenesChecked.size}/{buildScenesList.length})</p>
                           <button
                             onClick={() => setBuildScenesChecked(
                               buildScenesChecked.size === buildScenesList.length
@@ -1688,7 +1669,7 @@ export default function VisualCanvas() {
                             )}
                             className="text-xs text-indigo-500 hover:text-indigo-700"
                           >
-                            {buildScenesChecked.size === buildScenesList.length ? 'Deselect all' : 'Select all'}
+                            {buildScenesChecked.size === buildScenesList.length ? tr("Deselect all") : tr("Select all")}
                           </button>
                         </div>
                         <div className="space-y-1 max-h-52 overflow-y-auto border border-gray-100 rounded-lg p-2">
@@ -1705,7 +1686,7 @@ export default function VisualCanvas() {
                                 className="rounded border-gray-300"
                               />
                               <span className="text-xs text-gray-700 truncate">
-                                {scene.when_told === 'flashback' ? 'Flashback: ' : scene.when_told === 'flash_forward' ? 'Flash-forward: ' : ''}{scene.title}
+                                {scene.when_told === 'flashback' ? tr("Flashback: ") : scene.when_told === 'flash_forward' ? tr("Flash-forward: ") : ''}{scene.title}
                               </span>
                             </label>
                           ))}
@@ -1717,9 +1698,7 @@ export default function VisualCanvas() {
                       <button
                         onClick={() => setShowBuildModal(false)}
                         className="px-4 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors"
-                      >
-                        Cancel
-                      </button>
+                      >{tr("Cancel")}</button>
                       <button
                         onClick={() => handleAutoBuild(
                           buildScenesList.length > 0
@@ -1728,9 +1707,7 @@ export default function VisualCanvas() {
                         )}
                         disabled={buildScenesChecked.size === 0}
                         className="px-4 py-2 rounded-lg text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 transition-colors disabled:opacity-40"
-                      >
-                        ✨ Build graph
-                      </button>
+                      >{tr("✨ Build graph")}</button>
                     </div>
                   </div>
                 </Panel>
@@ -1742,26 +1719,21 @@ export default function VisualCanvas() {
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center text-xl shrink-0">🗑</div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-800">Clear canvas?</p>
-                        <p className="text-xs text-gray-500 mt-0.5">All nodes and edges will be removed.</p>
+                        <p className="text-sm font-semibold text-gray-800">{tr("Clear canvas?")}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">{tr("All nodes and edges will be removed.")}</p>
                       </div>
                     </div>
-                    <p className="text-xs text-gray-400 mb-4 border-t border-gray-100 pt-3">
-                      You can undo this with <kbd className="px-1 py-0.5 rounded bg-gray-100 font-mono text-[10px]">Ctrl+Z</kbd>
+                    <p className="text-xs text-gray-400 mb-4 border-t border-gray-100 pt-3">{tr("You can undo this with")}{" "}<kbd className="px-1 py-0.5 rounded bg-gray-100 font-mono text-[10px]">Ctrl+Z</kbd>
                     </p>
                     <div className="flex gap-2">
                       <button
                         onClick={() => setShowClearConfirm(false)}
                         className="flex-1 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                      >
-                        Cancel
-                      </button>
+                      >{tr("Cancel")}</button>
                       <button
                         onClick={handleClearCanvas}
                         className="flex-1 px-4 py-2 rounded-lg text-sm font-medium bg-red-500 hover:bg-red-600 text-white transition-colors"
-                      >
-                        Yes, clear
-                      </button>
+                      >{tr("Yes, clear")}</button>
                     </div>
                   </div>
                 </Panel>
@@ -1807,10 +1779,9 @@ export default function VisualCanvas() {
               {/* Modal header */}
               <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-gray-100">
                 <div>
-                  <h2 className="text-lg font-semibold text-gray-800">Load into Editor</h2>
+                  <h2 className="text-lg font-semibold text-gray-800">{tr("Load into Editor")}</h2>
                   {activeProjectId && (
-                    <span className="text-xs text-gray-400">
-                      Project: {projects.find(p => p.id === activeProjectId)?.title || 'Selected'}
+                    <span className="text-xs text-gray-400">{tr("Project:")}{" "}{projects.find(p => p.id === activeProjectId)?.title || tr("Selected")}
                     </span>
                   )}
                 </div>
@@ -1828,16 +1799,12 @@ export default function VisualCanvas() {
                 <button
                   onClick={handleSwitchToScenesTab}
                   className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'scenes' ? 'border-pink-500 text-pink-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                  🎬 By Scene
-                  <span className="ml-1.5 text-xs text-gray-400">(auto-connects)</span>
+                >{tr("🎬 By Scene")}<span className="ml-1.5 text-xs text-gray-400">{tr("(auto-connects)")}</span>
                 </button>
                 <button
                   onClick={handleSwitchToCloudsTab}
                   className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${cloudLoadTab === 'clouds' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                >
-                  ☁️ By Cloud Type
-                </button>
+                >{tr("☁️ By Cloud Type")}</button>
               </div>
 
               {/* Modal body */}
@@ -1850,12 +1817,9 @@ export default function VisualCanvas() {
                       <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                      </svg>
-                      Loading items...
-                    </div>
+                      </svg>{tr("Loading items...")}</div>
                   ) : Object.keys(cloudLoadGroups).length === 0 ? (
-                    <div className="text-center py-12 text-gray-400">
-                      No cloud items found{activeProjectId ? ' for this project' : ''}.
+                    <div className="text-center py-12 text-gray-400">{tr("No cloud items found")}{activeProjectId ? ' for this project' : ''}.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -1931,21 +1895,16 @@ export default function VisualCanvas() {
                           <button
                             onClick={() => { setSceneChecklistForScene(null); setSceneChecklistItems([]); setSceneChecklistChecked(new Set()); }}
                             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-                          >
-                            ← back
-                          </button>
+                          >{tr("← back")}</button>
                           <span className="text-xs text-gray-500 font-medium truncate">
                             {sceneChecklistForScene.title.includes(' — ')
                               ? sceneChecklistForScene.title.slice(sceneChecklistForScene.title.indexOf(' — ') + 3)
                               : sceneChecklistForScene.title}
                           </span>
                           <span className="text-xs text-gray-400 ml-auto">
-                            {sceneChecklistChecked.size} selected
-                          </span>
+                            {sceneChecklistChecked.size}{" "}{tr("selected")}</span>
                         </div>
-                        <p className="text-xs text-gray-400 pb-1">
-                          ✨ Smart pre-selection based on scene content. Uncheck what you don&apos;t need.
-                        </p>
+                        <p className="text-xs text-gray-400 pb-1">{tr("✨ Smart pre-selection based on scene content. Uncheck what you don't need.")}</p>
                         {/* Items grouped by cloud type */}
                         {(() => {
                           const groups = new Map<string, CloudModalItem[]>();
@@ -2003,13 +1962,9 @@ export default function VisualCanvas() {
                         <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                        </svg>
-                        Loading scenes...
-                      </div>
+                        </svg>{tr("Loading scenes...")}</div>
                     ) : scenesList.length === 0 ? (
-                      <div className="text-center py-8 text-gray-400 text-sm">
-                        No scenes found. Add scenes in Arc Cloud first.
-                      </div>
+                      <div className="text-center py-8 text-gray-400 text-sm">{tr("No scenes found. Add scenes in Arc Cloud first.")}</div>
                     ) : (() => {
                         // Group scenes by arc prefix (part before " — "), or standalone if no prefix
                         const groups = new Map<string, typeof scenesList>();
@@ -2022,7 +1977,7 @@ export default function VisualCanvas() {
                         }
                         return (
                           <div className="space-y-4">
-                            <p className="text-xs text-gray-400">Click a scene to load it. Scenes with a pink badge load curated items only — all others load your full cloud.</p>
+                            <p className="text-xs text-gray-400">{tr("Click a scene to load it. Scenes with a pink badge load curated items only — all others load your full cloud.")}</p>
                             {[...groups.entries()].map(([groupKey, groupScenes]) => (
                               <div key={groupKey}>
                                 {groupKey !== '—' && (
@@ -2081,17 +2036,14 @@ export default function VisualCanvas() {
                 <button
                   onClick={() => setShowCloudLoadModal(false)}
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
+                >{tr("Cancel")}</button>
                 {/* By Cloud Type tab */}
                 {cloudLoadTab === 'clouds' && (
                   <button
                     onClick={handleCloudLoadConfirm}
                     disabled={cloudLoadChecked.size === 0}
                     className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    Load {cloudLoadChecked.size} item{cloudLoadChecked.size !== 1 ? 's' : ''}
+                  >{tr("Load")}{" "}{cloudLoadChecked.size}{" "}{tr("item")}{cloudLoadChecked.size !== 1 ? 's' : ''}
                   </button>
                 )}
                 {/* Scene checklist confirm */}
@@ -2100,9 +2052,7 @@ export default function VisualCanvas() {
                     onClick={handleSceneChecklistConfirm}
                     disabled={sceneChecklistChecked.size === 0}
                     className="px-5 py-2 rounded-lg text-sm font-medium bg-pink-600 text-white hover:bg-pink-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >
-                    🎬 Load {sceneChecklistChecked.size} item{sceneChecklistChecked.size !== 1 ? 's' : ''} + connect
-                  </button>
+                  >{tr("🎬 Load")}{" "}{sceneChecklistChecked.size}{" "}{tr("item")}{sceneChecklistChecked.size !== 1 ? 's' : ''}{" "}{tr("+ connect")}</button>
                 )}
               </div>
             </div>
@@ -2112,7 +2062,7 @@ export default function VisualCanvas() {
         {/* Toast */}
         {toast && (
           <div className="fixed top-20 right-4 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-md text-sm z-50 text-gray-800">
-            {toast}
+            {tr(toast)}
           </div>
         )}
 

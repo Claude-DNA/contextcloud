@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useSession } from 'next-auth/react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
@@ -57,16 +58,12 @@ export default function DashboardContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15a4.5 4.5 0 004.5 4.5H18a3.75 3.75 0 001.332-7.257 3 3 0 00-3.758-3.848 5.25 5.25 0 00-10.233 2.33A4.502 4.502 0 002.25 15z" />
             </svg>
           </div>
-          <h1 className="text-2xl font-semibold mb-2">Welcome to ContextCloud Studio</h1>
-          <p className="text-muted mb-6">
-            Build structured context clouds and flows, then publish to ContextTube.
-          </p>
+          <h1 className="text-2xl font-semibold mb-2">{tr("Welcome to ContextCloud Studio")}</h1>
+          <p className="text-muted mb-6">{tr("Build structured context clouds and flows, then publish to ContextTube.")}</p>
           <Link
             href="/auth/signin"
             className="inline-flex px-6 py-2.5 bg-accent text-white rounded-lg hover:bg-accent-hover transition-colors font-medium"
-          >
-            Sign in to get started
-          </Link>
+          >{tr("Sign in to get started")}</Link>
         </div>
       </div>
     );
@@ -82,10 +79,9 @@ export default function DashboardContent() {
       )}
 
       <div className="mb-8">
-        <h1 className="text-2xl font-semibold">
-          Welcome back{session.user?.name ? `, ${session.user.name}` : ''}
+        <h1 className="text-2xl font-semibold">{tr("Welcome back")}{session.user?.name ? `, ${session.user.name}` : ''}
         </h1>
-        <p className="text-muted text-sm mt-1">Manage your clouds and flows</p>
+        <p className="text-muted text-sm mt-1">{tr("Manage your clouds and flows")}</p>
       </div>
 
       {/* Quick actions */}
@@ -99,8 +95,8 @@ export default function DashboardContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
           </div>
-          <div className="font-medium text-sm">New Cloud</div>
-          <div className="text-xs text-muted mt-1">Create a context cloud with layers</div>
+          <div className="font-medium text-sm">{tr("New Cloud")}</div>
+          <div className="text-xs text-muted mt-1">{tr("Create a context cloud with layers")}</div>
         </Link>
 
         <Link
@@ -112,8 +108,8 @@ export default function DashboardContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z" />
             </svg>
           </div>
-          <div className="font-medium text-sm">New Flow</div>
-          <div className="text-xs text-muted mt-1">Build a shareable context flow</div>
+          <div className="font-medium text-sm">{tr("New Flow")}</div>
+          <div className="text-xs text-muted mt-1">{tr("Build a shareable context flow")}</div>
         </Link>
 
         <Link
@@ -125,8 +121,8 @@ export default function DashboardContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.53 16.122a3 3 0 00-5.78 1.128 2.25 2.25 0 01-2.4 2.245 4.5 4.5 0 008.4-2.245c0-.399-.078-.78-.22-1.128zm0 0a15.998 15.998 0 003.388-1.62m-5.043-.025a15.994 15.994 0 011.622-3.395m3.42 3.42a15.995 15.995 0 004.764-4.648l3.876-5.814a1.151 1.151 0 00-1.597-1.597L14.146 6.32a15.996 15.996 0 00-4.649 4.763m3.42 3.42a6.776 6.776 0 00-3.42-3.42" />
             </svg>
           </div>
-          <div className="font-medium text-sm">Visual Editor</div>
-          <div className="text-xs text-muted mt-1">Node-based canvas workspace</div>
+          <div className="font-medium text-sm">{tr("Visual Editor")}</div>
+          <div className="text-xs text-muted mt-1">{tr("Node-based canvas workspace")}</div>
         </Link>
 
         <button
@@ -138,20 +134,18 @@ export default function DashboardContent() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
             </svg>
           </div>
-          <div className="font-medium text-sm text-emerald-800">Import Document</div>
-          <div className="text-xs text-muted mt-1">Populate all clouds from .md / .docx</div>
+          <div className="font-medium text-sm text-emerald-800">{tr("Import Document")}</div>
+          <div className="text-xs text-muted mt-1">{tr("Populate all clouds from .md / .docx")}</div>
         </button>
       </div>
 
       {/* Drafts */}
       <section className="mb-10">
-        <h2 className="text-lg font-semibold mb-4">Drafts</h2>
+        <h2 className="text-lg font-semibold mb-4">{tr("Drafts")}</h2>
         {loading ? (
           <div className="animate-pulse h-20 bg-gray-100 rounded-xl" />
         ) : draftItems.length === 0 ? (
-          <div className="text-sm text-muted py-8 text-center border border-dashed border-border rounded-xl">
-            No drafts yet. Create your first cloud or flow above.
-          </div>
+          <div className="text-sm text-muted py-8 text-center border border-dashed border-border rounded-xl">{tr("No drafts yet. Create your first cloud or flow above.")}</div>
         ) : (
           <div className="grid gap-3">
             {draftItems.map((d) => (
@@ -163,13 +157,11 @@ export default function DashboardContent() {
 
       {/* Published */}
       <section>
-        <h2 className="text-lg font-semibold mb-4">Published</h2>
+        <h2 className="text-lg font-semibold mb-4">{tr("Published")}</h2>
         {loading ? (
           <div className="animate-pulse h-20 bg-gray-100 rounded-xl" />
         ) : publishedItems.length === 0 ? (
-          <div className="text-sm text-muted py-8 text-center border border-dashed border-border rounded-xl">
-            Nothing published yet.
-          </div>
+          <div className="text-sm text-muted py-8 text-center border border-dashed border-border rounded-xl">{tr("Nothing published yet.")}</div>
         ) : (
           <div className="grid gap-3">
             {publishedItems.map((d) => (
@@ -195,11 +187,11 @@ function DraftCard({ draft }: { draft: Draft }) {
             : 'bg-emerald-50 text-emerald-600'
         }`}
       >
-        {draft.type === 'cloud' ? 'CL' : 'FL'}
+        {draft.type === 'cloud' ? tr("CL") : tr("FL")}
       </div>
       <div className="flex-1 min-w-0">
-        <div className="font-medium text-sm truncate">{draft.title || 'Untitled'}</div>
-        <div className="text-xs text-muted truncate">{draft.description || 'No description'}</div>
+        <div className="font-medium text-sm truncate">{draft.title || tr("Untitled")}</div>
+        <div className="text-xs text-muted truncate">{draft.description || tr("No description")}</div>
       </div>
       <div className="text-xs text-muted whitespace-nowrap">
         {new Date(draft.updated_at).toLocaleDateString()}

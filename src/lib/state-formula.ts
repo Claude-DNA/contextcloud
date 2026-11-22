@@ -206,25 +206,32 @@ const INTENSITY = { 1: 'an undertone, mostly hidden', 2: 'plain to see', 3: 'ove
  * The formula in words, for a prompt: what the character feels, what is missing, and how it comes out.
  * This is the text the AI reads; the symbols alone would mean nothing to it.
  */
-export function describeFormula(f: StateFormula): string {
+type Say = (text: string, vars?: Record<string, unknown>) => string;
+const fill: Say = (text, vars) => (vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text);
+
+/**
+ * Pass the page's translator (and formula translator) to show this to a writer in their language;
+ * prompts call it without them, in English.
+ */
+export function describeFormula(f: StateFormula, t: Say = fill, tf: (formula: string) => string = (x) => x): string {
   const felt = f.base.filter((id) => (f.signs?.[id] ?? 1) === 1);
   const missing = f.base.filter((id) => f.signs?.[id] === -1);
   const say = (id: string) => {
     const r = resolve(id);
-    return r ? `${r.label} (${r.description.replace(/\.$/, '')})` : id;
+    return r ? `${t(r.label)} (${t(r.description).replace(/\.$/, '')})` : id;
   };
-  const shown = formatFormula(f);
-  const lines = [`${f.name && f.name !== shown && !/^unnamed/i.test(f.name) ? `${f.name}: ` : ''}${shown}`];
-  if (felt.length) lines.push(`Feels${felt.length > 1 ? ', at the same time' : ''}: ${felt.map(say).join('; ')}.`);
-  if (missing.length) lines.push(`Missing or held down, though the situation calls for it: ${missing.map(say).join('; ')}.`);
+  const shown = tf(formatFormula(f));
+  const lines = [`${f.name && f.name !== formatFormula(f) && !/^unnamed/i.test(f.name) ? `${t(f.name)}: ` : ''}${shown}`];
+  if (felt.length) lines.push(t(felt.length > 1 ? 'Feels, at the same time: {list}.' : 'Feels: {list}.', { list: felt.map(say).join('; ') }));
+  if (missing.length) lines.push(t('Missing or held down, though the situation calls for it: {list}.', { list: missing.map(say).join('; ') }));
   if (f.modifier) {
     lines.push(f.modifierSign === -1
-      ? `It never comes out as ${say(f.modifier)}: that channel is closed, so the feeling finds another way out.`
-      : `It comes out as ${say(f.modifier)}: this is what others see the character do.`);
+      ? t('It never comes out as {x}: that channel is closed, so the feeling finds another way out.', { x: say(f.modifier) })
+      : t('It comes out as {x}: this is what others see the character do.', { x: say(f.modifier) }));
   }
-  lines.push(`Intensity: ${INTENSITY[f.intensity ?? 2]}.`);
-  if (f.description && !f.isPreset) lines.push(`Writer's note: ${f.description}`);
-  else if (f.description) lines.push(f.description);
+  lines.push(t('Intensity: {level}.', { level: t(INTENSITY[f.intensity ?? 2]) }));
+  if (f.description && !f.isPreset) lines.push(t("Writer's note: {note}", { note: f.description }));
+  else if (f.description) lines.push(t(f.description));
   return lines.join('\n');
 }
 

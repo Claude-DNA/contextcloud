@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 /**
  * Step-by-step help for getting an API key from each provider, in plain words.
  * Shown under the key field in Settings, open when no key is saved yet.
@@ -77,13 +78,13 @@ export const GUIDES: Record<GuideProvider, Guide> = {
 export function KeyExplainer() {
   return (
     <details className="rounded-lg border border-border bg-gray-50 px-4 py-3 text-sm text-foreground">
-      <summary className="cursor-pointer font-medium">What is an API key, and why do I need one?</summary>
+      <summary className="cursor-pointer font-medium">{tr("What is an API key, and why do I need one?")}</summary>
       <div className="mt-2 space-y-2 text-muted leading-relaxed">
-        <p>Studio does not have its own AI. It borrows one from an AI company, like Google or OpenAI.</p>
-        <p>An API key is like a library card for that company: a long secret code that tells them the request is from you. You get it from their website, paste it here once, and Studio uses it whenever you press an AI button.</p>
-        <p>You pay the AI company for what you use, not Studio. Studio keeps your key locked (encrypted) and never shows it again in full.</p>
-        <p>Treat the key like a password: do not post it or send it to anyone. If it ever leaks, delete it on the company&apos;s website and make a new one.</p>
-        <p>Not sure which to pick? Start with Google Gemini: it is free to try.</p>
+        <p>{tr("Studio does not have its own AI. It borrows one from an AI company, like Google or OpenAI.")}</p>
+        <p>{tr("An API key is like a library card for that company: a long secret code that tells them the request is from you. You get it from their website, paste it here once, and Studio uses it whenever you press an AI button.")}</p>
+        <p>{tr("You pay the AI company for what you use, not Studio. Studio keeps your key locked (encrypted) and never shows it again in full.")}</p>
+        <p>{tr("Treat the key like a password: do not post it or send it to anyone. If it ever leaks, delete it on the company's website and make a new one.")}</p>
+        <p>{tr("Not sure which to pick? Start with Google Gemini: it is free to try.")}</p>
       </div>
     </details>
   );
@@ -93,24 +94,24 @@ export default function ProviderGuide({ provider, label, open, forPictures = fal
   const g = GUIDES[provider];
   return (
     <details open={open} className="rounded-lg border border-border px-4 py-3 text-sm">
-      <summary className="cursor-pointer font-medium text-foreground">How to get your {label} key</summary>
+      <summary className="cursor-pointer font-medium text-foreground">{tr("How to get your {label} key", { label })}</summary>
       <div className="mt-3 space-y-3">
-        <p className="text-foreground">{g.summary}</p>
-        <p className="text-muted"><span className="font-medium text-foreground">Cost: </span>{g.cost}</p>
-        {forPictures && g.pictures && <p className="text-muted">{g.pictures}</p>}
+        <p className="text-foreground">{tr(g.summary)}</p>
+        <p className="text-muted"><span className="font-medium text-foreground">{tr("Cost:")}{" "}</span>{tr(g.cost)}</p>
+        {forPictures && g.pictures && <p className="text-muted">{tr(g.pictures)}</p>}
         <ol className="list-decimal space-y-2 pl-5 text-foreground marker:text-muted">
           {g.steps.map((s, i) => (
             <li key={i} className="leading-relaxed">
-              {s.text}{' '}
+              {tr(s.text)}{' '}
               {s.link && (
                 <a href={s.link.href} target="_blank" rel="noopener noreferrer" className="whitespace-nowrap text-accent hover:underline">
-                  {s.link.label} <span aria-hidden="true">↗</span><span className="sr-only">(opens in a new tab)</span>
+                  {tr(s.link.label)} <span aria-hidden="true">↗</span><span className="sr-only">{tr("(opens in a new tab)")}</span>
                 </a>
               )}
             </li>
           ))}
         </ol>
-        {g.watch && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900"><span className="font-medium">Good to know: </span>{g.watch}</p>}
+        {g.watch && <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900"><span className="font-medium">{tr("Good to know:")}{" "}</span>{tr(g.watch)}</p>}
       </div>
     </details>
   );

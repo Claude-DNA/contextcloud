@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 
 export interface ConnectionNodeData {
@@ -17,7 +18,7 @@ export default function ConnectionNode({ data, selected }: NodeProps) {
       }`}
     >
       <div className="text-[9px] font-semibold text-orange-600 uppercase tracking-wide mb-0.5">
-        {d.relationship || 'Connection'}
+        {d.relationship || tr("Connection")}
       </div>
       <div className="font-medium text-xs truncate">{d.label || 'relates to'}</div>
       <Handle type="source" position={Position.Right} className="!bg-orange-400 !w-2.5 !h-2.5 !border-2 !border-white" />

@@ -16,6 +16,8 @@
  */
 
 import { parseJson } from './json';
+import { requestLocale } from '@/i18n/server';
+import { RUSSIAN_OUTPUT_NOTE } from '@/i18n/core';
 export { parseJson };
 
 export type Provider = 'google' | 'anthropic' | 'openai' | 'openrouter';
@@ -63,6 +65,8 @@ export interface ChatMessage { role: 'user' | 'assistant'; content: string }
 
 export interface GenerateRequest {
   ai: AiConfig;
+  /** Keep the output in English even on the Russian site: prompts for image and video models. */
+  english?: boolean;
   /** The user turn: a string, or parts (text plus files such as PDFs). */
   prompt: string | Part[];
   /** Standing instructions, sent as the provider's system prompt. */
@@ -280,8 +284,15 @@ async function chatGenerate(provider: 'openai' | 'openrouter', req: GenerateRequ
 
 // ── public API ─────────────────────────────────────────────────────────────
 
+/** On the Russian site, the AI writes for people in Russian. */
+async function withLanguage<T extends { system?: string; english?: boolean }>(req: T): Promise<T> {
+  if (req.english || (await requestLocale()) !== 'ru') return req;
+  return { ...req, system: req.system ? `${req.system}\n\n${RUSSIAN_OUTPUT_NOTE}` : RUSSIAN_OUTPUT_NOTE };
+}
+
 /** Calls the user's model and returns its text. Retries once on 429/5xx. */
 export async function generate(req: GenerateRequest): Promise<string> {
+  req = await withLanguage(req);
   if (!modelFor(req)) throw new AiError('No model chosen. Pick one in Settings.', 400, req.ai.provider);
   switch (req.ai.provider) {
     case 'google': return googleGenerate(req);
@@ -304,6 +315,7 @@ export async function streamText(req: {
   temperature?: number;
   maxTokens?: number;
 }): Promise<ReadableStream<Uint8Array>> {
+  req = await withLanguage(req);
   const { ai } = req;
   const model = ai.model;
   if (!model) throw new AiError('No model chosen. Pick one in Settings.', 400, ai.provider);

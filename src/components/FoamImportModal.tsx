@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useRef } from 'react';
 
 interface Stats {
@@ -62,7 +63,7 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
   const handleFile = (file: File) => {
     const name = file.name.toLowerCase();
     if (!name.endsWith('.md') && !name.endsWith('.txt') && !name.endsWith('.docx')) {
-      setError('Only .md, .txt, and .docx files are supported');
+      setError(tr("Only .md, .txt, and .docx files are supported"));
       setPhase('error');
       return;
     }
@@ -95,10 +96,8 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Import Story Document</h2>
-            <p className="text-xs text-muted mt-0.5">
-              Parses your story file and populates all cloud pages automatically
-            </p>
+            <h2 className="text-lg font-semibold text-foreground">{tr("Import Story Document")}</h2>
+            <p className="text-xs text-muted mt-0.5">{tr("Parses your story file and populates all cloud pages automatically")}</p>
           </div>
           <button
             onClick={onClose}
@@ -124,12 +123,8 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
               }`}
             >
               <div className="text-3xl mb-3">📄</div>
-              <p className="text-sm font-medium text-foreground mb-1">
-                Drop your story file here
-              </p>
-              <p className="text-xs text-muted">
-                .md, .txt, or .docx — supports FOAM-BY-CHAPTER format
-              </p>
+              <p className="text-sm font-medium text-foreground mb-1">{tr("Drop your story file here")}</p>
+              <p className="text-xs text-muted">{tr(".md, .txt, or .docx — supports FOAM-BY-CHAPTER format")}</p>
               <input
                 ref={inputRef}
                 type="file"
@@ -150,9 +145,9 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
                 <div className="text-sm font-medium text-foreground truncate flex-1">{fileName}</div>
               </div>
               <div className="space-y-2">
-                <StepRow label="Reading file" active={phase === 'reading'} done={phase !== 'reading'} />
-                <StepRow label="AI extraction: characters, stages, world, references, arc" active={phase === 'extracting'} done={phase === 'saving'} />
-                <StepRow label="Saving to clouds" active={phase === 'saving'} done={false} />
+                <StepRow label={tr("Reading file")} active={phase === 'reading'} done={phase !== 'reading'} />
+                <StepRow label={tr("AI extraction: characters, stages, world, references, arc")} active={phase === 'extracting'} done={phase === 'saving'} />
+                <StepRow label={tr("Saving to clouds")} active={phase === 'saving'} done={false} />
               </div>
               <p className="text-xs text-muted italic">{phaseLabel[phase]}</p>
             </div>
@@ -165,30 +160,26 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
                 <span className="text-2xl">✅</span>
                 <div>
                   <p className="text-sm font-semibold text-green-800">
-                    {totalImported} items imported
-                  </p>
+                    {totalImported}{" "}{tr("items imported")}</p>
                   <p className="text-xs text-green-600">
-                    "{fileName}" processed successfully
-                  </p>
+                    "{fileName}{tr("\" processed successfully")}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <StatCard emoji="📖" label="Arc Cloud" value={stats.arc.chapters > 0 ? `${stats.arc.chapters} chapters, ${stats.arc.plots} plots` : stats.arc.created > 0 ? 'arc created (0 chapters)' : '— not created'} color="blue" />
-                <StatCard emoji="👤" label="Characters" value={stats.characters > 0 ? `${stats.characters} characters` : '— none found'} color="indigo" />
-                <StatCard emoji="🎭" label="Stage Cloud" value={stats.stages > 0 ? `${stats.stages} locations` : '— none found'} color="green" />
-                <StatCard emoji="🌍" label="World Cloud" value={stats.world > 0 ? `${stats.world} concepts` : '— none found'} color="cyan" />
-                <StatCard emoji="📑" label="References" value={stats.references > 0 ? `${stats.references} references` : '— none found'} color="orange" />
-                <StatCard emoji="💡" label="Ideas Cloud" value={stats.ideas > 0 ? `${stats.ideas} ideas` : '— none found'} color="yellow" />
+                <StatCard emoji="📖" label={tr("Arc Cloud")} value={stats.arc.chapters > 0 ? `${stats.arc.chapters} chapters, ${stats.arc.plots} plots` : stats.arc.created > 0 ? 'arc created (0 chapters)' : '— not created'} color="blue" />
+                <StatCard emoji="👤" label={tr("Characters")} value={stats.characters > 0 ? `${stats.characters} characters` : '— none found'} color="indigo" />
+                <StatCard emoji="🎭" label={tr("Stage Cloud")} value={stats.stages > 0 ? `${stats.stages} locations` : '— none found'} color="green" />
+                <StatCard emoji="🌍" label={tr("World Cloud")} value={stats.world > 0 ? `${stats.world} concepts` : '— none found'} color="cyan" />
+                <StatCard emoji="📑" label={tr("References")} value={stats.references > 0 ? `${stats.references} references` : '— none found'} color="orange" />
+                <StatCard emoji="💡" label={tr("Ideas Cloud")} value={stats.ideas > 0 ? `${stats.ideas} ideas` : '— none found'} color="yellow" />
               </div>
 
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={onClose}
                   className="flex-1 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover transition-colors"
-                >
-                  View clouds
-                </button>
+                >{tr("View clouds")}</button>
                 <button
                   onClick={() => {
                     setPhase('idle');
@@ -197,9 +188,7 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
                     setError('');
                   }}
                   className="px-4 py-2 border border-border text-foreground rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                >
-                  Import another
-                </button>
+                >{tr("Import another")}</button>
               </div>
             </div>
           )}
@@ -207,14 +196,12 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
           {/* Error */}
           {phase === 'error' && error && (
             <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-xl">
-              <p className="text-sm text-red-700 font-medium">Import failed</p>
-              <p className="text-xs text-red-500 mt-1">{error}</p>
+              <p className="text-sm text-red-700 font-medium">{tr("Import failed")}</p>
+              <p className="text-xs text-red-500 mt-1">{tr(error)}</p>
               <button
                 onClick={() => { setPhase('idle'); setError(''); }}
                 className="mt-3 text-xs text-red-600 underline"
-              >
-                Try again
-              </button>
+              >{tr("Try again")}</button>
             </div>
           )}
         </div>
@@ -222,18 +209,18 @@ export default function FoamImportModal({ onClose, onDone }: FoamImportModalProp
         {/* Supported clouds legend */}
         {phase === 'idle' && (
           <div className="px-6 pb-5">
-            <p className="text-xs text-muted mb-2">Will populate:</p>
+            <p className="text-xs text-muted mb-2">{tr("Will populate:")}</p>
             <div className="flex flex-wrap gap-1.5">
               {[
-                { emoji: '📖', label: 'Arc Cloud', color: 'bg-blue-50 text-blue-700' },
-                { emoji: '👤', label: 'Characters', color: 'bg-indigo-50 text-indigo-700' },
-                { emoji: '🎭', label: 'Stage Cloud', color: 'bg-green-50 text-green-700' },
-                { emoji: '🌍', label: 'World Cloud', color: 'bg-cyan-50 text-cyan-700' },
-                { emoji: '📑', label: 'References', color: 'bg-orange-50 text-orange-700' },
-                { emoji: '💡', label: 'Ideas Cloud', color: 'bg-yellow-50 text-yellow-700' },
+                { emoji: '📖', label: tr("Arc Cloud"), color: 'bg-blue-50 text-blue-700' },
+                { emoji: '👤', label: tr("Characters"), color: 'bg-indigo-50 text-indigo-700' },
+                { emoji: '🎭', label: tr("Stage Cloud"), color: 'bg-green-50 text-green-700' },
+                { emoji: '🌍', label: tr("World Cloud"), color: 'bg-cyan-50 text-cyan-700' },
+                { emoji: '📑', label: tr("References"), color: 'bg-orange-50 text-orange-700' },
+                { emoji: '💡', label: tr("Ideas Cloud"), color: 'bg-yellow-50 text-yellow-700' },
               ].map(t => (
-                <span key={t.label} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>
-                  {t.emoji} {t.label}
+                <span key={tr(t.label)} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${t.color}`}>
+                  {t.emoji} {tr(t.label)}
                 </span>
               ))}
             </div>

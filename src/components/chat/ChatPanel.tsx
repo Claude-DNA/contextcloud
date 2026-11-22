@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { unzipSync, strFromU8 } from 'fflate';
 
@@ -171,15 +172,13 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
       {/* Message list */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {loading && (
-          <div className="text-center py-16 text-muted text-xs">Restoring session…</div>
+          <div className="text-center py-16 text-muted text-xs">{tr("Restoring session…")}</div>
         )}
         {!loading && messages.length === 0 && !streaming && (
           <div className="text-center py-16">
             <div className="text-4xl mb-3">💬</div>
-            <p className="text-muted text-sm mb-1">Start building your Context Cloud.</p>
-            <p className="text-muted text-xs">
-              Describe your project idea below — or attach a file with notes, an outline, or existing draft.
-            </p>
+            <p className="text-muted text-sm mb-1">{tr("Start building your Context Cloud.")}</p>
+            <p className="text-muted text-xs">{tr("Describe your project idea below — or attach a file with notes, an outline, or existing draft.")}</p>
           </div>
         )}
 
@@ -202,7 +201,7 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
           <div className="flex justify-start">
             <div className="max-w-[85%] rounded-xl rounded-bl-sm bg-gray-100 text-foreground px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap">
               {streamingText || (
-                <span className="text-muted animate-pulse">Thinking…</span>
+                <span className="text-muted animate-pulse">{tr("Thinking…")}</span>
               )}
             </div>
           </div>
@@ -227,7 +226,7 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
                 <button
                   onClick={() => removeAttachment(a.name)}
                   className="ml-1 text-muted hover:text-red-500 transition-colors"
-                  aria-label="Remove"
+                  aria-label={tr("Remove")}
                 >
                   ×
                 </button>
@@ -242,7 +241,7 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={streaming}
-            title="Attach a file (text, markdown, DOCX, PDF, EPUB, RTF)"
+            title={tr("Attach a file (text, markdown, DOCX, PDF, EPUB, RTF)")}
             className="shrink-0 p-2 rounded-lg text-muted hover:text-foreground hover:bg-gray-100 disabled:opacity-40 transition-colors"
           >
             {/* Paperclip icon */}
@@ -265,7 +264,7 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
             value={input}
             onChange={(e) => { setInput(e.target.value); autoResize(); }}
             onKeyDown={handleKeyDown}
-            placeholder="Describe your project idea… (Shift+Enter for new line)"
+            placeholder={tr("Describe your project idea… (Shift+Enter for new line)")}
             rows={1}
             className="flex-1 border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder-muted focus:outline-none focus:ring-2 focus:ring-accent/30 focus:border-accent transition-colors bg-white resize-none overflow-y-auto"
             style={{ minHeight: 40, maxHeight: 240 }}
@@ -277,13 +276,11 @@ export default function ChatPanel({ messages, streaming, streamingText, onSend, 
             disabled={streaming || (!input.trim() && attachments.length === 0)}
             className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-accent hover:bg-accent-hover disabled:opacity-40 transition-colors shrink-0"
           >
-            {streaming ? '…' : 'Send'}
+            {streaming ? '…' : tr("Send")}
           </button>
         </div>
 
-        <p className="text-muted text-xs mt-1.5 pl-10">
-          Shift+Enter for new line · Approve items on the right to save to Cloud
-        </p>
+        <p className="text-muted text-xs mt-1.5 pl-10">{tr("Shift+Enter for new line · Approve items on the right to save to Cloud")}</p>
       </div>
     </div>
   );

@@ -1,3 +1,4 @@
+import { getTr } from '@/i18n/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -38,6 +39,7 @@ type Props = { searchParams: Promise<{ from?: string }> };
 
 /** Landing page for "Create a new flow" links from ConteXtube. Signed-out visitors sign in first and come back here. */
 export default async function NewFlowPage({ searchParams }: Props) {
+  const tr = await getTr();
   const { from } = await searchParams;
   const session = await auth();
   if (!session?.user) {
@@ -51,12 +53,9 @@ export default async function NewFlowPage({ searchParams }: Props) {
       <main className="flex-1 ml-60">
         <Header />
         <div className="max-w-3xl mx-auto px-8 py-12">
-          <h1 className="text-2xl font-semibold">Start a new flow</h1>
-          <p className="mt-2 text-muted max-w-xl">
-            A flow is your reading of a work: its ideas, connections and meaning, in layers. Pick how you want to begin.
-            When you publish, it appears on{' '}
-            <a href="https://contextube.ai" className="text-accent hover:underline">ConteXtube</a> under your name.
-          </p>
+          <h1 className="text-2xl font-semibold">{tr("Start a new flow")}</h1>
+          <p className="mt-2 text-muted max-w-xl">{tr("A flow is your reading of a work: its ideas, connections and meaning, in layers. Pick how you want to begin. When you publish, it appears on")}{' '}
+            <a href="https://contextube.ai" className="text-accent hover:underline">{tr("ConteXtube")}</a>{" "}{tr("under your name.")}</p>
 
           <ul className="mt-8 grid gap-4 sm:grid-cols-2">
             {WAYS.map((w) => (
@@ -67,15 +66,13 @@ export default async function NewFlowPage({ searchParams }: Props) {
                 >
                   <span className="font-semibold group-hover:text-accent transition-colors">{w.title}</span>
                   <span className="mt-1.5 text-sm text-muted leading-relaxed flex-1">{w.body}</span>
-                  {w.ai && <span className="mt-3 text-xs text-muted">Uses AI</span>}
+                  {w.ai && <span className="mt-3 text-xs text-muted">{tr("Uses AI")}</span>}
                 </Link>
               </li>
             ))}
           </ul>
 
-          <p className="mt-6 text-sm text-muted">
-            The AI options use your own API key from Google, Anthropic, OpenAI or OpenRouter, and the model you choose.
-            Add it in <Link href="/workspace/settings" className="text-accent hover:underline">Settings</Link>.
+          <p className="mt-6 text-sm text-muted">{tr("The AI options use your own API key from Google, Anthropic, OpenAI or OpenRouter, and the model you choose. Add it in")}{" "}<Link href="/workspace/settings" className="text-accent hover:underline">{tr("Settings")}</Link>.
           </p>
         </div>
       </main>

@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import React, { useState, useCallback } from 'react';
 import { NARRATIVE_AXES, AXIS_LABELS, NarrativeAxis, NarrativeVector } from '@/lib/narrative-vectors';
 
@@ -133,17 +134,15 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-semibold text-foreground">Narrative Lab</h3>
-          <p className="text-xs text-muted">8-axis vector analysis · {vectorizedCount}/{items.length} vectorized</p>
+          <h3 className="text-sm font-semibold text-foreground">{tr("Narrative Lab")}</h3>
+          <p className="text-xs text-muted">{tr("8-axis vector analysis ·")}{" "}{vectorizedCount}/{items.length}{" "}{tr("vectorized")}</p>
         </div>
         <div className="flex gap-2">
           {!allVectorized && (
             <button
               onClick={vectorizeAll}
               className="px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-foreground hover:bg-gray-50 transition-colors"
-            >
-              Vectorize All
-            </button>
+            >{tr("Vectorize All")}</button>
           )}
           {vectorizedCount >= 2 && (
             <button
@@ -151,7 +150,7 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
               disabled={analyzing}
               className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50"
             >
-              {analyzing ? 'Analyzing...' : 'Analyze'}
+              {analyzing ? tr("Analyzing...") : tr("Analyze")}
             </button>
           )}
         </div>
@@ -197,7 +196,7 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
                     disabled={item.vectorizing}
                     className="shrink-0 px-2 py-1 text-[10px] font-medium rounded border border-border text-muted hover:text-foreground hover:border-indigo-300 transition-colors disabled:opacity-50"
                   >
-                    {item.vectorizing ? '...' : 'Analyze'}
+                    {item.vectorizing ? '...' : tr("Analyze")}
                   </button>
                 )}
               </div>
@@ -211,9 +210,7 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
               )}
 
               {!item.vector && (
-                <p className="text-[10px] text-muted italic">
-                  Click Analyze to compute narrative vector
-                </p>
+                <p className="text-[10px] text-muted italic">{tr("Click Analyze to compute narrative vector")}</p>
               )}
             </div>
           ))}
@@ -224,9 +221,7 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
       {activeTab === 'resonance' && (
         <div className="space-y-2">
           {resonancePairs.length === 0 ? (
-            <p className="text-xs text-muted italic text-center py-4">
-              Vectorize at least 2 ideas and click Analyze
-            </p>
+            <p className="text-xs text-muted italic text-center py-4">{tr("Vectorize at least 2 ideas and click Analyze")}</p>
           ) : (
             resonancePairs.map((pair, i) => (
               <div key={i} className={`border rounded-lg p-3 text-xs ${RELATIONSHIP_COLORS[pair.relationship]}`}>
@@ -240,17 +235,14 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
                     <p className="text-[10px] capitalize">{pair.relationship}</p>
                   </div>
                 </div>
-                <p className="text-[10px] opacity-75">
-                  Strongest on: {AXIS_LABELS[pair.dominantAxis].label} · 
-                  Conflict: {Math.round(pair.conflict * 100)}%
+                <p className="text-[10px] opacity-75">{tr("Strongest on:")}{" "}{AXIS_LABELS[pair.dominantAxis].label}{" "}{tr("· Conflict:")}{" "}{Math.round(pair.conflict * 100)}%
                 </p>
               </div>
             ))
           )}
           {unvectorized.length > 0 && (
             <p className="text-[10px] text-muted italic">
-              {unvectorized.length} element(s) skipped — not yet vectorized
-            </p>
+              {unvectorized.length}{" "}{tr("element(s) skipped — not yet vectorized")}</p>
           )}
         </div>
       )}
@@ -259,19 +251,15 @@ export default function NarrativeLab({ ideas }: NarrativeLabProps) {
       {activeTab === 'gaps' && (
         <div className="space-y-2">
           {gaps.length === 0 && resonancePairs.length > 0 ? (
-            <div className="border border-green-200 bg-green-50 rounded-lg p-3 text-xs text-green-700">
-              ✓ Good coverage across all narrative axes
-            </div>
+            <div className="border border-green-200 bg-green-50 rounded-lg p-3 text-xs text-green-700">{tr("✓ Good coverage across all narrative axes")}</div>
           ) : gaps.length === 0 ? (
-            <p className="text-xs text-muted italic text-center py-4">
-              Analyze elements to detect gaps
-            </p>
+            <p className="text-xs text-muted italic text-center py-4">{tr("Analyze elements to detect gaps")}</p>
           ) : (
             gaps.map((gap, i) => (
               <div key={i} className={`border rounded-lg p-3 text-xs ${SEVERITY_COLORS[gap.severity]}`}>
                 <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold">{AXIS_LABELS[gap.axis].label} axis</span>
-                  <span className="font-mono">{Math.round(gap.coverage * 100)}% coverage</span>
+                  <span className="font-semibold">{AXIS_LABELS[gap.axis].label}{" "}{tr("axis")}</span>
+                  <span className="font-mono">{Math.round(gap.coverage * 100)}{tr("% coverage")}</span>
                 </div>
                 <p className="opacity-80">{gap.suggestion}</p>
               </div>

@@ -1,5 +1,6 @@
-﻿'use client';
+'use client';
 
+import { tr } from '@/i18n/client';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -63,12 +64,10 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="px-5 py-5 border-b border-white/10">
         <Link href="/workspace/arc-cloud" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm">
-            CC
-          </div>
+          <div className="w-8 h-8 rounded-lg bg-accent flex items-center justify-center text-white font-bold text-sm">{tr("CC")}</div>
           <div>
-            <div className="font-semibold text-sm text-white leading-tight">ContextCloud</div>
-            <div className="text-[10px] text-white/50 tracking-wide uppercase">Studio</div>
+            <div className="font-semibold text-sm text-white leading-tight">{tr("ContextCloud")}</div>
+            <div className="text-[10px] text-white/50 tracking-wide uppercase">{tr("Studio")}</div>
           </div>
         </Link>
       </div>
@@ -80,9 +79,7 @@ export default function Sidebar() {
             isActive('/new') ? 'bg-accent-hover text-white' : 'bg-accent text-white hover:bg-accent-hover'
           }`}
         >
-          <span aria-hidden className="text-base leading-none">+</span>
-          New flow
-        </Link>
+          <span aria-hidden className="text-base leading-none">+</span>{tr("New flow")}</Link>
       </div>
 
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
@@ -99,40 +96,40 @@ export default function Sidebar() {
               }`}
             >
               <item.icon className="w-[18px] h-[18px] shrink-0" />
-              {item.label}
+              {tr(item.label)}
             </Link>
           ))}
         </div>
 
         {/* CLOUDS section */}
-        <SectionLabel>Clouds</SectionLabel>
+        <SectionLabel>{tr("Clouds")}</SectionLabel>
         <div className="space-y-0.5">
           {CLOUD_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={linkCls(item.href)}>
               <item.icon className="w-4 h-4 shrink-0" />
-              {item.label}
+              {tr(item.label)}
             </Link>
           ))}
         </div>
 
         {/* CAPTURE section */}
-        <SectionLabel>Capture</SectionLabel>
+        <SectionLabel>{tr("Capture")}</SectionLabel>
         <div className="space-y-0.5">
           {CAPTURE_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={linkCls(item.href)}>
               <item.icon className="w-4 h-4 shrink-0" />
-              {item.label}
+              {tr(item.label)}
             </Link>
           ))}
         </div>
 
         {/* TOOLS section */}
-        <SectionLabel>Tools</SectionLabel>
+        <SectionLabel>{tr("Tools")}</SectionLabel>
         <div className="space-y-0.5">
           {TOOL_ITEMS.map((item) => (
             <Link key={item.href} href={item.href} className={linkCls(item.href)}>
               <item.icon className="w-4 h-4 shrink-0" />
-              {item.label}
+              {tr(item.label)}
             </Link>
           ))}
         </div>
@@ -148,9 +145,7 @@ export default function Sidebar() {
               : 'text-white/40 hover:text-white/70'
           }`}
         >
-          <DraftsIcon className="w-3 h-3" />
-          Drafts
-        </Link>
+          <DraftsIcon className="w-3 h-3" />{tr("Drafts")}</Link>
         <Link
           href="/workspace/settings"
           className={`flex items-center gap-2 px-3 py-1.5 text-xs rounded-lg transition-colors ${
@@ -159,18 +154,14 @@ export default function Sidebar() {
               : 'text-white/40 hover:text-white/70'
           }`}
         >
-          <SettingsIcon className="w-3 h-3" />
-          Settings
-        </Link>
+          <SettingsIcon className="w-3 h-3" />{tr("Settings")}</Link>
         <a
           href="https://contextube.ai"
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 px-3 py-1.5 text-xs text-white/40 hover:text-white/70 transition-colors"
         >
-          <ExternalIcon className="w-3 h-3" />
-          contextube.ai
-        </a>
+          <ExternalIcon className="w-3 h-3" />{tr("contextube.ai")}</a>
       </div>
     </aside>
   );

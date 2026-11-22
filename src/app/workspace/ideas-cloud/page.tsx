@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useState, useEffect, useCallback } from 'react';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
@@ -177,26 +178,24 @@ export default function IdeasCloudPage() {
         <div className="flex-1 min-w-0">
           {/* Title bar */}
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-xl font-semibold text-foreground">Ideas Cloud</h1>
+            <h1 className="text-xl font-semibold text-foreground">{tr("Ideas Cloud")}</h1>
             <div className="flex gap-2">
               {ideas.length > 0 && (
                 <button
                   onClick={async () => {
-                    if (!confirm(activeProjectId ? 'Delete all ideas in this project? This cannot be undone.' : 'Delete ALL ideas in every project? This cannot be undone.')) return;
+                    if (!confirm(activeProjectId ? tr("Delete all ideas in this project? This cannot be undone.") : tr("Delete ALL ideas in every project? This cannot be undone."))) return;
                     await fetch(`/api/v1/ideas?all=true${activeProjectId ? `&project_id=${activeProjectId}` : ''}`, { method: 'DELETE' });
                     setIdeas([]);
                   }}
                   className="px-4 py-2 rounded-lg text-sm font-medium border border-red-200 text-red-500 hover:bg-red-50 transition-colors"
-                >
-                  Clear All
-                </button>
+                >{tr("Clear All")}</button>
               )}
               <button
                 onClick={handleAdd}
                 disabled={adding}
                 className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors disabled:opacity-50"
               >
-                {adding ? 'Adding...' : '+ Add'}
+                {adding ? tr("Adding...") : tr("+ Add")}
               </button>
             </div>
           </div>
@@ -216,15 +215,11 @@ export default function IdeasCloudPage() {
             ) : ideas.length === 0 ? (
               /* Empty state */
               <div className="text-center py-16">
-                <p className="text-muted text-sm mb-4">
-                  No ideas yet -- add your first idea
-                </p>
+                <p className="text-muted text-sm mb-4">{tr("No ideas yet -- add your first idea")}</p>
                 <button
                   onClick={handleAdd}
                   className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent-hover transition-colors"
-                >
-                  + Add Idea
-                </button>
+                >{tr("+ Add Idea")}</button>
               </div>
             ) : (
               ideas.map((idea) => (
@@ -248,15 +243,11 @@ export default function IdeasCloudPage() {
               <button
                 onClick={handleExport}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-              >
-                Export
-              </button>
+              >{tr("Export")}</button>
               <button
                 onClick={handleUpload}
                 className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors"
-              >
-                Upload
-              </button>
+              >{tr("Upload")}</button>
             </div>
           )}
         </div>

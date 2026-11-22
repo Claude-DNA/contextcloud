@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 interface IdeaRowProps {
   idea: any;
   onEdit: () => void;
@@ -31,14 +32,14 @@ export default function IdeaRow({
         className="flex-1 text-left text-sm text-foreground truncate cursor-pointer"
         title={idea.text}
       >
-        {truncated || <span className="text-muted italic">Empty idea</span>}
+        {truncated || <span className="text-muted italic">{tr("Empty idea")}</span>}
       </button>
 
       <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={(e) => { e.stopPropagation(); onWeightClick(); }}
           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors"
-          title="Edit weight"
+          title={tr("Edit weight")}
         >
           {Number(idea.weight ?? 1).toFixed(1)}
         </button>
@@ -46,7 +47,7 @@ export default function IdeaRow({
         <button
           onClick={(e) => { e.stopPropagation(); onTransClick(); }}
           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors"
-          title="Transformations"
+          title={tr("Transformations")}
         >
           T:{transCount}
         </button>
@@ -54,15 +55,13 @@ export default function IdeaRow({
         <button
           onClick={(e) => { e.stopPropagation(); onFSClick(); }}
           className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600 cursor-pointer hover:bg-gray-200 transition-colors"
-          title="Final state"
-        >
-          FS
-        </button>
+          title={tr("Final state")}
+        >{tr("FS")}</button>
 
         <button
           onClick={(e) => { e.stopPropagation(); onDelete(idea.id); }}
           className="opacity-0 group-hover:opacity-100 px-2 py-0.5 rounded text-xs font-medium text-red-400 hover:text-red-600 hover:bg-red-50 transition-all"
-          title="Delete idea"
+          title={tr("Delete idea")}
         >✕</button>
       </div>
     </div>

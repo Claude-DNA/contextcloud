@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { useEffect, useRef, useState } from 'react';
 import { useProject } from '@/context/ProjectContext';
 
@@ -39,12 +40,12 @@ export default function ProjectIllustrations({ onDone }: { onDone?: () => void }
   };
 
   const suggest = async () => {
-    setBusy('Thinking of styles…');
+    setBusy(tr("Thinking of styles…"));
     setMessage(null);
     const res = await fetch(`/api/v1/projects/${activeProjectId}/illustration-style`, { method: 'POST' });
     const d = await res.json();
     setBusy(null);
-    if (!res.ok) setMessage({ ok: false, text: d.message || d.error || 'Could not suggest styles' });
+    if (!res.ok) setMessage({ ok: false, text: d.message || d.error || tr("Could not suggest styles") });
     else setSuggestions(d.suggestions ?? []);
   };
 
@@ -61,7 +62,7 @@ export default function ProjectIllustrations({ onDone }: { onDone?: () => void }
       queue.push(...missing);
     }
     if (!queue.length) {
-      setMessage({ ok: true, text: 'Every item already has a picture.' });
+      setMessage({ ok: true, text: tr("Every item already has a picture.") });
       return;
     }
     const state = { done: 0, total: queue.length, failed: [] as string[] };
@@ -88,8 +89,8 @@ export default function ProjectIllustrations({ onDone }: { onDone?: () => void }
     await pool(queue.filter((q) => characterIds.has(q.id)));
     await pool(queue.filter((q) => !characterIds.has(q.id)));
     setMessage(state.failed.length
-      ? { ok: false, text: `${state.done - state.failed.length} illustrated, ${state.failed.length} failed. ${state.failed[0]}` }
-      : { ok: true, text: stop.current ? `Stopped after ${state.done}.` : `Illustrated ${state.done} items.` });
+      ? { ok: false, text: tr("{value} illustrated, {length} failed. {value2}", { value: state.done - state.failed.length, length: state.failed.length, value2: state.failed[0] }) }
+      : { ok: true, text: stop.current ? tr("Stopped after {done}.", { done: state.done }) : tr("Illustrated {done} items.", { done: state.done }) });
     setProgress(null);
     onDone?.();
   };
@@ -97,23 +98,21 @@ export default function ProjectIllustrations({ onDone }: { onDone?: () => void }
   return (
     <div className="relative">
       <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open}
-        className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors">
-        Illustrations
-      </button>
+        className="px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-gray-50 transition-colors">{tr("Illustrations")}</button>
       {open && (
         <div className="absolute right-0 top-full z-20 mt-2 w-[24rem] max-w-[calc(100vw-2rem)] space-y-3 rounded-xl border border-border bg-white p-4 shadow-lg">
           <div>
-            <label htmlFor="ill-style" className="block text-xs font-medium text-foreground mb-1">Style for every illustration in this project</label>
+            <label htmlFor="ill-style" className="block text-xs font-medium text-foreground mb-1">{tr("Style for every illustration in this project")}</label>
             <textarea id="ill-style" rows={3} value={style} onChange={(e) => setStyle(e.target.value)} onBlur={() => saveStyle(style)}
               className="w-full rounded-lg border border-border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-accent" />
             <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-              <label htmlFor="ill-preset" className="sr-only">Start from a preset</label>
+              <label htmlFor="ill-preset" className="sr-only">{tr("Start from a preset")}</label>
               <select id="ill-preset" value="" onChange={(e) => e.target.value && saveStyle(e.target.value)}
                 className="max-w-[14rem] rounded border border-border px-2 py-1 text-xs text-muted">
-                <option value="">Start from a preset…</option>
+                <option value="">{tr("Start from a preset…")}</option>
                 {presets.map((p) => <option key={p} value={p}>{p}</option>)}
               </select>
-              <button type="button" onClick={suggest} disabled={Boolean(busy || progress)} className="text-xs text-accent hover:underline disabled:opacity-50">Suggest styles for this work</button>
+              <button type="button" onClick={suggest} disabled={Boolean(busy || progress)} className="text-xs text-accent hover:underline disabled:opacity-50">{tr("Suggest styles for this work")}</button>
             </div>
             {suggestions.length > 0 && (
               <ul className="mt-2 space-y-1">
@@ -123,24 +122,20 @@ export default function ProjectIllustrations({ onDone }: { onDone?: () => void }
               </ul>
             )}
           </div>
-          <p className="text-xs text-muted">
-            Illustrate all gives each item without a picture a public-domain artwork that shows it, or draws one in this style. Characters go first so scenes can reuse their faces.
-          </p>
+          <p className="text-xs text-muted">{tr("Illustrate all gives each item without a picture a public-domain artwork that shows it, or draws one in this style. Characters go first so scenes can reuse their faces.")}</p>
           <div className="flex items-center justify-end gap-2">
             {progress ? (
               <>
-                <span className="text-xs text-muted" role="status">{progress.done} of {progress.total}</span>
-                <button type="button" onClick={() => { stop.current = true; }} className="px-3 py-2 text-sm text-red-600 hover:underline">Stop</button>
+                <span className="text-xs text-muted" role="status">{progress.done}{" "}{tr("of")}{" "}{progress.total}</span>
+                <button type="button" onClick={() => { stop.current = true; }} className="px-3 py-2 text-sm text-red-600 hover:underline">{tr("Stop")}</button>
               </>
             ) : (
               <button type="button" onClick={illustrateAll} disabled={Boolean(busy) || !style.trim()}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50">
-                Illustrate all
-              </button>
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-accent text-white hover:bg-accent/90 disabled:opacity-50">{tr("Illustrate all")}</button>
             )}
           </div>
           {busy && <p className="text-xs text-muted" role="status">{busy}</p>}
-          {message && <p role="status" className={`text-xs ${message.ok ? 'text-emerald-700' : 'text-red-600'}`}>{message.text}</p>}
+          {message && <p role="status" className={`text-xs ${message.ok ? 'text-emerald-700' : 'text-red-600'}`}>{tr(message.text)}</p>}
         </div>
       )}
     </div>

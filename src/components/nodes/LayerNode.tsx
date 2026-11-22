@@ -1,5 +1,6 @@
 'use client';
 
+import { tr } from '@/i18n/client';
 import { Handle, Position, type NodeProps } from '@xyflow/react';
 
 const TYPE_COLORS: Record<string, { bg: string; border: string; text: string; badge: string }> = {
@@ -32,10 +33,10 @@ export default function LayerNode({ data, selected }: NodeProps) {
           L
         </div>
         <div className={`text-[10px] font-semibold ${colors.text} uppercase tracking-wide`}>
-          {d.layerType || 'Layer'}
+          {d.layerType || tr("Layer")}
         </div>
       </div>
-      <div className="font-medium text-sm truncate">{d.label || 'Untitled Layer'}</div>
+      <div className="font-medium text-sm truncate">{d.label || tr("Untitled Layer")}</div>
       {d.content && (
         <div className="text-xs text-gray-500 mt-1 line-clamp-2">{d.content}</div>
       )}

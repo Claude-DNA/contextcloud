@@ -1,5 +1,6 @@
 'use client';
 
+import { tr, trFormula } from '@/i18n/client';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ATOMIC_STATES,
@@ -169,7 +170,7 @@ export default function StatePanel({
     setTimeout(() => setSaved(false), 2000);
   }, [fbName, baseIds, buildFormula, applyFormula]);
 
-  const fmtF = formatFormula;
+  const fmtF = (f: StateFormula) => trFormula(formatFormula(f));
 
   // Live preview formula string
   const previewStr = baseIds.length > 0
@@ -202,7 +203,7 @@ export default function StatePanel({
             border: tab === t ? `1px solid ${tabActiveBdr}` : '1px solid transparent',
             transition: 'all 0.15s',
           }}>
-            {t === 'formula' ? '⚗️ Formula' : t === 'library' ? '📚 Library' : '🎨 Color'}
+            {t === 'formula' ? tr("⚗️ Formula") : t === 'library' ? tr("📚 Library") : tr("🎨 Color")}
           </button>
         ))}
       </div>
@@ -214,17 +215,17 @@ export default function StatePanel({
           {/* Live formula preview */}
           {previewStr && (
             <div style={{ borderRadius: 8, padding: '6px 10px', border: `1px solid ${previewColor}`, background: `${previewColor}15`, fontSize: 12, fontFamily: 'monospace', color: txt }}>
-              <span style={{ color: muted, fontSize: 10 }}>formula: </span>{previewStr}
+              <span style={{ color: muted, fontSize: 10 }}>{tr("formula:")}{" "}</span>{previewStr}
             </div>
           )}
 
           {/* Name */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>State Name</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{tr("State Name")}</div>
             <input
               value={fbName}
               onChange={e => setFbName(e.target.value)}
-              placeholder="e.g. Honor, Despair, Warrior's Resolve..."
+              placeholder={tr("e.g. Honor, Despair, Warrior's Resolve...")}
               style={{ width: '100%', background: bgSub, color: txt, fontSize: 13, borderRadius: 6, padding: '6px 10px', border: `1px solid ${bdr}`, outline: 'none', boxSizing: 'border-box' }}
             />
           </div>
@@ -232,8 +233,8 @@ export default function StatePanel({
           {/* Base states */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1 }}>Base States</div>
-              <div style={{ fontSize: 10, color: muted }}>1st click: add · 2nd: negative · 3rd: remove</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1 }}>{tr("Base States")}</div>
+              <div style={{ fontSize: 10, color: muted }}>{tr("1st click: add · 2nd: negative · 3rd: remove")}</div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {ATOMIC_STATES.map(state => {
@@ -243,7 +244,7 @@ export default function StatePanel({
                   <button
                     key={state.id}
                     onClick={() => cycleBase(state.id)}
-                    title={state.description}
+                    title={tr(state.description)}
                     style={{
                       padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', transition: 'all 0.1s',
                       background: !inMap ? bgSub : neg ? '#7f1d1d' : state.color,
@@ -254,7 +255,7 @@ export default function StatePanel({
                       position: 'relative',
                     }}
                   >
-                    {neg && <span style={{ marginRight: 2, textDecoration: 'none' }}>−</span>}{state.label}
+                    {neg && <span style={{ marginRight: 2, textDecoration: 'none' }}>−</span>}{tr(state.label)}
                     {inMap && <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>{neg ? '−' : '+'}</span>}
                   </button>
                 );
@@ -265,8 +266,8 @@ export default function StatePanel({
           {/* Modifier */}
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1 }}>Modifier ×</div>
-              <div style={{ fontSize: 10, color: muted }}>1st click: add · 2nd: negative · 3rd: remove</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1 }}>{tr("Modifier ×")}</div>
+              <div style={{ fontSize: 10, color: muted }}>{tr("1st click: add · 2nd: negative · 3rd: remove")}</div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
               {ATOMIC_STATES.map(state => {
@@ -276,7 +277,7 @@ export default function StatePanel({
                   <button
                     key={state.id}
                     onClick={() => handleModifier(state.id)}
-                    title={state.description}
+                    title={tr(state.description)}
                     style={{
                       padding: '3px 9px', borderRadius: 20, fontSize: 11, cursor: 'pointer', transition: 'all 0.1s',
                       background: !sel ? bgSub : neg ? '#7f1d1d' : state.color,
@@ -285,7 +286,7 @@ export default function StatePanel({
                       fontWeight: sel ? 600 : 400,
                     }}
                   >
-                    {neg && <span style={{ marginRight: 2 }}>−</span>}{state.label}
+                    {neg && <span style={{ marginRight: 2 }}>−</span>}{tr(state.label)}
                     {sel && <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.7 }}>{neg ? '−' : '+'}</span>}
                   </button>
                 );
@@ -295,13 +296,13 @@ export default function StatePanel({
 
           {/* Intensity */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Intensity</div>
-            <div role="radiogroup" aria-label="Intensity" style={{ display: 'flex', gap: 5 }}>
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{tr("Intensity")}</div>
+            <div role="radiogroup" aria-label={tr("Intensity")} style={{ display: 'flex', gap: 5 }}>
               {([[1, 'Undertone'], [2, 'Plain to see'], [3, 'Overwhelming']] as const).map(([n, label]) => (
                 <button key={n} type="button" role="radio" aria-checked={intensity === n} onClick={() => setIntensity(n)}
                   style={{ flex: 1, padding: '4px 0', borderRadius: 8, fontSize: 11, cursor: 'pointer', background: intensity === n ? (L ? '#eef2ff' : '#312e81') : bgSub,
                     color: intensity === n ? (L ? '#3730a3' : '#c7d2fe') : muted, border: `1px solid ${intensity === n ? '#6366f1' : bdr}`, fontWeight: intensity === n ? 600 : 400 }}>
-                  {label}
+                  {tr(label)}
                 </button>
               ))}
             </div>
@@ -310,20 +311,20 @@ export default function StatePanel({
           {/* What the AI is told */}
           {baseIds.length > 0 && (
             <div>
-              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>What the AI reads</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{tr("What the AI reads")}</div>
               <p style={{ margin: 0, whiteSpace: 'pre-wrap', fontSize: 11, lineHeight: 1.45, color: txt, background: bgSub, border: `1px solid ${bdr}`, borderRadius: 6, padding: '6px 10px' }}>
-                {describeFormula(buildFormula())}
+                {describeFormula(buildFormula(), tr, trFormula)}
               </p>
             </div>
           )}
 
           {/* Description */}
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>Description</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>{tr("Description")}</div>
             <textarea
               value={fbDesc}
               onChange={e => setFbDesc(e.target.value)}
-              placeholder="What does this state feel like from inside?"
+              placeholder={tr("What does this state feel like from inside?")}
               rows={2}
               style={{ width: '100%', background: bgSub, color: txt, fontSize: 11, borderRadius: 6, padding: '6px 10px', border: `1px solid ${bdr}`, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
             />
@@ -335,18 +336,18 @@ export default function StatePanel({
               <button
                 onClick={() => { setBaseMap({}); setModifier(''); setModSign(1); }}
                 style={{ padding: '6px 10px', borderRadius: 8, fontSize: 11, cursor: 'pointer', background: bgSub, color: muted, border: `1px solid ${bdr}` }}
-              >Clear</button>
+              >{tr("Clear")}</button>
             )}
             <button
               onClick={handleApply}
               disabled={baseIds.length === 0}
               style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: baseIds.length === 0 ? 'not-allowed' : 'pointer', opacity: baseIds.length === 0 ? 0.4 : 1, background: L ? '#eff6ff' : '#1e3a5f', color: L ? '#1d4ed8' : '#93c5fd', border: L ? '1px solid #bfdbfe' : '1px solid #1e40af' }}
-            >Apply to Node</button>
+            >{tr("Apply to Node")}</button>
             <button
               onClick={handleSave}
               disabled={!fbName.trim() || baseIds.length === 0}
               style={{ flex: 1, padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 500, cursor: (!fbName.trim() || baseIds.length === 0) ? 'not-allowed' : 'pointer', opacity: (!fbName.trim() || baseIds.length === 0) ? 0.4 : 1, background: L ? '#f0fdf4' : '#14532d', color: L ? '#15803d' : '#86efac', border: L ? '1px solid #bbf7d0' : '1px solid #166534' }}
-            >{saved ? '✓ Saved!' : 'Save to Library'}</button>
+            >{saved ? tr("✓ Saved!") : tr("Save to Library")}</button>
           </div>
         </div>
       )}
@@ -361,7 +362,7 @@ export default function StatePanel({
             <input
               value={librarySearch}
               onChange={e => setLibrarySearch(e.target.value)}
-              placeholder="Search formulas..."
+              placeholder={tr("Search formulas...")}
               style={{ width: '100%', background: bgSub, color: txt, fontSize: 12, borderRadius: 6, padding: '5px 10px 5px 28px', border: `1px solid ${bdr}`, outline: 'none', boxSizing: 'border-box' }}
             />
             {librarySearch && (
@@ -373,7 +374,7 @@ export default function StatePanel({
           </div>
 
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Preset Formulas</div>
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{tr("Preset Formulas")}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 240, overflowY: 'auto' }}>
               {PRESET_FORMULAS.filter(f => {
                 const q = librarySearch.toLowerCase();
@@ -382,7 +383,7 @@ export default function StatePanel({
                 <button
                   key={f.id}
                   onClick={() => { applyFormula(f); setTab('formula'); }}
-                  title={f.description}
+                  title={tr(f.description)}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', textAlign: 'left', background: bgSub, border: `1px solid ${bdr}`, borderLeft: `3px solid ${f.color || '#888'}` }}
                   onMouseEnter={e => (e.currentTarget.style.background = L ? '#f3f4f6' : '#374151')}
                   onMouseLeave={e => (e.currentTarget.style.background = bgSub)}
@@ -398,13 +399,12 @@ export default function StatePanel({
           </div>
 
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-              From literature {literature && literature.length > 0 && <span style={{ opacity: 0.6 }}>({literature.length})</span>}
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{tr("From literature")}{" "}{literature && literature.length > 0 && <span style={{ opacity: 0.6 }}>({literature.length})</span>}
             </div>
             {!literature ? (
-              <div style={{ fontSize: 11, color: muted, padding: '4px 2px' }}>Loading…</div>
+              <div style={{ fontSize: 11, color: muted, padding: '4px 2px' }}>{tr("Loading…")}</div>
             ) : literature.length === 0 ? (
-              <div style={{ fontSize: 11, color: muted, fontStyle: 'italic', padding: '4px 2px' }}>The state library could not be reached.</div>
+              <div style={{ fontSize: 11, color: muted, fontStyle: 'italic', padding: '4px 2px' }}>{tr("The state library could not be reached.")}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 260, overflowY: 'auto' }}>
                 {literature.filter((x) => {
@@ -421,7 +421,7 @@ export default function StatePanel({
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 12, fontWeight: 600, color: txt, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.character}, {x.moment}</div>
-                      <div style={{ fontSize: 10, color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{x.formula} · {x.work}</div>
+                      <div style={{ fontSize: 10, color: muted, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{trFormula(x.formula)} · {x.work}</div>
                     </div>
                     <span style={{ fontSize: 10, color: muted, flexShrink: 0 }}>→</span>
                   </button>
@@ -431,11 +431,10 @@ export default function StatePanel({
           </div>
 
           <div>
-            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>
-              My Library {library.length > 0 && <span style={{ opacity: 0.6 }}>({library.length})</span>}
+            <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>{tr("My Library")}{" "}{library.length > 0 && <span style={{ opacity: 0.6 }}>({library.length})</span>}
             </div>
             {library.length === 0 ? (
-              <div style={{ fontSize: 11, color: muted, fontStyle: 'italic', padding: '4px 2px' }}>No saved formulas yet — build one in the Formula tab.</div>
+              <div style={{ fontSize: 11, color: muted, fontStyle: 'italic', padding: '4px 2px' }}>{tr("No saved formulas yet — build one in the Formula tab.")}</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 200, overflowY: 'auto' }}>
                 {library.filter(f => {
@@ -462,7 +461,7 @@ export default function StatePanel({
                         style={{ padding: '0 8px', borderRadius: '0 6px 6px 0', cursor: 'pointer', background: bgSub, border: `1px solid ${bdr}`, color: muted, fontSize: 14 }}
                         onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; }}
                         onMouseLeave={e => { e.currentTarget.style.color = muted; }}
-                        title="Delete"
+                        title={tr("Delete")}
                       >×</button>
                     </div>
                   );
@@ -476,7 +475,7 @@ export default function StatePanel({
       {/* ── COLOR TAB ── */}
       {tab === 'color' && (
         <div>
-          <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>Emotional Color</div>
+          <div style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: 1, marginBottom: 8 }}>{tr("Emotional Color")}</div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6 }}>
             {Object.entries(STATE_COLORS).map(([key, { hex, label: colorLabel }]) => (
               <button
