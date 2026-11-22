@@ -168,7 +168,7 @@ export default function AiSettings() {
         ) : serverKey ? (
           <p className="text-sm text-muted">{tr("Using the server key for your admin account. Add your own to use it instead.")}</p>
         ) : (
-          <p className="text-sm text-amber-700">{tr("No key for")}{" "}{tr(info.label)}{" "}{tr("yet: AI features are off until you add one.")}</p>
+          <p className="text-sm text-amber-700">{tr("No key for {provider} yet: AI features are off until you add one.", { provider: info.label })}</p>
         )}
         <div className="flex gap-2">
           <input
@@ -191,14 +191,14 @@ export default function AiSettings() {
       {hasKey || s.provider === 'openrouter' ? (
         <div className="space-y-3">
           {loadingModels ? (
-            <p className="text-sm text-muted">{tr("Loading")}{" "}{tr(info.label)}{" "}{tr("models…")}</p>
+            <p className="text-sm text-muted">{tr("Loading {provider} models…", { provider: info.label })}</p>
           ) : modelsError ? (
             <p className="text-sm text-red-600">{modelsError}</p>
           ) : (
             <>
               {models.length > 30 && (
                 <div>
-                  <label htmlFor="ai-filter" className="text-xs text-muted block mb-1">{tr("Filter")}{" "}{models.length}{" "}{tr("models")}</label>
+                  <label htmlFor="ai-filter" className="text-xs text-muted block mb-1">{tr("Filter {n} models", { n: models.length })}</label>
                   <input id="ai-filter" value={filter} onChange={(e) => setFilter(e.target.value)} placeholder={tr("e.g. deepseek, haiku, mini")}
                     className="w-full border border-border rounded-lg px-3 py-2 text-sm bg-transparent focus:outline-none focus:ring-2 focus:ring-accent" />
                 </div>

@@ -123,7 +123,7 @@ export default function NodeAudition({ node, nodes, edges, formula }: Props) {
       <div>
         <h3 id={`aud-${node.id}`} className="text-sm font-semibold text-gray-800">{tr("Audition this state")}</h3>
         <p className="text-xs text-gray-500">
-          {formula ? <>{tr("The AI plays")}{" "}{ctx.name || 'the character'}{" "}{tr("as")}{" "}<span className="font-medium text-gray-700">{trFormula(formatFormula(formula))}</span>{sceneTitle ? <>{" "}{tr("in “")}{sceneTitle}”</> : ''}.</> : tr("Set a formula above first.")}
+          {formula ? <>{tr("The AI plays {name} as", { name: ctx.name || tr('the character') })}{" "}<span className="font-medium text-gray-700">{trFormula(formatFormula(formula))}</span>{sceneTitle ? <>{" "}{tr("in “{scene}”", { scene: sceneTitle })}</> : ''}.</> : tr("Set a formula above first.")}
         </p>
       </div>
       {!ctx.scene && <p className="text-xs text-amber-700">{tr("This state is not connected to a scene. Describe the scene below, or connect it to a scene node.")}</p>}

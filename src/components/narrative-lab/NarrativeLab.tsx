@@ -51,7 +51,7 @@ function VectorBar({ value, axis }: { value: number; axis: NarrativeAxis }) {
   const color = pct >= 70 ? 'bg-indigo-500' : pct >= 40 ? 'bg-indigo-300' : 'bg-gray-200';
   return (
     <div className="flex items-center gap-2 text-xs">
-      <span className="w-24 text-muted shrink-0 truncate">{label}</span>
+      <span className="w-24 text-muted shrink-0 truncate">{tr(label)}</span>
       <div className="flex-1 bg-gray-100 rounded-full h-1.5">
         <div className={`${color} h-1.5 rounded-full transition-all`} style={{ width: `${pct}%` }} />
       </div>

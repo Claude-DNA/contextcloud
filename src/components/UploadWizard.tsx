@@ -425,7 +425,7 @@ export default function UploadWizard({ onClose, onGenerate, importing = false }:
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start gap-3">
-      <span className="text-xs font-medium text-gray-400 w-24 shrink-0 pt-0.5">{label}</span>
+      <span className="text-xs font-medium text-gray-400 w-24 shrink-0 pt-0.5">{tr(label)}</span>
       <span className="text-sm text-gray-700">{value}</span>
     </div>
   );

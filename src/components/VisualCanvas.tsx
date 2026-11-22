@@ -1854,7 +1854,7 @@ export default function VisualCanvas() {
                                 className="rounded border-gray-300"
                               />
                               <span>{emoji}</span>
-                              <span className="text-sm font-medium text-gray-700">{label}</span>
+                              <span className="text-sm font-medium text-gray-700">{tr(label)}</span>
                               <span className="text-xs text-gray-400 ml-auto">{groupCheckedCount}/{items.length}</span>
                             </div>
                             {!isCollapsed && (
@@ -1932,7 +1932,7 @@ export default function VisualCanvas() {
                                     className="rounded border-gray-300"
                                   />
                                   <span>{emoji}</span>
-                                  <span className="text-sm font-medium text-gray-700">{label}</span>
+                                  <span className="text-sm font-medium text-gray-700">{tr(label)}</span>
                                   <span className="text-xs text-gray-400 ml-auto">{groupChecked}/{items.length}</span>
                                 </div>
                                 <div className="px-3 py-1 space-y-0.5 max-h-40 overflow-y-auto">
@@ -2043,7 +2043,7 @@ export default function VisualCanvas() {
                     onClick={handleCloudLoadConfirm}
                     disabled={cloudLoadChecked.size === 0}
                     className="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >{tr("Load")}{" "}{cloudLoadChecked.size}{" "}{tr("item")}{cloudLoadChecked.size !== 1 ? 's' : ''}
+                  >{tr(cloudLoadChecked.size === 1 ? "Load 1 item" : "Load {n} items", { n: cloudLoadChecked.size })}
                   </button>
                 )}
                 {/* Scene checklist confirm */}
@@ -2052,7 +2052,7 @@ export default function VisualCanvas() {
                     onClick={handleSceneChecklistConfirm}
                     disabled={sceneChecklistChecked.size === 0}
                     className="px-5 py-2 rounded-lg text-sm font-medium bg-pink-600 text-white hover:bg-pink-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                  >{tr("🎬 Load")}{" "}{sceneChecklistChecked.size}{" "}{tr("item")}{sceneChecklistChecked.size !== 1 ? 's' : ''}{" "}{tr("+ connect")}</button>
+                  >{tr(sceneChecklistChecked.size === 1 ? "🎬 Load 1 item + connect" : "🎬 Load {n} items + connect", { n: sceneChecklistChecked.size })}</button>
                 )}
               </div>
             </div>

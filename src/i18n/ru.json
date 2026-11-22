@@ -1490,5 +1490,19 @@
  "Intensity: {level}.": "Сила: {level}.",
  "Writer's note: {note}": "Заметка автора: {note}",
  "Save 1 state": "Сохранить 1 состояние",
- "Save {n} states": "Сохранить состояния: {n}"
+ "Save {n} states": "Сохранить состояния: {n}",
+ "No key for {provider} yet: AI features are off until you add one.": "Ключа для {provider} пока нет. Пока вы его не добавите, функции ИИ не работают.",
+ "The AI plays {name} as": "ИИ играет: {name}, в состоянии",
+ "in “{scene}”": "в сцене «{scene}»",
+ "{items} items across {layers} layers": "Элементов: {items}, слоёв: {layers}",
+ "{items} items across {layers} layers. Select and save items above.": "Элементов: {items}, слоёв: {layers}. Выберите и сохраните элементы выше.",
+ "Loading {provider} models…": "Загружаем модели {provider}…",
+ "Filter {n} models": "Фильтр по моделям ({n})",
+ "Load {n} items": "Загрузить элементы: {n}",
+ "🎬 Load {n} items + connect": "🎬 Загрузить и связать: {n}",
+ "Created {created} · Last used {used}": "Создан {created} · Последний раз {used}",
+ "Saved {n} items to your clouds": "Сохранено в облака элементов: {n}",
+ "Load 1 item": "Загрузить 1 элемент",
+ "🎬 Load 1 item + connect": "🎬 Загрузить и связать: 1",
+ "1 item across {layers} layers": "Элементов: 1, слоёв: {layers}"
 }

@@ -241,7 +241,7 @@ function StepRow({ label, active, done }: { label: string; active: boolean; done
       }`}>
         {done ? '✓' : active ? '…' : '·'}
       </div>
-      <span className={`text-sm ${active ? 'text-foreground' : done ? 'text-muted' : 'text-muted'}`}>{label}</span>
+      <span className={`text-sm ${active ? 'text-foreground' : done ? 'text-muted' : 'text-muted'}`}>{tr(label)}</span>
     </div>
   );
 }
@@ -258,7 +258,7 @@ function StatCard({ emoji, label, value, color }: { emoji: string; label: string
   return (
     <div className={`p-3 rounded-xl border ${colors[color] || 'bg-gray-50 border-border'}`}>
       <div className="text-lg mb-1">{emoji}</div>
-      <div className="text-xs font-semibold text-foreground">{label}</div>
+      <div className="text-xs font-semibold text-foreground">{tr(label)}</div>
       <div className="text-xs text-muted">{value}</div>
     </div>
   );

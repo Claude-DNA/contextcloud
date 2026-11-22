@@ -172,7 +172,7 @@ export default function DimensionEQMixer({ plotId, initialDimensions, onSave }: 
           <div key={key} className="space-y-1">
             <div className="flex items-center gap-2">
               <span className="text-base leading-none">{emoji}</span>
-              <label className="text-xs text-foreground flex-1">{label}</label>
+              <label className="text-xs text-foreground flex-1">{tr(label)}</label>
               <span className="text-xs font-mono text-muted w-8 text-right">{Math.round(dimensions[key])}%</span>
               {/* Lock box */}
               <button

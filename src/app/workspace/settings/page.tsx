@@ -138,7 +138,7 @@ export default function SettingsPage() {
                     <span className="text-sm font-medium text-foreground truncate">{tr(k.label)}</span>
                     <code className="text-xs font-mono text-muted bg-gray-100 px-1.5 rounded">{k.key_prefix}</code>
                   </div>
-                  <div className="text-xs text-muted mt-0.5">{tr("Created")}{" "}{formatDate(k.created_at)}{" "}{tr("· Last used")}{" "}{formatDate(k.last_used_at)}
+                  <div className="text-xs text-muted mt-0.5">{tr("Created {created} · Last used {used}", { created: formatDate(k.created_at), used: formatDate(k.last_used_at) })}
                   </div>
                 </div>
                 <button

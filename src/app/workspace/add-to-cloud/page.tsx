@@ -244,7 +244,7 @@ export default function QuickCapturePage() {
                 {/* Save bar */}
                 <div className="flex items-center justify-between px-5 py-3 border-t border-border bg-white/50">
                   {savedCount !== null ? (
-                    <span className="text-sm text-green-600 font-medium">{tr("Saved")}{" "}{savedCount}{" "}{tr("items to your clouds")}</span>
+                    <span className="text-sm text-green-600 font-medium">{tr("Saved {n} items to your clouds", { n: savedCount })}</span>
                   ) : (
                     <span className="text-xs text-muted">{tr("Uncheck items you don't want to save")}</span>
                   )}

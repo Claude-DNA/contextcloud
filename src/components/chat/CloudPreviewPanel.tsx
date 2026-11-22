@@ -148,7 +148,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
               {projectTitle || tr("Context Cloud")}
             </h2>
             <p className="text-xs text-muted">
-              {totalItems}{" "}{tr("item")}{totalItems !== 1 ? 's' : ''}{" "}{tr("across")}{" "}{grouped.size}{" "}{tr("layer")}{grouped.size !== 1 ? 's' : ''}
+              {tr(totalItems === 1 ? "1 item across {layers} layers" : "{items} items across {layers} layers", { items: totalItems, layers: grouped.size })}
             </p>
           </div>
           {totalItems > 0 && (
@@ -238,7 +238,7 @@ export default function CloudPreviewPanel({ items, projectTitle, isComplete, onS
           <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center">
             <p className="text-sm font-semibold text-green-800 mb-2">{tr("Your cloud is ready!")}</p>
             <p className="text-xs text-green-600 mb-3">
-              {totalItems}{" "}{tr("items across")}{" "}{grouped.size}{" "}{tr("layers. Select and save items above.")}</p>
+              {tr("{items} items across {layers} layers. Select and save items above.", { items: totalItems, layers: grouped.size })}</p>
           </div>
         )}
 

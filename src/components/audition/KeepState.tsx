@@ -99,7 +99,7 @@ export default function KeepState({ formula, name, scene, context, take, onSaved
       <div role="group" aria-label={tr("Where to keep it")} className="mb-3 flex gap-1 text-xs">
         {([['library', 'Save to My Library'], ['scene', 'Use in a scene']] as const).map(([id, text]) => (
           <button key={id} type="button" aria-pressed={mode === id} onClick={() => { setMode(id); setNote(null); }}
-            className={`rounded-full border px-3 py-1 ${mode === id ? 'border-accent bg-accent text-white' : 'border-border bg-white text-muted hover:text-foreground'}`}>{text}</button>
+            className={`rounded-full border px-3 py-1 ${mode === id ? 'border-accent bg-accent text-white' : 'border-border bg-white text-muted hover:text-foreground'}`}>{tr(text)}</button>
         ))}
       </div>
 
