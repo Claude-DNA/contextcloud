@@ -6,6 +6,8 @@ import { aiErrorResponse, getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { generateJson } from '@/lib/ai';
 import { loadItem, loadProjectItems, mergeEngine } from '@/lib/engine/server';
 import { INTERPRET_SCHEMA, INTERPRET_SYSTEM, interpretPrompt } from '@/lib/engine/prompts';
+import { languageNote } from '@/lib/engine/prompts';
+import { requestLocale } from '@/i18n/server';
 import { readDeed, readEvent, readInstance } from '@/lib/engine';
 
 export const maxDuration = 120;
@@ -43,7 +45,7 @@ export async function POST(req: NextRequest) {
   try {
     raw = await generateJson({
       ai,
-      system: INTERPRET_SYSTEM,
+      system: INTERPRET_SYSTEM + languageNote(await requestLocale()),
       prompt: interpretPrompt({ title: scene.title, content: scene.content ?? '', index, total: scenes.length, when: (scene.metadata as Record<string, unknown> | null)?.when as string | null }, cast, scenes.slice(Math.max(0, index - 5), Math.max(0, index)).map((s) => s.title)),
       schema: INTERPRET_SCHEMA,
       temperature: 0.2,

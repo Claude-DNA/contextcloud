@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { tr } from '@/i18n/client';
 import { simulate } from '@/lib/engine/simulate';
-import { newIdentity, readIdentity } from '@/lib/engine/identity';
+import { newIdentity, readIdentity, temperatureOf } from '@/lib/engine/identity';
 import { DEFAULT_SETTINGS, type Deed, type Identity, type Instance, type Story, type StoryEvent } from '@/lib/engine/types';
 import { label, small } from './shared';
 
@@ -59,6 +59,12 @@ const SITUATIONS: Situation[] = [
   },
 ];
 
+/**
+ * Each response is run as the deed of its own story; the engine's motivation ÷ cost says how well each is
+ * earned. Which one the character would pick is a choice among them, sharpened by their temperature:
+ * a predictable character almost always takes the best-earned one, an unpredictable one spreads out.
+ * (Comparing the separate chances would not work: a calm character finds every response plausible.)
+ */
 function chances(identity: Identity, s: Situation): { text: string; chance: number }[] {
   const me: Instance = { identity: readIdentity({ ...identity, history: s.love ? [{ wound: 'bond', feeling: 'love', significance: s.love, targetRole: 'other' }] : [] }), declared: null, real: [{ id: 'r', label: 'get through', effect: { [ME]: 0.5 }, weight: 1 }], roles: { other: OTHER } };
   const other: Instance = { identity: newIdentity('other'), declared: null, real: [] };
@@ -72,7 +78,12 @@ function chances(identity: Identity, s: Situation): { text: string; chance: numb
       ],
       settings: { ...DEFAULT_SETTINGS, seed: 7 },
     };
-    return { text: r.text, chance: simulate(story).deeds[0]?.chance ?? 0 };
+    return { text: r.text, ratio: Math.max(1e-3, simulate(story).deeds[0]?.ratio ?? 0) };
+  }).map((x, _i, all) => {
+    const t = 0.1 + 0.6 * temperatureOf(identity, 0.35);
+    const weights = all.map((y) => Math.exp(Math.log(y.ratio) / t));
+    const total = weights.reduce((a, b) => a + b, 0) || 1;
+    return { text: x.text, chance: Math.exp(Math.log(x.ratio) / t) / total };
   });
 }
 

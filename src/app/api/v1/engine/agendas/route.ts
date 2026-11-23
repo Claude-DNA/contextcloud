@@ -6,6 +6,8 @@ import { aiErrorResponse, getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { generateJson } from '@/lib/ai';
 import { loadItem, loadProjectItems } from '@/lib/engine/server';
 import { AGENDA_SCHEMA, AGENDA_SYSTEM } from '@/lib/engine/prompts';
+import { languageNote } from '@/lib/engine/prompts';
+import { requestLocale } from '@/i18n/server';
 import { readEffect, readInstance } from '@/lib/engine';
 
 export const maxDuration = 90;
@@ -45,7 +47,7 @@ Propose the declared agenda and one to three real agendas of ${item.title} in th
 
   try {
     const raw = await generateJson<{ declared?: { label?: string; effect?: unknown }; real?: { label?: string; effect?: unknown; weight?: number }[]; roles?: { role?: string; character?: string }[]; reasoning?: string }>({
-      ai, system: AGENDA_SYSTEM, prompt, schema: AGENDA_SCHEMA, temperature: 0.4, maxTokens: 3000,
+      ai, system: AGENDA_SYSTEM + languageNote(await requestLocale()), prompt, schema: AGENDA_SCHEMA, temperature: 0.4, maxTokens: 3000,
     });
     const real = (raw.real ?? []).slice(0, 3).map((a, i) => ({ id: `r${i + 1}`, label: String(a.label ?? '').slice(0, 200), effect: readEffect(a.effect, known), weight: Math.max(0.05, Number(a.weight) || 0.3) }));
     const total = real.reduce((s, a) => s + a.weight, 0) || 1;

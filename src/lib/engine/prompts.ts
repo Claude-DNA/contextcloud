@@ -26,7 +26,7 @@ RULES
 - Say only what this scene shows or clearly implies. Never use what happens later.
 - A deed is something the character chooses; something that merely happens to them is an event.
 - Agendas listed with a character are the writer's reading of what they want; use them to judge what serves whom, not as facts about the scene.
-- Write labels in the language of the scene, short (under 10 words).
+- Labels are short (under 10 words).
 ${RULES}`;
 
 export const INTERPRET_SCHEMA = {
@@ -92,7 +92,6 @@ Return "present" (ids of the characters in the scene), "events" and "deeds" (eac
 export const AGENDA_SYSTEM = `You help a writer turn a character's core drives into concrete agendas in one story, for Context Cloud's Character State Engine.
 An agenda is a goal written as who gains and who loses if it comes true. The "declared" agenda is what the character says they want; "real" agendas (one to three, with weights summing to 1) are what they actually want. They may be the same.
 Also say which character in this story, if any, plays each role named in the character's old wounds.
-Write labels in the language of the story.
 ${RULES}`;
 
 export const AGENDA_SCHEMA = {
@@ -152,7 +151,7 @@ FIELDS
 - persistence: 0 easy-going (grudges and love fade fast) … 1 stubborn (nothing fades until it is resolved). persistenceOverrides for single carried feelings (${FEELINGS.filter((f) => f.kind === 'carried').map((f) => f.id).join(', ')}) when they differ.
 - temperatureCast: how predictable they are, as up to three reference characters with weights 1-100. Choose only from: ${REFERENCE_CHARACTERS.map((r) => `${r.name} (${r.temperature < 0.3 ? 'predictable' : r.temperature > 0.65 ? 'unpredictable' : 'in between'})`).join('; ')}.
 - history: 0-3 old wounds that still carry weight, each a carried feeling with a significance 0-1 and the role of the person involved, if any.
-Write in the language of the writer's request.`;
+Drive, fear and value names are text for people, not ids.`;
 
 const pairs = (v: unknown) => (Array.isArray(v) ? v : []) as { feeling?: unknown; value?: unknown }[];
 
@@ -176,4 +175,12 @@ export function toIdentityFile(raw: unknown): Record<string, unknown> {
     temperature: { cast: o.temperatureCast },
     history: o.history,
   };
+}
+
+/**
+ * The page's language decides the language of everything the AI writes for people. On the Russian site
+ * the AI layer adds its own Russian note; on the English site the source may still be Russian, so say it.
+ */
+export function languageNote(locale: string): string {
+  return locale === 'ru' ? '' : '\n\nLANGUAGE: Write every text meant for people (names of drives, fears and values, summaries, notes, wounds, labels, questions and options) in English, even when the story, the source text or the writer\'s idea is in another language. Keep people\'s names as they are.';
 }

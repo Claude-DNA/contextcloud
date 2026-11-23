@@ -3,6 +3,8 @@ import { getAuthUserId } from '@/lib/api-auth';
 import { aiErrorResponse, getAiConfig, noKeyResponse } from '@/lib/ai-key';
 import { generateJson } from '@/lib/ai';
 import { GENERATOR_SYSTEM, IDENTITY_SCHEMA, INTERVIEW_SCHEMA, toIdentityFile } from '@/lib/engine/prompts';
+import { languageNote } from '@/lib/engine/prompts';
+import { requestLocale } from '@/i18n/server';
 import { readIdentity } from '@/lib/engine';
 
 export const maxDuration = 120;
@@ -24,6 +26,7 @@ export async function POST(req: NextRequest) {
   const description = String(body.description ?? '').slice(0, 4000);
   const answers = (Array.isArray(body.answers) ? body.answers : []).slice(0, MAX_QUESTIONS).map((a) => ({ question: String(a.question ?? '').slice(0, 500), answer: String(a.answer ?? '').slice(0, 1500) }));
 
+  const lang = languageNote(await requestLocale());
   try {
     if (body.mode === 'interview') {
       const last = answers.length >= MAX_QUESTIONS || body.finish === true;
@@ -32,7 +35,7 @@ export async function POST(req: NextRequest) {
         system: `${GENERATOR_SYSTEM}
 
 INTERVIEW
-You build the character by asking the writer one question at a time. Each question should settle something that changes how the character behaves under pressure: which drive wins when two collide, what they fear more, how they treat a wrong done to them, how predictable they are. Offer 2-4 short answer options, but the writer may answer freely. When you know enough (or after ${MAX_QUESTIONS} answers), set "done" to true and return "character".`,
+You build the character by asking the writer one question at a time. Each question should settle something that changes how the character behaves under pressure: which drive wins when two collide, what they fear more, how they treat a wrong done to them, how predictable they are. Offer 2-4 short answer options, but the writer may answer freely. When you know enough (or after ${MAX_QUESTIONS} answers), set "done" to true and return "character".${lang}`,
         prompt: `The writer's idea: ${description || '(none yet)'}
 
 ${answers.length ? `So far:\n${answers.map((a, i) => `${i + 1}. Q: ${a.question}\n   A: ${a.answer}`).join('\n')}` : 'No questions asked yet.'}
@@ -58,7 +61,7 @@ ${String(body.text ?? '').slice(0, 20000)}
     if (body.mode === 'extract' ? !String(body.text ?? '').trim() : !description.trim()) {
       return NextResponse.json({ error: body.mode === 'extract' ? 'Paste the text first.' : 'Describe the character first.' }, { status: 400 });
     }
-    const raw = await generateJson({ ai, system: GENERATOR_SYSTEM, prompt, schema: IDENTITY_SCHEMA, temperature: body.mode === 'extract' ? 0.3 : 0.7, maxTokens: 6000 });
+    const raw = await generateJson({ ai, system: GENERATOR_SYSTEM + lang, prompt, schema: IDENTITY_SCHEMA, temperature: body.mode === 'extract' ? 0.3 : 0.7, maxTokens: 6000 });
     return NextResponse.json({ character: readIdentity(toIdentityFile(raw)) });
   } catch (e) {
     return aiErrorResponse(e, 'The Character Generator failed');
