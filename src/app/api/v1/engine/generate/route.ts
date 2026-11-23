@@ -20,13 +20,13 @@ export async function POST(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
   const ai = await getAiConfig(userId);
   if (!ai) return noKeyResponse();
-  const body = (await req.json().catch(() => ({}))) as { mode?: string; description?: string; name?: string; text?: string; answers?: { question: string; answer: string }[] };
+  const body = (await req.json().catch(() => ({}))) as { mode?: string; description?: string; name?: string; text?: string; answers?: { question: string; answer: string }[]; finish?: boolean };
   const description = String(body.description ?? '').slice(0, 4000);
   const answers = (Array.isArray(body.answers) ? body.answers : []).slice(0, MAX_QUESTIONS).map((a) => ({ question: String(a.question ?? '').slice(0, 500), answer: String(a.answer ?? '').slice(0, 1500) }));
 
   try {
     if (body.mode === 'interview') {
-      const last = answers.length >= MAX_QUESTIONS;
+      const last = answers.length >= MAX_QUESTIONS || body.finish === true;
       const raw = await generateJson<{ done?: boolean; question?: string; options?: string[]; character?: unknown }>({
         ai,
         system: `${GENERATOR_SYSTEM}

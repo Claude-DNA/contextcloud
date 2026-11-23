@@ -30,6 +30,8 @@ const CAPTURE_ITEMS: NavItem[] = [
 const TOOL_ITEMS: NavItem[] = [
   { label: 'Visual Editor', href: '/workspace/visual', icon: CanvasIcon },
   { label: 'Audition', href: '/workspace/audition', icon: AuditionIcon },
+  { label: 'Character Generator', href: '/workspace/character-generator', icon: GeneratorIcon },
+  { label: 'Character Engine', href: '/workspace/engine', icon: EngineIcon },
 ];
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -261,6 +263,22 @@ function AuditionIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" d="M4 5h9v6a4.5 4.5 0 01-9 0V5zm2.5 5.5c.6.7 1.2 1 2 1s1.400-.3 2-1M11 13.500V15a4.500 4.500 0 009 0V9h-7" />
+    </svg>
+  );
+}
+
+function GeneratorIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 12a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0M19 3v4m-2-2h4" />
+    </svg>
+  );
+}
+
+function EngineIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v18M3 12h18M7 16l3-5 4 2 4-7" />
     </svg>
   );
 }
