@@ -1,7 +1,7 @@
 import { query, isDbAvailable } from '@/lib/db';
 
 /** Bump when runMigrations() gains new statements, so every instance applies them once. */
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
 
 /**
  * Runs the migrations once per schema version. Called at server start (src/instrumentation.ts),
@@ -425,6 +425,9 @@ export async function runMigrations(): Promise<boolean> {
     `);
     await query(`CREATE INDEX IF NOT EXISTS idx_character_states_user   ON character_states (user_id)`);
     await query(`CREATE INDEX IF NOT EXISTS idx_character_states_review ON character_states (review)`);
+
+    // v10: Character State Engine settings per project (seed, moral weights, story temperature, flag budget).
+    await query(`ALTER TABLE projects ADD COLUMN IF NOT EXISTS engine JSONB NOT NULL DEFAULT '{}'::jsonb`);
 
     console.log('Migrations complete');
     return true;
