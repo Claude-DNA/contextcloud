@@ -307,8 +307,17 @@ function honesty(c: CState, lambda: number) {
 
 // ── The run ──
 
-export function simulate(story: Story): RunResult {
+/** Writer-facing text: English templates with {placeholders}; the server passes its translator. */
+export type Say = (text: string, vars?: Record<string, unknown>) => string;
+const fill: Say = (text, vars) => (vars ? text.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m)) : text);
+
+export function simulate(story: Story, say: Say = fill): RunResult {
   const settings = story.settings;
+  const feel = (f: string) => say(FEELING[f]?.label ?? f).toLowerCase();
+  const balanceName = (id: string, f: string, t: string) => (t !== ANY && t !== id
+    ? say('{name}\'s {feeling} toward {other}', { name: name(id), feeling: feel(f), other: name(t) })
+    : say('{name}\'s {feeling}', { name: name(id), feeling: feel(f) }));
+  const branchName = (x: Branch) => say(x === 'heroic' ? 'heroic' : x === 'despair' ? 'despair' : 'rage');
   const seed = settings.seed;
   const ids = Object.keys(story.characters);
   const name = (id: string) => story.names[id] ?? (id === WORLD ? 'the world' : id);
@@ -387,15 +396,15 @@ export function simulate(story: Story): RunResult {
       c.chances.push(m.chance);
       (beatChances[c.id] ??= []).push(m.chance);
       const weight = clamp(d.plotWeight ?? 0.5);
-      const who = `${name(c.id)}: “${d.label}”`;
+      const who = say('{name}: “{deed}”', { name: name(c.id), deed: d.label });
 
       // Diagnostics on the deed itself.
       if (m.branchChances && d.branch) {
         const p = m.branchChances[d.branch];
         const likely = (Object.entries(m.branchChances) as [Branch, number][]).sort((a, z) => z[1] - a[1])[0];
         flag({ code: 'pivot', beat: b, character: c.id, deed: d.id, severity: (1 - p) * Math.max(weight, 0.5),
-          message: `${who} is a pivot: ${name(c.id)} sees no way to win. As written this goes the ${d.branch} way (${pct(p)}); the state points ${likely[0]} (${pct(likely[1])}).`,
-          suggestion: p < 0.3 ? branchFix(d.branch) : undefined, data: { branchChances: m.branchChances } });
+          message: say('{who} is a pivot: {name} sees no way to win. As written it goes the {branch} way ({p}); the state points to {likely} ({pl}).', { who, name: name(c.id), branch: branchName(d.branch), p: pct(p), likely: branchName(likely[0]), pl: pct(likely[1]) }),
+          suggestion: p < 0.3 ? say(branchFix(d.branch)) : undefined, data: { branchChances: m.branchChances } });
       } else if (m.chance < K.floor && !d.forcedBy) {
         const others = ids.filter((j) => j !== c.id && states[j].inst.real.length);
         const beneficiaries = others
@@ -406,22 +415,22 @@ export function simulate(story: Story): RunResult {
         const severity = (1 - m.chance) * weight;
         if (withChannel) {
           flag({ code: 'driven-from-outside', beat: b, character: c.id, deed: d.id, severity,
-            message: `${who} has a ${pct(m.chance)} chance for ${name(c.id)} alone. It serves ${name(withChannel.j)}, who had a way to push (${channels.filter((ch) => ch.from === withChannel.j && ch.to === c.id).map((ch) => ch.kind).join(', ')}). Was ${name(c.id)} pushed?`,
-            suggestion: `If so, confirm ${name(withChannel.j)} as the source on the deed; responsibility will be shared.`, data: { source: withChannel.j } });
+            message: say('{who} has a {p} chance for {name} alone. It serves {other}, who had a way to push ({how}). Was {name} pushed?', { who, p: pct(m.chance), name: name(c.id), other: name(withChannel.j), how: [...new Set(channels.filter((ch) => ch.from === withChannel.j && ch.to === c.id).map((ch) => say(ch.kind)))].join(', ') }),
+            suggestion: say('If so, confirm {other} as the source on the deed; responsibility will be shared.', { other: name(withChannel.j) }), data: { source: withChannel.j } });
         } else if (beneficiaries.length) {
           flag({ code: 'unexplained-beneficiary', beat: b, character: c.id, deed: d.id, severity,
-            message: `${who} has a ${pct(m.chance)} chance for ${name(c.id)}. It mostly helps ${name(beneficiaries[0].j)}, but the story shows no contact, threat or lie between them. Coincidence, or a missing scene?`,
-            suggestion: `Show how ${name(beneficiaries[0].j)} reached ${name(c.id)}, or give ${name(c.id)} a reason of their own.`, data: { beneficiaries: beneficiaries.map((x) => x.j) } });
+            message: say('{who} has a {p} chance for {name}. It mostly helps {other}, but the story shows no contact, threat or lie between them. Coincidence, or a missing scene?', { who, p: pct(m.chance), name: name(c.id), other: name(beneficiaries[0].j) }),
+            suggestion: say('Show how {other} reached {name}, or give {name} a reason of their own.', { other: name(beneficiaries[0].j), name: name(c.id) }), data: { beneficiaries: beneficiaries.map((x) => x.j) } });
         } else {
           flag({ code: m.chance < K.plotHole ? 'plot-hole' : 'undermotivated', beat: b, character: c.id, deed: d.id, severity,
-            message: `${who} has a ${pct(m.chance)} chance for ${name(c.id)} as written so far.`,
-            suggestion: underFix(m) });
+            message: say('{who} has a {p} chance for {name} as written so far.', { who, p: pct(m.chance), name: name(c.id) }),
+            suggestion: underFix(m, say) });
         }
       }
       if (m.ambiguousIdx) {
         const [i1, i2] = m.ambiguousIdx;
         flag({ code: 'ambiguous-deed', beat: b, character: c.id, deed: d.id, note: true, severity: 0.2,
-          message: `Was ${who} about “${c.inst.real[i1].label}” or about “${c.inst.real[i2].label}”?`, data: { agendas: [c.inst.real[i1].id, c.inst.real[i2].id] } });
+          message: say('Was {who} about “{a}” or about “{b}”?', { who, a: c.inst.real[i1].label, b: c.inst.real[i2].label }), data: { agendas: [c.inst.real[i1].id, c.inst.real[i2].id] } });
       }
 
       // Agenda weights move only at real choice points.
@@ -436,7 +445,7 @@ export function simulate(story: Story): RunResult {
         c.weights = c.weights.map((w) => w / tw);
         if (!m.ambiguousIdx && m.servedIndex !== dom && dom >= 0) {
           flag({ code: 'avoidance', beat: b, character: c.id, deed: d.id, note: true, severity: 0.1,
-            message: `${name(c.id)} had a chance at “${c.inst.real[dom].label}” and chose “${c.inst.real[m.servedIndex].label}” instead.` });
+            message: say('{name} had a chance at “{a}” and chose “{b}” instead.', { name: name(c.id), a: c.inst.real[dom].label, b: c.inst.real[m.servedIndex].label }) });
         }
       }
 
@@ -505,7 +514,7 @@ export function simulate(story: Story): RunResult {
         const leak: Effect = { [t]: -0.3 * v.I };
         for (const j of present) if (j !== id) observe(states[j], c, leak, 0.6, b, leakFlows[j], exposures);
         flag({ code: 'leak', beat: b, character: id, note: true, severity: 0.15,
-          message: `${name(id)}'s hidden ${f} toward ${name(t)} shows for a moment.` });
+          message: say('{name}\'s hidden {feeling} toward {other} shows for a moment.', { name: name(id), feeling: feel(f), other: name(t) }) });
       }
     }
 
@@ -557,10 +566,10 @@ export function simulate(story: Story): RunResult {
           const slope = (a3 - a0) / 3;
           const ahead = Math.ceil((BREAK_THRESHOLD - U) / Math.max(slope, 1e-3));
           const [f, t] = split(k);
-          const when = b + ahead < story.beats.length ? `around “${story.beats[b + ahead].title}”` : 'after the last scene';
+          const when = b + ahead < story.beats.length ? say('around “{scene}”', { scene: story.beats[b + ahead].title }) : say('after the last scene');
           flag({ code: 'spiral', beat: b, character: id, severity: 0.25 + 0.4 * U,
-            message: `${name(id)}'s ${f}${t !== ANY ? ` toward ${name(t)}` : ''} has grown for three scenes in a row (now ${pct(U)}). At this pace it breaks ${when}.`,
-            suggestion: 'Let it break, or put a counterweight in its way: an apology, amends, or a scene that faces it.' });
+            message: say('{what} has grown for three scenes in a row (now {u}). At this pace it breaks {when}.', { what: balanceName(id, f, t), u: pct(U), when }),
+            suggestion: say('Let it break, or put a counterweight in its way: an apology, amends, or a scene that faces it.') });
         }
       }
       // A dormant wound the next scene touches.
@@ -571,8 +580,8 @@ export function simulate(story: Story): RunResult {
           if (v.U < 0.5 || v.I > 0.2 || t === ANY || !touches(next, t)) continue;
           if (!cool(c, `dormant:${k}`, b, 5)) continue;
           flag({ code: 'dormant-wound', beat: b + 1, character: id, severity: 0.35,
-            message: `${name(id)} carries an old ${f} toward ${name(t)} (unresolved ${pct(v.U)}, quiet now). “${next.title}” touches it.`,
-            suggestion: 'Use the flare-up, or defuse it first.' });
+            message: say('{name} carries an old {feeling} toward {other} (unresolved {u}, quiet now). “{scene}” touches it.', { name: name(id), feeling: feel(f), other: name(t), u: pct(v.U), scene: next.title }),
+            suggestion: say('Use the flare-up, or defuse it first.') });
         }
       }
       // Overmotivated and idle.
@@ -584,8 +593,8 @@ export function simulate(story: Story): RunResult {
         if (c.idle >= 3) {
           c.idle = 0;
           flag({ code: 'overmotivated-idle', beat: b, character: id, severity: 0.4,
-            message: `${name(id)} wants “${c.inst.real[dom].label}” badly and has done nothing toward it for three scenes. Why not act?`,
-            suggestion: 'Add an obstacle or a counter-fear, or give them a move.' });
+            message: say('{name} wants “{goal}” badly and has done nothing toward it for three scenes. Why not act?', { name: name(id), goal: c.inst.real[dom].label }),
+            suggestion: say('Add an obstacle or a counter-fear, or give them a move.') });
         }
       }
       // Flat and unearned change.
@@ -593,12 +602,12 @@ export function simulate(story: Story): RunResult {
       if (c.last) {
         const move = Math.abs(s.good - c.last.good) + Math.abs(s.love - c.last.love) + Math.abs(uSum - c.last.uSum);
         c.flat = present.has(id) && move < 0.06 ? c.flat + 1 : present.has(id) ? 0 : c.flat;
-        if (c.flat >= 4) { c.flat = 0; flag({ code: 'flat', beat: b, character: id, severity: 0.3, message: `${name(id)} has barely moved for four scenes.`, suggestion: 'Give them an event that touches what they really want.' }); }
+        if (c.flat >= 4) { c.flat = 0; flag({ code: 'flat', beat: b, character: id, severity: 0.3, message: say('{name} has barely moved for four scenes.', { name: name(id) }), suggestion: say('Give them an event that touches what they really want.') }); }
         const ch = beatChances[id] ?? [];
         if (Math.abs(s.good - c.last.good) > 0.4 && ch.length && Math.min(...ch) < 0.3 && cool(c, 'unearned', b)) {
           flag({ code: 'unearned-change', beat: b, character: id, severity: 0.5,
-            message: `${name(id)} turns sharply in “${beat.title}” (Good–Evil ${signed(c.last.good)} → ${signed(s.good)}) on a deed the story so far makes unlikely.`,
-            suggestion: 'Add the scene that prepares the turn.' });
+            message: say('{name} turns sharply in “{scene}” (Good–Evil {from} → {to}) on a deed the story so far makes unlikely.', { name: name(id), scene: beat.title, from: signed(c.last.good), to: signed(s.good) }),
+            suggestion: say('Add the scene that prepares the turn.') });
         }
       }
       c.last = { good: s.good, love: s.love, uSum };
@@ -606,9 +615,9 @@ export function simulate(story: Story): RunResult {
       const recent = c.chances.slice(-6);
       if (recent.length >= 6 && cool(c, 'type', b, 6)) {
         if (c.T < 0.3 && recent.filter((p) => p < 0.3).length >= 3) {
-          flag({ code: 'out-of-type', beat: b, character: id, severity: 0.4, message: `${name(id)} is cast as predictable but has acted against expectation in three of the last six deeds.`, suggestion: 'Add the event that changed them, or raise their temperature.' });
+          flag({ code: 'out-of-type', beat: b, character: id, severity: 0.4, message: say('{name} is cast as predictable but has acted against expectation in three of the last six deeds.', { name: name(id) }), suggestion: say('Add the event that changed them, or raise their temperature.') });
         } else if (c.T > 0.7 && recent.every((p) => p > 0.9)) {
-          flag({ code: 'out-of-type', beat: b, character: id, severity: 0.3, message: `${name(id)} is cast as unpredictable but has done exactly the expected thing six times in a row.`, suggestion: 'Let them surprise, or lower their temperature.' });
+          flag({ code: 'out-of-type', beat: b, character: id, severity: 0.3, message: say('{name} is cast as unpredictable but has done exactly the expected thing six times in a row.', { name: name(id) }), suggestion: say('Let them surprise, or lower their temperature.') });
         }
       }
     }
@@ -624,16 +633,16 @@ export function simulate(story: Story): RunResult {
         const [f, t] = split(k);
         if (v.U < 0.4) continue;
         flag({ code: 'open-account', beat: last, character: id, severity: 0.2 + 0.3 * v.U,
-          message: `${name(id)}'s ${f}${t !== ANY ? ` toward ${name(t)}` : ''} is still open at the end (${pct(v.U)}).`,
-          suggestion: 'Resolve it, or keep it on purpose as a sequel hook.' });
+          message: say('{what} is still open at the end ({u}).', { what: balanceName(id, f, t), u: pct(v.U) }),
+          suggestion: say('Resolve it, or keep it on purpose as a sequel hook.') });
       }
     }
   }
 
   for (const e of exposures) {
     flag({ code: 'exposure', beat: e.beat, character: e.actor, severity: 0.6,
-      message: `${name(e.observer)} now sees through ${name(e.actor)} (trust ${pct(e.trust)}). This is a reveal.`,
-      suggestion: 'Write the reveal here, or keep the deeds less visible to delay it.' });
+      message: say('{observer} now sees through {name} (trust {t}). This is a reveal.', { observer: name(e.observer), name: name(e.actor), t: pct(e.trust) }),
+      suggestion: say('Write the reveal here, or keep the deeds less visible to delay it.') });
   }
   budget(flags, settings);
   return { seed, beats: out, deeds: deedReports, flags };
@@ -679,13 +688,13 @@ function stripMotive(m: Motive): Omit<DeedReport, 'beat' | 'deed' | 'actor' | 'l
   };
 }
 
-function underFix(m: Motive): string {
-  const weakest = [
+function underFix(m: Motive, say: Say): string {
+  const weakest = say([
     [m.want, 'Give them a stronger reason to want this: an earlier provocation or an open grudge.'],
     [m.stakes, 'Raise the stakes: make more depend on it.'],
     [m.odds, 'Give them some hope it can work.'],
-  ].sort((a, z) => (a[0] as number) - (z[0] as number))[0][1] as string;
-  return m.moralCost > 0.3 ? `${weakest} Or lower the moral cost: a scene where they talk themselves into it.` : weakest;
+  ].sort((a, z) => (a[0] as number) - (z[0] as number))[0][1] as string);
+  return m.moralCost > 0.3 ? `${weakest} ${say('Or lower the moral cost: a scene where they talk themselves into it.')}` : weakest;
 }
 
 function branchFix(branch: Branch): string {

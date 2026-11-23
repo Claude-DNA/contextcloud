@@ -3,7 +3,8 @@ import { getAuthUserId } from '@/lib/api-auth';
 import { isDbAvailable } from '@/lib/db';
 import { ensureSchema } from '@/lib/migrations';
 import { loadProjectItems, loadSettings, projectParam } from '@/lib/engine/server';
-import { buildStory, simulate } from '@/lib/engine';
+import { WORLD, buildStory, simulate } from '@/lib/engine';
+import { getTr } from '@/i18n/server';
 
 /**
  * POST { project_id, settings?, seeds? }: runs the State engine on the approved readings. No AI, no writes.
@@ -19,7 +20,9 @@ export async function POST(req: NextRequest) {
   const [items, saved] = await Promise.all([loadProjectItems(userId, projectId), loadSettings(userId, projectId)]);
   const story = buildStory(items, { ...saved, ...(body.settings ?? {}) });
   if (!story.beats.length) return NextResponse.json({ error: 'Add arc scenes first: the engine runs along the arc.' }, { status: 400 });
-  const result = simulate(story);
+  const t = await getTr();
+  story.names[WORLD] = t('the world');
+  const result = simulate(story, t);
 
   let spread: { character: string; good: number; love: number }[] | undefined;
   const n = Math.min(20, Math.max(0, Math.trunc(Number(body.seeds) || 0)));
