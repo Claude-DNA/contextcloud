@@ -631,7 +631,8 @@ export function simulate(story: Story, say: Say = fill): RunResult {
     for (const id of ids) {
       for (const [k, v] of Object.entries(states[id].ledger)) {
         const [f, t] = split(k);
-        if (v.U < 0.4) continue;
+        // An old wound with no one in this story to settle it is background, not a loose end.
+        if (v.U < 0.4 || t === ANY) continue;
         flag({ code: 'open-account', beat: last, character: id, severity: 0.2 + 0.3 * v.U,
           message: say('{what} is still open at the end ({u}).', { what: balanceName(id, f, t), u: pct(v.U) }),
           suggestion: say('Resolve it, or keep it on purpose as a sequel hook.') });

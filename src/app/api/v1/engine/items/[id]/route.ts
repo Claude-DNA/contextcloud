@@ -26,7 +26,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (item.cloud_type === 'characters') {
     if ('identity' in e) patch.identity = readIdentity(e.identity);
     if ('declared' in e) patch.declared = e.declared === null ? null : readAgenda(e.declared, 'declared');
-    if ('real' in e) patch.real = (Array.isArray(e.real) ? e.real : []).map((a, i) => readAgenda(a, `r${i + 1}`)).filter(Boolean).slice(0, 5);
+    if ('real' in e) {
+      // Weights are shares: normalise the raw numbers before they are read (which clamps each to 0…1).
+      const raw = (Array.isArray(e.real) ? e.real : []).slice(0, 5) as Record<string, unknown>[];
+      const w = raw.map((a) => Math.max(0, Number(a?.weight) || 0));
+      const total = w.reduce((s, x) => s + x, 0);
+      patch.real = raw.map((a, i) => readAgenda({ ...a, weight: total > 0 ? w[i] / total : 1 / raw.length }, `r${i + 1}`)).filter(Boolean);
+    }
     if ('roles' in e && e.roles && typeof e.roles === 'object') patch.roles = e.roles;
   } else if (item.cloud_type === 'arc') {
     if ('approved' in e) patch.approved = e.approved;

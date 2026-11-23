@@ -25,12 +25,9 @@ export default function TypeControls({ kind, value, cast, onChange, idPrefix }: 
   return (
     <fieldset className="space-y-2">
       <legend className={label}>{title}</legend>
-      <div className="flex items-center gap-2 text-xs text-muted">
-        <span className="w-28 shrink-0">{ends[0]}</span>
-        <input id={`${idPrefix}-v`} type="range" min={0} max={1} step={0.05} value={shown} aria-label={title}
-          onChange={(e) => onChange({ value: Number(e.target.value), cast: kind === 'temperature' ? undefined : members })} className="flex-1 accent-indigo-500" />
-        <span className="w-28 shrink-0 text-right">{ends[1]}</span>
-      </div>
+      <input id={`${idPrefix}-v`} type="range" min={0} max={1} step={0.05} value={shown} aria-label={title}
+        onChange={(e) => onChange({ value: Number(e.target.value), cast: members })} className="w-full accent-indigo-500" />
+      <div className="flex justify-between gap-2 text-xs text-muted" aria-hidden="true"><span>{ends[0]}</span><span className="text-right">{ends[1]}</span></div>
       <p className="text-xs text-muted">
         {value !== undefined
           ? tr('Set by hand: {v}.', { v: shown.toFixed(2) })

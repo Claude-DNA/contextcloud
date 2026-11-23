@@ -9,11 +9,8 @@ import { field, label, small } from './shared';
 const Slider = ({ id, text, value, min = 0, max = 1, ends, onChange }: { id: string; text: string; value: number; min?: number; max?: number; ends: [string, string]; onChange: (v: number) => void }) => (
   <div>
     <label htmlFor={id} className={label}>{text}</label>
-    <div className="flex items-center gap-2 text-xs text-muted">
-      <span className="w-20 shrink-0">{ends[0]}</span>
-      <input id={id} type="range" min={min} max={max} step={0.05} value={value} onChange={(e) => onChange(Number(e.target.value))} className="flex-1 accent-indigo-500" />
-      <span className="w-20 shrink-0 text-right">{ends[1]}</span>
-    </div>
+    <input id={id} type="range" min={min} max={max} step={0.05} value={value} onChange={(e) => onChange(Number(e.target.value))} className="w-full accent-indigo-500" />
+    <div className="flex justify-between gap-2 text-xs text-muted" aria-hidden="true"><span>{ends[0]}</span><span className="text-right">{ends[1]}</span></div>
   </div>
 );
 
